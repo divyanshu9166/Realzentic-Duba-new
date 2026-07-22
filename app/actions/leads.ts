@@ -267,10 +267,11 @@ export async function findDuplicates(candidate: DuplicateCandidate) {
  * Runs inside a single transaction (Req 11.4 / 20.6): all linked records
  * (leads, appointments, walkins, call logs, conversations, reviews, payments,
  * cost sheets, bookings, deals, KYC records, buyer sessions, support tickets,
- * and referrals) are reassigned from the source to the target, the per-field
- * `fieldChoices` are applied to the surviving target Contact, and the source
- * Contact is deleted. Any failure rolls the whole operation back so both
- * Contacts remain in their pre-merge state (Req 11.4).
+ * cost sheets, bookings, deals, KYC records, buyer sessions, and support tickets)
+ * are reassigned from the source to the target, the per-field `fieldChoices`
+ * are applied to the surviving target Contact, and the source Contact is deleted.
+ * Any failure rolls the whole operation back so both Contacts remain in their
+ * pre-merge state (Req 11.4).
  */
 export async function mergeContacts(
   targetId: number,
@@ -305,14 +306,6 @@ export async function mergeContacts(
       await tx.kYCRecord.updateMany(reassign)
       await tx.buyerSession.updateMany(reassign)
       await tx.supportTicket.updateMany(reassign)
-      await tx.referral.updateMany({
-        where: { referrerId: sourceId },
-        data: { referrerId: targetId },
-      })
-      await tx.referral.updateMany({
-        where: { referredId: sourceId },
-        data: { referredId: targetId },
-      })
 
       // Apply per-field selections. Default to the target's existing value;
       // adopt the source value only where the user chose 'source'.

@@ -16,7 +16,6 @@ const TABS: { href: string; label: string; key: string }[] = [
     { href: '/buyer-portal/updates', label: 'Updates', key: 'updates' },
     { href: '/buyer-portal/tickets', label: 'Support', key: 'tickets' },
     { href: '/buyer-portal/possession', label: 'Possession', key: 'possession' },
-    { href: '/buyer-portal/refer', label: 'Refer a Friend', key: 'refer' },
 ]
 
 export function BuyerNav({ active, title, subtitle }: { active: string; title: string; subtitle?: string }) {

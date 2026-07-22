@@ -133,18 +133,6 @@ export default async function BuyerPortalHome() {
         })
     )
 
-    // Active referral program for the Refer a Friend section (Req 19.6).
-    const activeReferralProgram = await prisma.referralProgram.findFirst({
-        where: { active: true },
-        orderBy: { id: 'desc' },
-        select: {
-            id: true,
-            name: true,
-            rewardType: true,
-            rewardValue: true,
-            terms: true,
-        },
-    })
 
     return (
         <main style={pageStyle}>
@@ -577,44 +565,6 @@ export default async function BuyerPortalHome() {
                 )}
             </Section>
 
-            {/* ── Section 6: Refer a Friend (Req 19.6) ── */}
-            <Section
-                id="refer"
-                title="Refer a Friend"
-                viewAllHref="/buyer-portal/refer"
-                viewAllLabel="View details →"
-            >
-                {activeReferralProgram ? (
-                    <div style={card}>
-                        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>
-                            {activeReferralProgram.name}
-                        </div>
-                        <p style={{ ...muted, marginBottom: 12 }}>
-                            Earn{' '}
-                            <strong style={{ color: '#2563eb' }}>
-                                {activeReferralProgram.rewardType === 'Cash'
-                                    ? `₹${Number(activeReferralProgram.rewardValue).toLocaleString('en-IN')}`
-                                    : activeReferralProgram.rewardType === 'Discount'
-                                        ? `${Number(activeReferralProgram.rewardValue)}% off`
-                                        : `a gift worth ₹${Number(activeReferralProgram.rewardValue).toLocaleString('en-IN')}`}
-                            </strong>{' '}
-                            for every friend who makes a purchase through your referral.
-                        </p>
-                        {activeReferralProgram.terms && (
-                            <p style={{ ...muted, marginBottom: 12, fontSize: 12 }}>
-                                {activeReferralProgram.terms}
-                            </p>
-                        )}
-                        <Link href="/buyer-portal/refer" style={{ ...inlineLink, fontWeight: 600 }}>
-                            Submit a referral or copy your invite link →
-                        </Link>
-                    </div>
-                ) : (
-                    <p style={muted}>
-                        No active referral program at the moment. Check back soon!
-                    </p>
-                )}
-            </Section>
         </main>
     )
 }

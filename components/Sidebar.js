@@ -71,7 +71,6 @@ const navItems = [
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/documents', label: 'Documents & KYC', icon: FileText, roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { href: '/referrals', label: 'Referrals', icon: Gift, roles: ['ADMIN', 'MANAGER'] },
   { href: '/drafts', label: 'Drafts', icon: Trash2, roles: ['ADMIN', 'MANAGER'] },
   { href: '/email-marketing', label: 'Email Marketing', icon: MailPlus, roles: ['ADMIN', 'MANAGER'] },
   { href: '/whatsapp-marketing', label: 'WhatsApp Marketing', icon: Megaphone, roles: ['ADMIN', 'MANAGER'] },
