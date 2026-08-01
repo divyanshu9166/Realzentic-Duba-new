@@ -122,7 +122,7 @@ function formatTimestamp(ms: number): string {
     if (!ms) return '—';
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString('en-IN', {
+    return d.toLocaleString('en-AE', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',

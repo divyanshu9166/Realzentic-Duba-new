@@ -11,24 +11,21 @@ import {
 } from '@/lib/validations/expenses'
 import { moveExpenseToDraft } from './drafts'
 
-// ─── DEFAULT CATEGORIES (furniture-specific) ─────────
+// ─── DEFAULT CATEGORIES (Dubai real-estate agency) ────
 
 const DEFAULT_CATEGORIES = [
-  { name: 'Raw Materials', icon: 'TreePine', color: '#8B4513', sortOrder: 1 },
-  { name: 'Labour & Wages', icon: 'HardHat', color: '#F59E0B', sortOrder: 2 },
-  { name: 'Transport & Freight', icon: 'Truck', color: '#6366F1', sortOrder: 3 },
-  { name: 'Showroom Expenses', icon: 'Store', color: '#EC4899', sortOrder: 4 },
-  { name: 'Workshop & Factory', icon: 'Factory', color: '#78716C', sortOrder: 5 },
-  { name: 'Packaging', icon: 'Package', color: '#14B8A6', sortOrder: 6 },
-  { name: 'Marketing & Ads', icon: 'Megaphone', color: '#F97316', sortOrder: 7 },
-  { name: 'Office & Admin', icon: 'FileText', color: '#64748B', sortOrder: 8 },
-  { name: 'Fuel & Vehicle', icon: 'Fuel', color: '#EF4444', sortOrder: 9 },
-  { name: 'Food & Refreshments', icon: 'Coffee', color: '#A855F7', sortOrder: 10 },
-  { name: 'Loan EMI & Interest', icon: 'Landmark', color: '#0EA5E9', sortOrder: 11 },
-  { name: 'Rent', icon: 'Home', color: '#10B981', sortOrder: 12 },
-  { name: 'Electricity & Utilities', icon: 'Zap', color: '#FBBF24', sortOrder: 13 },
-  { name: 'Tools & Equipment', icon: 'Wrench', color: '#6B7280', sortOrder: 14 },
-  { name: 'Miscellaneous', icon: 'MoreHorizontal', color: '#94A3B8', sortOrder: 15 },
+  { name: 'Property Portal Listings', icon: 'Megaphone', color: '#F97316', sortOrder: 1 },
+  { name: 'Agent Commissions', icon: 'HardHat', color: '#F59E0B', sortOrder: 2 },
+  { name: 'Property Viewings', icon: 'Truck', color: '#6366F1', sortOrder: 3 },
+  { name: 'Office & Admin', icon: 'Store', color: '#EC4899', sortOrder: 4 },
+  { name: 'Marketing & Advertising', icon: 'Megaphone', color: '#F97316', sortOrder: 5 },
+  { name: 'DLD / Compliance Fees', icon: 'FileText', color: '#64748B', sortOrder: 6 },
+  { name: 'Visa & MOHRE', icon: 'FileText', color: '#14B8A6', sortOrder: 7 },
+  { name: 'Fuel & Vehicle', icon: 'Fuel', color: '#EF4444', sortOrder: 8 },
+  { name: 'Rent & Utilities', icon: 'Home', color: '#10B981', sortOrder: 9 },
+  { name: 'Mortgage / Finance Fees', icon: 'Landmark', color: '#0EA5E9', sortOrder: 10 },
+  { name: 'Professional Services', icon: 'Wrench', color: '#6B7280', sortOrder: 11 },
+  { name: 'Miscellaneous', icon: 'MoreHorizontal', color: '#94A3B8', sortOrder: 12 },
 ]
 
 // ─── SEED DEFAULT CATEGORIES ──────────────────────────

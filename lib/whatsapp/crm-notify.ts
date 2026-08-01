@@ -21,7 +21,7 @@ import { prisma } from '@/lib/db'
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
-    normalizePhoneForMetaIndia,
+    normalizePhoneForMetaUae,
     isValidE164,
     phoneVariants,
     isRecipientNotAllowedError,
@@ -63,7 +63,7 @@ export async function sendCrmWhatsApp(args: CrmWhatsAppArgs): Promise<CrmWhatsAp
         const config = await prisma.waWhatsappConfig.findFirst()
         if (!config) return { ok: false, error: 'WhatsApp is not configured' }
 
-        const sanitized = normalizePhoneForMetaIndia(args.phone)
+        const sanitized = normalizePhoneForMetaUae(args.phone)
         if (!isValidE164(sanitized)) {
             return { ok: false, error: `Invalid phone number: ${args.phone}` }
         }

@@ -89,11 +89,9 @@ export function levenshtein(a: string, b: string): number {
  * Normalize a phone number for exact comparison.
  *
  * Strips all formatting (spaces, dashes, parentheses, dots, leading `+`) so
- * only digits remain, then normalizes the dialing prefix for India numbers:
- *   - a leading trunk `0` on an 11-digit number is dropped (e.g. `0XXXXXXXXXX`);
- *   - a leading `91` country code on a 12-digit number is dropped, leaving the
- *     10-digit subscriber number;
- *   - a leading `0091` (00 + country code) on a 13/14-digit number is dropped.
+ * only digits remain, then canonicalizes UAE mobile forms to `9715XXXXXXXX`:
+ *   - `05XXXXXXXX` and `5XXXXXXXX` receive the UAE country code;
+ *   - `00971...` is normalized to `971...`.
  *
  * Numbers that do not match these shapes are returned as their digit string so
  * comparison stays deterministic. Non-digit input yields an empty string.
@@ -103,22 +101,10 @@ export function normalizePhone(phone: string | null | undefined): string {
 
     let digits = String(phone).replace(/\D/g, '')
 
-    // International access prefix "00" + country code 91 → drop "0091".
-    if (digits.length === 14 && digits.startsWith('0091')) {
-        digits = digits.slice(4)
-    } else if (digits.length === 13 && digits.startsWith('0091')) {
-        digits = digits.slice(4)
-    }
-
-    // Country code 91 on a 12-digit number → drop "91".
-    if (digits.length === 12 && digits.startsWith('91')) {
-        digits = digits.slice(2)
-    }
-
-    // Domestic trunk prefix 0 on an 11-digit number → drop "0".
-    if (digits.length === 11 && digits.startsWith('0')) {
-        digits = digits.slice(1)
-    }
+    if (digits.startsWith('00971')) digits = digits.slice(2)
+    if (digits.startsWith('971') && digits.length >= 12) return digits
+    if (digits.length === 10 && digits.startsWith('05')) return `971${digits.slice(1)}`
+    if (digits.length === 9 && digits.startsWith('5')) return `971${digits}`
 
     return digits
 }

@@ -11,8 +11,8 @@
  *     (non-increasing order).                                        Req 16.1
  *   - Property 56 — matching considers only Available units.         Req 16.2
  *
- * Buyer preferences (Req 16.1) cover: budget range, location or project, BHK
- * (unit type), facing, floor, carpet area, and amenities. Every preference is
+ * Buyer preferences (Req 16.1) cover: budget range, location or project, property type
+ * (Dubai property type), facing, floor, carpet area, and amenities. Every preference is
  * OPTIONAL — only the preferences a buyer actually supplies ("active"
  * dimensions) constrain the score. When no preference is active, every unit is
  * a vacuous full match (score 100).
@@ -42,7 +42,7 @@ export interface BuyerPreferences {
     projectId?: number
     /** Preferred location/city text (case-insensitive substring match). */
     location?: string
-    /** Preferred unit type(s) / BHK configuration. */
+    /** Preferred Dubai property type(s) / bedroom configuration. */
     type?: UnitType | UnitType[]
     /** Preferred facing(s). */
     facing?: UnitFacing | UnitFacing[]
@@ -106,12 +106,13 @@ const WEIGHTS = {
     amenities: 5,
 } as const
 
-/** Numeric BHK rank for graceful partial matching between BHK types. */
-const BHK_RANK: Partial<Record<UnitType, number>> = {
-    BHK1: 1,
-    BHK2: 2,
-    BHK3: 3,
-    BHK4: 4,
+/** Bedroom rank for graceful partial matching between apartment configurations. */
+const BEDROOM_RANK: Partial<Record<UnitType, number>> = {
+    Studio: 0,
+    Apartment1: 1,
+    Apartment2: 2,
+    Apartment3: 3,
+    Apartment4Plus: 4,
 }
 
 // ---------------------------------------------------------------------------
@@ -165,17 +166,17 @@ function asList<T>(filter: T | T[] | undefined): T[] {
     return Array.isArray(filter) ? filter : [filter]
 }
 
-/** Score the unit type against preferred type(s), with partial BHK proximity. */
+/** Score the unit type against preferred type(s), with bedroom-count proximity. */
 function typeSubscore(prefTypes: UnitType[], unitType: UnitType): number {
     if (prefTypes.includes(unitType)) return 1
 
-    const unitRank = BHK_RANK[unitType]
+    const unitRank = BEDROOM_RANK[unitType]
     if (unitRank === undefined) return 0
 
-    // Best proximity to any preferred BHK type (adjacent BHK is a near match).
+    // Best proximity to any preferred apartment type (adjacent bedroom count is a near match).
     let best = 0
     for (const pref of prefTypes) {
-        const prefRank = BHK_RANK[pref]
+        const prefRank = BEDROOM_RANK[pref]
         if (prefRank === undefined) continue
         best = Math.max(best, clamp01(1 - Math.abs(unitRank - prefRank) / 3))
     }
@@ -243,7 +244,7 @@ export function scoreMatch(preferences: BuyerPreferences, unit: MatchableUnit): 
             relativeRangeSubscore(unit.totalPrice, preferences.minBudget, preferences.maxBudget, 0.2)
     }
 
-    // Unit type / BHK.
+    // Unit type / bedroom configuration.
     const prefTypes = asList(preferences.type)
     if (prefTypes.length > 0) {
         totalWeight += WEIGHTS.type

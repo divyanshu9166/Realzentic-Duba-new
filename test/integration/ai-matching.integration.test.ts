@@ -55,10 +55,10 @@ describe('AI matching — DB integration (22.6)', () => {
     it('notifyMatchingAgents notifies the agent of a matching open buyer for new inventory', async () => {
         const project = await makeProject(cleanup)
         const tower = await makeTower(cleanup, project.id)
-        // Available 2 BHK priced within the buyer's budget.
+        // Available 2 Bedroom Apartment priced within the buyer's budget.
         const unit = await makeUnit(cleanup, tower.id, {
             status: 'Available',
-            type: 'BHK2',
+            type: 'Apartment2',
             totalPrice: 7500000,
         })
 
@@ -66,12 +66,12 @@ describe('AI matching — DB integration (22.6)', () => {
         const contact = await makeContact(cleanup)
 
         // Open lead assigned to the agent, with budget + interest that derive
-        // preferences matching the unit (2 BHK, max budget covers 75L).
+        // preferences matching the unit (2 Bedroom Apartment, max budget covers 75L).
         const lead = await prisma.lead.create({
             data: {
                 contactId: contact.id,
-                interest: '2 BHK',
-                budget: '70-90 Lakh',
+                interest: '2 Bedroom Apartment',
+                budget: '7M-9M AED',
                 status: 'NEW',
                 assignedToId: agent.id,
             },

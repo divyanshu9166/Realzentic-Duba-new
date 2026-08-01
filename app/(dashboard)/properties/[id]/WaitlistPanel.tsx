@@ -61,14 +61,14 @@ const STATUS_ICONS: Record<WStatus, React.ReactNode> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatINR(n: number | null | undefined): string {
+function formatAed(n: number | null | undefined): string {
     if (n == null) return '—';
-    return `₹${Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(n)}`;
+    return `AED ${Intl.NumberFormat('en-AE', { notation: 'compact', maximumFractionDigits: 1 }).format(n)}`;
 }
 
 function formatDate(iso: string): string {
     try {
-        return new Date(iso).toLocaleDateString('en-IN', {
+        return new Date(iso).toLocaleDateString('en-AE', {
             day: '2-digit',
             month: 'short',
             year: 'numeric',
@@ -272,12 +272,12 @@ function AddWaitlistForm({
                         type="text"
                         value={config}
                         onChange={(e) => setConfig(e.target.value)}
-                        placeholder="e.g. 3 BHK North-facing"
+                        placeholder="e.g. 3-bedroom, marina view"
                         className="w-full text-xs"
                     />
                 </div>
                 <div>
-                    <label className="block text-[11px] font-medium text-muted mb-1">Budget Min (₹)</label>
+                    <label className="block text-[11px] font-medium text-muted mb-1">Budget Min (AED )</label>
                     <input
                         type="number"
                         min={0}
@@ -288,7 +288,7 @@ function AddWaitlistForm({
                     />
                 </div>
                 <div>
-                    <label className="block text-[11px] font-medium text-muted mb-1">Budget Max (₹)</label>
+                    <label className="block text-[11px] font-medium text-muted mb-1">Budget Max (AED )</label>
                     <input
                         type="number"
                         min={0}
@@ -400,9 +400,9 @@ function WaitlistTable({
                             <td className="py-2.5 px-3 text-muted whitespace-nowrap">
                                 {entry.budgetMin != null || entry.budgetMax != null ? (
                                     <>
-                                        {formatINR(entry.budgetMin)}
+                                        {formatAed(entry.budgetMin)}
                                         {' – '}
-                                        {formatINR(entry.budgetMax)}
+                                        {formatAed(entry.budgetMax)}
                                     </>
                                 ) : (
                                     <span className="opacity-40">—</span>

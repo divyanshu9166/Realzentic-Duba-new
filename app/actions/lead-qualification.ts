@@ -17,7 +17,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
-import { phonesMatch } from '@/lib/whatsapp/phone-utils'
+import { normalizePhoneForMetaUae, phonesMatch, uaePhoneVariants } from '@/lib/whatsapp/phone-utils'
 import {
     qualifyLeadFromMessage,
     type QualificationResult,
@@ -46,14 +46,14 @@ function isAllNull(result: QualificationResult): boolean {
 }
 
 /**
- * Normalize a phone string to digits only, then return the last 10 digits.
+ * Normalize a UAE phone string to the nine-digit local subscriber number.
  * Returns null when the input is empty or produces fewer than 7 digits
  * (too short to be a valid mobile number).
  */
-function last10(phone: string): string | null {
-    const digits = phone.replace(/\D/g, '')
-    if (digits.length < 7) return null
-    return digits.slice(-10)
+function localUaeMobile(phone: string): string | null {
+    const canonical = normalizePhoneForMetaUae(phone)
+    if (!canonical.startsWith('9715') || canonical.length !== 12) return null
+    return canonical.slice(3)
 }
 
 /**
@@ -106,19 +106,18 @@ export async function autoQualifyLeadFromWhatsApp(
         }
 
         // 4. Find the matching CRM Contact by phone.
-        //    Try normalized last-10 digits first, then also with 91 prefix.
-        const shortPhone = last10(waContact.phone)
-        if (!shortPhone) {
+        //    Search common UAE local and E.164 representations.
+        const localPhone = localUaeMobile(waContact.phone)
+        if (!localPhone) {
             return { success: true, updated: false, result }
         }
-
-        const withPrefix = `91${shortPhone}`
+        const phoneVariants = uaePhoneVariants(waContact.phone)
 
         const candidates = await prisma.contact.findMany({
             where: {
                 OR: [
-                    { phone: { contains: shortPhone } },
-                    { phone: { contains: withPrefix } },
+                    ...phoneVariants.map((phone) => ({ phone: { contains: phone } })),
+                    { phone: { contains: localPhone } },
                 ],
             },
             select: { id: true, phone: true },
@@ -129,8 +128,7 @@ export async function autoQualifyLeadFromWhatsApp(
         const crmContact = candidates.find(
             (c) =>
                 phonesMatch(c.phone, waContact.phone) ||
-                phonesMatch(c.phone, shortPhone) ||
-                phonesMatch(c.phone, withPrefix)
+                phonesMatch(c.phone, localPhone)
         )
 
         if (!crmContact) {

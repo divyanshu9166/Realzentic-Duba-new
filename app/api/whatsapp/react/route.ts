@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth-helpers'
 import { sendReactionMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { normalizePhoneForMetaIndia } from '@/lib/whatsapp/phone-utils'
+import { normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-utils'
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       await sendReactionMessage({
         phoneNumberId: config.phone_number_id,
         accessToken: decrypt(config.access_token),
-        to: normalizePhoneForMetaIndia(contact.phone),
+        to: normalizePhoneForMetaUae(contact.phone),
         targetMessageId: targetMessage.message_id,
         emoji,
       })

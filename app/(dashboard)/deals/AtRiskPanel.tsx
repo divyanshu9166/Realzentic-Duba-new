@@ -20,8 +20,8 @@ interface AtRiskPanelProps {
     deals: BoardDealCard[];
 }
 
-function formatINR(value: number): string {
-    return `₹${Intl.NumberFormat('en-IN', {
+function formatAed(value: number): string {
+    return `AED ${Intl.NumberFormat('en-AE', {
         notation: 'compact',
         maximumFractionDigits: 1,
     }).format(value || 0)}`;
@@ -90,7 +90,7 @@ export default function AtRiskPanel({ deals }: AtRiskPanelProps) {
                                     </span>
                                 )}
                                 <span className="text-xs font-medium text-muted whitespace-nowrap">
-                                    {formatINR(deal.value)}
+                                    {formatAed(deal.value)}
                                 </span>
                             </div>
                         </li>

@@ -11,9 +11,9 @@
 import { groqChat, getGroqApiKey } from '@/lib/ai-agent/groq'
 
 export interface QualificationResult {
-    budget: string | null          // e.g. "75 Lakh" or null
-    propertyType: string | null    // e.g. "2 BHK", "3 BHK", "Villa" or null
-    location: string | null        // e.g. "Pune", "Hinjewadi" or null
+    budget: string | null          // e.g. "1.5M AED" or null
+    propertyType: string | null    // e.g. "2 Bedroom Apartment", "Villa" or null
+    location: string | null        // e.g. "Dubai Marina", "JVC" or null
     purpose: 'End Use' | 'Investment' | 'Both' | null
     possession: string | null      // e.g. "Ready to Move", "Within 6 months"
     confidence: 'high' | 'medium' | 'low'
@@ -61,9 +61,9 @@ Return ONLY a single valid JSON object — no markdown, no explanation, no extra
 
 Required JSON schema (use null for any field you cannot determine):
 {
-  "budget": "<amount as a string, e.g. '75 Lakh', '1.2 Crore'> | null",
-  "propertyType": "<type as a string, e.g. '2 BHK', '3 BHK', 'Villa', 'Plot'> | null",
-  "location": "<city or area, e.g. 'Pune', 'Hinjewadi', 'Baner'> | null",
+  "budget": "<amount as a string, e.g. '850K AED', '1.5M AED'> | null",
+  "propertyType": "<type as a string, e.g. 'Studio', '2 Bedroom Apartment', 'Villa', 'Land'> | null",
+  "location": "<Dubai community or emirate, e.g. 'Dubai Marina', 'Business Bay', 'JVC'> | null",
   "purpose": "'End Use' | 'Investment' | 'Both' | null",
   "possession": "<timeline, e.g. 'Ready to Move', 'Within 6 months', 'Within 2 years'> | null",
   "confidence": "'high' | 'medium' | 'low'"
@@ -74,8 +74,8 @@ Confidence rules:
 - 'medium' → 1–2 non-null fields extracted
 - 'low'    → no meaningful real-estate information found
 
-Example output for "Hi, I'm looking for a 3 BHK flat in Hinjewadi under 80 lakhs for self-use":
-{"budget":"80 Lakh","propertyType":"3 BHK","location":"Hinjewadi","purpose":"End Use","possession":null,"confidence":"high"}`
+Example output for "Hi, I'm looking for a 3-bedroom apartment in Dubai Marina under AED 2.8M for self-use":
+{"budget":"2.8M AED","propertyType":"3 Bedroom Apartment","location":"Dubai Marina","purpose":"End Use","possession":null,"confidence":"high"}`
 
 /**
  * Parse a customer's first WhatsApp message and return structured

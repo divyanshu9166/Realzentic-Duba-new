@@ -7,8 +7,8 @@ import { ThemeProvider, themeInitScript } from '@/components/ThemeProvider';
 const robotoMono = Roboto_Mono({ subsets: ['latin'], variable: '--font-roboto-mono', weight: ['300', '400', '500', '600', '700'] });
 
 export const metadata = {
-  title: 'Furzentic — Smart Store Manager',
-  description: 'AI-powered CRM for furniture stores. Manage leads, appointments, inventory, orders, marketing, and more.',
+  title: 'Realzentic Dubai — Real Estate CRM',
+  description: 'AI-powered CRM for Dubai real-estate sales, rentals, off-plan projects, property viewings, and client relationships.',
 };
 
 // viewport-fit=cover is required for env(safe-area-inset-*) to report real

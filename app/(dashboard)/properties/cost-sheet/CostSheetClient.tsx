@@ -45,6 +45,7 @@ import {
     type ShareResult,
     type ShareDeliveryStatus,
 } from '@/app/actions/properties';
+import { formatCurrency } from '@/lib/currency';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -78,8 +79,8 @@ interface BuiltCostSheet {
     parkingCharges: number | null;
     clubhouseCharges: number | null;
     legalCharges: number | null;
-    stampDuty: number | null;
-    gst: number | null;
+    dldTransferFee: number | null;
+    vatAmount: number | null;
     registrationCharges: number | null;
     total: number | null;
     discount: number | null;
@@ -95,12 +96,8 @@ interface Milestone {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatINR(n: number | null | undefined): string {
-    if (n === null || n === undefined) return '₹0.00';
-    return `₹${Intl.NumberFormat('en-IN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(n)}`;
+function formatMoney(n: number | null | undefined): string {
+    return formatCurrency(n ?? 0);
 }
 
 /** Parse a free-text money input into a non-negative number (0 when blank). */
@@ -165,8 +162,8 @@ function CostBreakdown({ sheet }: { sheet: BuiltCostSheet }) {
         { label: 'Parking charges', value: sheet.parkingCharges },
         { label: 'Clubhouse charges', value: sheet.clubhouseCharges },
         { label: 'Legal charges', value: sheet.legalCharges },
-        { label: 'Stamp duty', value: sheet.stampDuty },
-        { label: 'GST', value: sheet.gst },
+        { label: 'DLD transfer fee', value: sheet.dldTransferFee },
+        { label: 'VAT', value: sheet.vatAmount },
         { label: 'Registration charges', value: sheet.registrationCharges },
     ];
 
@@ -178,26 +175,26 @@ function CostBreakdown({ sheet }: { sheet: BuiltCostSheet }) {
                         <tr key={r.label} className="border-b border-border/60">
                             <td className="px-4 py-2 text-muted">{r.label}</td>
                             <td className="px-4 py-2 text-right font-medium text-foreground tabular-nums">
-                                {formatINR(r.value)}
+                                {formatMoney(r.value)}
                             </td>
                         </tr>
                     ))}
                     <tr className="border-b border-border/60 bg-surface-light/50">
                         <td className="px-4 py-2 font-semibold text-foreground">Unit total</td>
                         <td className="px-4 py-2 text-right font-semibold text-foreground tabular-nums">
-                            {formatINR(sheet.total)}
+                            {formatMoney(sheet.total)}
                         </td>
                     </tr>
                     <tr className="border-b border-border/60">
                         <td className="px-4 py-2 text-muted">Discount</td>
                         <td className="px-4 py-2 text-right font-medium text-danger tabular-nums">
-                            − {formatINR(sheet.discount)}
+                            − {formatMoney(sheet.discount)}
                         </td>
                     </tr>
                     <tr className="bg-accent/5">
                         <td className="px-4 py-3 font-bold text-foreground">Net payable</td>
                         <td className="px-4 py-3 text-right font-bold text-accent text-base tabular-nums">
-                            {formatINR(sheet.netPayable)}
+                            {formatMoney(sheet.netPayable)}
                         </td>
                     </tr>
                 </tbody>
@@ -226,8 +223,8 @@ function CostSheetBuilder({
     const [clubhouse, setClubhouse] = useState('');
     const [legal, setLegal] = useState('');
     const [registration, setRegistration] = useState('');
-    const [stampDuty, setStampDuty] = useState('');
-    const [gst, setGst] = useState('');
+    const [dldTransferFee, setDldTransferFee] = useState('');
+    const [vatAmount, setVatAmount] = useState('');
     const [discount, setDiscount] = useState('');
 
     const [sheet, setSheet] = useState<BuiltCostSheet | null>(null);
@@ -300,8 +297,8 @@ function CostSheetBuilder({
             legalCharges: toMoney(legal),
             registrationCharges: toMoney(registration),
             // Only send overrides when provided; blank → let the server compute.
-            ...(stampDuty.trim() !== '' ? { stampDuty: toMoney(stampDuty) } : {}),
-            ...(gst.trim() !== '' ? { gst: toMoney(gst) } : {}),
+            ...(dldTransferFee.trim() !== '' ? { dldTransferFee: toMoney(dldTransferFee) } : {}),
+            ...(vatAmount.trim() !== '' ? { vatAmount: toMoney(vatAmount) } : {}),
         };
 
         startBuild(async () => {
@@ -402,7 +399,7 @@ function CostSheetBuilder({
                             {units.map((u) => (
                                 <option key={u.id} value={u.id}>
                                     {u.unitNumber} · Floor {u.floorNumber} · {u.type} · {u.status}
-                                    {u.totalPrice != null ? ` · ${formatINR(u.totalPrice)}` : ''}
+                                    {u.totalPrice != null ? ` · ${formatMoney(u.totalPrice)}` : ''}
                                 </option>
                             ))}
                         </select>
@@ -440,15 +437,15 @@ function CostSheetBuilder({
                             <MoneyField label="Legal" value={legal} onChange={setLegal} />
                             <MoneyField label="Registration" value={registration} onChange={setRegistration} />
                             <MoneyField
-                                label="Stamp duty (auto if blank)"
-                                value={stampDuty}
-                                onChange={setStampDuty}
+                                label="DLD transfer fee (auto if blank)"
+                                value={dldTransferFee}
+                                onChange={setDldTransferFee}
                                 placeholder="auto"
                             />
                             <MoneyField
-                                label="GST (auto if blank)"
-                                value={gst}
-                                onChange={setGst}
+                                label="VAT (auto if blank)"
+                                value={vatAmount}
+                                onChange={setVatAmount}
                                 placeholder="auto"
                             />
                         </div>

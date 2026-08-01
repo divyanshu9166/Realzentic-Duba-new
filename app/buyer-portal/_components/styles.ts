@@ -68,7 +68,7 @@ export const badge: CSSProperties = {
     color: '#374151',
 }
 
-/** Format a number as Indian-rupee currency for buyer-facing amounts. */
-export function formatINR(value: number | string): string {
-    return `₹${Number(value).toLocaleString('en-IN')}`
+/** Format a number as AED currency for buyer-facing amounts. */
+export function formatAed(value: number | string): string {
+    return `AED ${Number(value).toLocaleString('en-AE')}`
 }

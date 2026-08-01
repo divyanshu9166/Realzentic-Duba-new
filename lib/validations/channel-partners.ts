@@ -66,9 +66,10 @@ export const onboardPartnerSchema = z
     .object({
         name: requiredString('Partner name'),
         company: optionalString,
-        // RERA broker number is required (Req 6.9). Uniqueness is enforced in
-        // the service against the database before any write.
-        reraBrokerNo: requiredString('RERA broker number'),
+        // Dubai broker registration number (BRN) is required. Uniqueness is
+        // enforced in the service against the database before any write.
+        brnNumber: requiredString('BRN number'),
+        ornNumber: optionalString,
         phone: requiredString('Phone'),
         email: z
             .string({ message: 'Email is required' })
@@ -88,7 +89,7 @@ export const onboardPartnerSchema = z
         fixedCommission: moneyAmount.default(0),
         commissionSlabs: z.array(commissionSlab).optional(),
         agreementDocUrl: optionalUrl,
-        panNumber: optionalString,
+        tradeLicenseNo: optionalString,
         bankDetails: z.record(z.string(), z.unknown()).optional(),
     })
     .superRefine((data, ctx) => {

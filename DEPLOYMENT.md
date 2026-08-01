@@ -301,19 +301,16 @@ crontab -e
 
 Add (replace `YOUR_CRM_API_SECRET` from your `.env`):
 ```cron
-# RealZentic CRM — Scheduled Tasks
+# Realzentic Dubai — Scheduled Tasks
 
 # Follow-up reminders — 9 AM daily
 0 9 * * * curl -sf -H "x-api-secret: YOUR_CRM_API_SECRET" https://realzentic.autozentic.com/api/cron/follow-up-reminders >> /var/log/crm-cron.log 2>&1
 
-# Stock alerts — 10 AM daily
-0 10 * * * curl -sf -H "x-api-secret: YOUR_CRM_API_SECRET" https://realzentic.autozentic.com/api/cron/stock-alerts >> /var/log/crm-cron.log 2>&1
-
-# IndiaMart sync — every 10 minutes
-*/10 * * * * curl -sf -H "x-api-secret: YOUR_CRM_API_SECRET" https://realzentic.autozentic.com/api/cron/indiamart-sync >> /var/log/crm-cron.log 2>&1
+# WhatsApp reminders — 10 AM daily (enable only after template approval)
+0 10 * * * curl -sf -H "x-api-secret: YOUR_CRM_API_SECRET" https://realzentic.autozentic.com/api/cron/whatsapp-reminders >> /var/log/crm-cron.log 2>&1
 
 # Database backup — 2 AM daily (keeps last 30 days)
-0 2 * * * docker compose -f /opt/realzentic/docker-compose.yml exec -T db pg_dump -U postgres realestatecrm | gzip > /opt/backups/realestatecrm_$(date +\%Y\%m\%d).sql.gz
+0 2 * * * docker compose -f /opt/realzentic/docker-compose.yml exec -T db pg_dump -U postgres realzentic_dubai | gzip > /opt/backups/realzentic_dubai_$(date +\%Y\%m\%d).sql.gz
 0 3 * * * find /opt/backups -name "*.sql.gz" -mtime +30 -delete
 ```
 

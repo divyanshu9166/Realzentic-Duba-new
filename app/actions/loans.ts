@@ -1,9 +1,9 @@
 'use server'
 
 /**
- * Home-loan desk service.
+ * Mortgage desk service.
  *
- * Tracks buyer home-loan applications through the bank pipeline
+ * Tracks buyer mortgage applications through the UAE bank pipeline
  * (Enquiry → Documentation → Submitted → Sanctioned → Disbursed / Rejected),
  * with requested/sanctioned amounts, bank, rate, tenure and assignment.
  */
@@ -143,7 +143,7 @@ export async function updateLoan(data: unknown): Promise<Result<LoanRow>> {
         revalidatePath(LOANS_PATH)
         return { success: true, data: mapLoan(loan) }
     } catch {
-        return { success: false, error: 'Loan application not found' }
+        return { success: false, error: 'Mortgage application not found' }
     }
 }
 
@@ -153,6 +153,6 @@ export async function deleteLoan(id: number): Promise<Result<{ id: number }>> {
         revalidatePath(LOANS_PATH)
         return { success: true, data: { id } }
     } catch {
-        return { success: false, error: 'Loan application not found' }
+        return { success: false, error: 'Mortgage application not found' }
     }
 }

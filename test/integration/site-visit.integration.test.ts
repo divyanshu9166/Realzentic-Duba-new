@@ -43,7 +43,7 @@ afterAll(async () => {
     await disconnect()
 })
 
-const BUYER_PHONE = '+919812345678'
+const BUYER_PHONE = '+971512345678'
 
 /** Create a FieldVisit row with the required columns. */
 async function makeFieldVisit() {
@@ -53,7 +53,7 @@ async function makeFieldVisit() {
             displayId: uid('FV'),
             staffId: staff.id,
             customer: 'Test Buyer',
-            address: '123 Test Street, Pune',
+            address: '123 Test Street, Dubai',
             date: new Date(),
             time: '10:00 AM',
             status: 'Scheduled',

@@ -4,37 +4,37 @@
  * Centralized here so the dashboard Leads page, the reception Walk-in form, and
  * the public QR walk-in form all present the same property-domain choices
  * (configuration, budget band, purpose, possession timeline, funding) instead
- * of the legacy furniture-store options.
+ * of the legacy retail options.
  */
 
 /** Property configuration / what the buyer is looking for. */
 export const PROPERTY_CONFIG_OPTIONS = [
-    '1 BHK Apartment',
-    '2 BHK Apartment',
-    '3 BHK Apartment',
-    '4 BHK Apartment',
-    '5+ BHK / Penthouse',
-    'Studio Apartment',
-    'Villa / Bungalow',
-    'Row House',
-    'Residential Plot',
-    'Commercial Shop',
+    'Studio',
+    '1 Bedroom Apartment',
+    '2 Bedroom Apartment',
+    '3 Bedroom Apartment',
+    '4+ Bedroom Apartment',
+    'Penthouse',
+    'Villa',
+    'Townhouse',
+    'Duplex',
+    'Commercial Retail',
     'Office Space',
-    'Commercial Plot / Land',
+    'Warehouse / Industrial',
+    'Land Plot',
     'Other',
 ] as const
 
-/** Real-estate budget bands (Indian market). */
+/** Real-estate budget bands for Dubai. */
 export const RE_BUDGET_RANGES = [
-    'Under ₹25 Lakh',
-    '₹25 – 50 Lakh',
-    '₹50 – 75 Lakh',
-    '₹75 Lakh – 1 Cr',
-    '₹1 – 1.5 Cr',
-    '₹1.5 – 2 Cr',
-    '₹2 – 3 Cr',
-    '₹3 – 5 Cr',
-    '₹5 Cr +',
+    'Under AED 500K',
+    'AED 500K – 1M',
+    'AED 1M – 2M',
+    'AED 2M – 3M',
+    'AED 3M – 5M',
+    'AED 5M – 10M',
+    'AED 10M – 20M',
+    'AED 20M +',
 ] as const
 
 /** Why the buyer is purchasing — drives nurture/financing messaging. */
@@ -50,13 +50,17 @@ export const POSSESSION_OPTIONS = [
 ] as const
 
 /** How the purchase will be funded. */
-export const FUNDING_OPTIONS = ['Home Loan', 'Self-funded', 'Loan + Self'] as const
+export const FUNDING_OPTIONS = ['Mortgage', 'Cash / Self-funded', 'Mortgage + Cash', 'Developer Payment Plan'] as const
+
+/** Dubai workflows differ materially between off-plan, resale, and rentals. */
+export const SALE_TYPE_OPTIONS = ['Off-Plan (Primary)', 'Secondary / Resale', 'Rental'] as const
 
 export type PropertyConfig = (typeof PROPERTY_CONFIG_OPTIONS)[number]
 export type ReBudgetRange = (typeof RE_BUDGET_RANGES)[number]
 export type Purpose = (typeof PURPOSE_OPTIONS)[number]
 export type Possession = (typeof POSSESSION_OPTIONS)[number]
 export type Funding = (typeof FUNDING_OPTIONS)[number]
+export type SaleType = (typeof SALE_TYPE_OPTIONS)[number]
 
 /**
  * Fold the optional structured preference fields into a human-readable block

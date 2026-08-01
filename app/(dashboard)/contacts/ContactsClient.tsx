@@ -48,7 +48,7 @@ export default function ContactsClient() {
         const lines = [headers.join(',')]
         for (const r of rows) {
             lines.push(
-                [r.name, r.phone, r.email, r.source, r.state, r.leadCount, r.dealCount, r.bookingCount]
+                [r.name, r.phone, r.email, r.source, r.emirate, r.leadCount, r.dealCount, r.bookingCount]
                     .map(csvEscape)
                     .join(','),
             )
@@ -150,7 +150,7 @@ export default function ContactsClient() {
                 phone: get('phone'),
                 email: get('email') || undefined,
                 source: get('source') || undefined,
-                state: get('state') || undefined,
+                emirate: get('emirate') || undefined,
                 address: get('address') || undefined,
                 notes: get('notes') || undefined,
                 nriCountry: get('nriCountry') || undefined,
@@ -284,7 +284,7 @@ export default function ContactsClient() {
                                                             </span>
                                                         )}
                                                     </p>
-                                                    {c.state && <p className="text-xs text-muted">{c.state}</p>}
+                                                    {c.emirate && <p className="text-xs text-muted">{c.emirate}</p>}
                                                 </div>
                                             </Link>
                                         </td>
@@ -325,18 +325,18 @@ export default function ContactsClient() {
                         <form onSubmit={handleCreate} className="px-5 md:px-6 py-5 overflow-y-auto flex-1 space-y-4">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <Field label="Name *" name="name" required />
-                                <Field label="Phone *" name="phone" type="tel" required placeholder="+91 98765 43210" />
+                                <Field label="Phone *" name="phone" type="tel" required placeholder="+971 98765 43210" />
                                 <Field label="Email" name="email" type="email" />
                                 <div>
                                     <label className="block text-xs font-medium text-muted mb-1.5">Source</label>
                                     <select name="source" defaultValue="Manual" className="w-full px-3 py-2.5 bg-surface rounded-xl border border-border text-sm">
-                                        {['Manual', 'WhatsApp', 'Walk-in', 'Website', 'Referral', 'Channel Partner', 'Instagram', 'Facebook', 'IndiaMART', '99acres', 'MagicBricks', 'Housing'].map((s) => (
+                                        {['Manual', 'WhatsApp', 'Walk-in', 'Website', 'Referral', 'Channel Partner', 'Instagram', 'Facebook', 'Bayut', 'Property Finder', 'Dubizzle'].map((s) => (
                                             <option key={s} value={s}>{s}</option>
                                         ))}
                                     </select>
                                 </div>
-                                <Field label="State" name="state" />
-                                <Field label="NRI Country (if any)" name="nriCountry" placeholder="e.g. UAE" />
+                                <Field label="Emirate" name="emirate" placeholder="e.g. Dubai" />
+                                <Field label="Nationality (if applicable)" name="nriCountry" placeholder="e.g. Emirati" />
                             </div>
                             <Field label="Address" name="address" />
                             <div>

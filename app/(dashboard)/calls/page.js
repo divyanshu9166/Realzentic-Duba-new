@@ -613,7 +613,7 @@ export default function CallsPage() {
               <label className="text-sm text-muted mb-1 block">Phone Number</label>
               <input
                 type="text"
-                placeholder="+91 XXXXX XXXXX"
+                placeholder="+971 XXXXX XXXXX"
                 className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent/50"
               />
             </div>
@@ -971,7 +971,7 @@ export default function CallsPage() {
                 <label className="text-sm text-muted mb-1 block">Phone Number *</label>
                 <input
                   type="text"
-                  placeholder="+91XXXXX XXXXX"
+                  placeholder="+971XXXXX XXXXX"
                   value={outboundPhone}
                   onChange={(e) => setOutboundPhone(e.target.value)}
                   className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent/50"
@@ -1492,7 +1492,7 @@ export default function CallsPage() {
             <label className="text-sm text-muted mb-1 block">Phone Number</label>
             <input
               type="text"
-              placeholder="+91 XXXXX XXXXX"
+              placeholder="+971 XXXXX XXXXX"
               className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent/50"
             />
           </div>
@@ -1545,7 +1545,7 @@ export default function CallsPage() {
             <label className="text-sm text-muted mb-1 block">Phone</label>
             <input
               type="text"
-              placeholder="+91 XXXXX XXXXX"
+              placeholder="+971 XXXXX XXXXX"
               className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent/50"
             />
           </div>

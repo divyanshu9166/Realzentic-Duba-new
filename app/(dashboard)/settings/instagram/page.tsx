@@ -1,7 +1,7 @@
 import { InstagramConfig } from '@/components/social/instagram-config'
 
 export const metadata = {
-  title: 'Instagram Settings | Kosmic CRM',
+  title: 'Instagram Settings | Realzentic Dubai',
   description: 'Configure Instagram DM messaging and AI chatbot',
 }
 

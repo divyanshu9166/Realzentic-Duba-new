@@ -17,19 +17,20 @@ import { generateUnitDescription } from '@/app/actions/properties'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatCurrency } from '@/lib/currency'
 
-const UNIT_TYPES = ['BHK1', 'BHK2', 'BHK3', 'BHK4', 'Shop', 'Office', 'Plot'] as const
+const UNIT_TYPES = ['Studio', 'Apartment1', 'Apartment2', 'Apartment3', 'Apartment4Plus', 'Penthouse', 'Villa', 'Townhouse', 'Duplex', 'Retail', 'Office', 'Warehouse', 'LandPlot'] as const
 const TYPE_LABELS: Record<string, string> = {
-    BHK1: '1 BHK', BHK2: '2 BHK', BHK3: '3 BHK', BHK4: '4 BHK',
-    Shop: 'Shop', Office: 'Office', Plot: 'Plot',
+    Studio: 'Studio', Apartment1: '1 Bedroom Apartment', Apartment2: '2 Bedroom Apartment',
+    Apartment3: '3 Bedroom Apartment', Apartment4Plus: '4+ Bedroom Apartment',
+    Penthouse: 'Penthouse', Villa: 'Villa', Townhouse: 'Townhouse', Duplex: 'Duplex',
+    Retail: 'Retail', Office: 'Office', Warehouse: 'Warehouse', LandPlot: 'Land',
 }
 const FACINGS = ['', 'N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW'] as const
 
-function formatINR(amount: number): string {
+function formatPropertyPrice(amount: number): string {
     if (!Number.isFinite(amount) || amount <= 0) return 'On request'
-    if (amount >= 1e7) return `₹${(amount / 1e7).toFixed(2)} Cr`
-    if (amount >= 1e5) return `₹${(amount / 1e5).toFixed(1)} L`
-    return `₹${Math.round(amount).toLocaleString('en-IN')}`
+    return formatCurrency(amount)
 }
 
 function matchColor(pct: number): string {
@@ -145,16 +146,16 @@ export default function RecommendClient() {
             <div className="glass-card p-4 sm:p-5 space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-1.5">
-                        <Label className="text-xs">Min Budget (₹)</Label>
+                        <Label className="text-xs">Min Budget (AED )</Label>
                         <Input type="number" min="0" placeholder="e.g. 5000000" value={minBudget} onChange={(e) => setMinBudget(e.target.value)} />
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-xs">Max Budget (₹)</Label>
+                        <Label className="text-xs">Max Budget (AED )</Label>
                         <Input type="number" min="0" placeholder="e.g. 9000000" value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                         <Label className="text-xs">Preferred Location</Label>
-                        <Input placeholder="e.g. Wakad, Pune" value={location} onChange={(e) => setLocation(e.target.value)} />
+                        <Input placeholder="e.g. Dubai Marina" value={location} onChange={(e) => setLocation(e.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                         <Label className="text-xs">Facing</Label>
@@ -239,7 +240,7 @@ export default function RecommendClient() {
                                             </p>
                                             <p className="text-xs text-muted">
                                                 {TYPE_LABELS[u.type] ?? u.type} · Floor {u.floorNumber} · {u.facing}-facing ·{' '}
-                                                {u.superBuiltUpArea} sq.ft. · {formatINR(u.totalPrice)}
+                                                {u.superBuiltUpArea} sq.ft. · {formatPropertyPrice(u.totalPrice)}
                                                 {u.location ? ` · ${u.location}` : ''}
                                             </p>
                                         </div>

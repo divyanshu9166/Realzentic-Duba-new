@@ -47,10 +47,10 @@ describe('parseBudget', () => {
         expect(parseBudget('50,00,000')).toBe(5_000_000)
     })
 
-    it('applies lakh and crore multipliers', () => {
-        expect(parseBudget('50 lakh')).toBe(5_000_000)
-        expect(parseBudget('1.2 Cr')).toBe(12_000_000)
-        expect(parseBudget('₹2 crore')).toBe(20_000_000)
+    it('applies UAE K and M multipliers', () => {
+        expect(parseBudget('850K AED')).toBe(850_000)
+        expect(parseBudget('1.2M')).toBe(1_200_000)
+        expect(parseBudget('AED 2 million')).toBe(2_000_000)
     })
 
     it('returns null for missing or non-numeric input', () => {

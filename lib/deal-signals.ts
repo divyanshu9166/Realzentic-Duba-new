@@ -41,7 +41,10 @@ const SOURCE_QUALITY: Record<string, number> = {
     social: 0.6,
     google: 0.6,
     whatsapp: 0.55,
-    indiamart: 0.5,
+    bayut: 0.75,
+    property_finder: 0.75,
+    propertyfinder: 0.75,
+    dubizzle: 0.65,
     coldcall: 0.3,
     cold_call: 0.3,
     purchased: 0.2,
@@ -70,12 +73,10 @@ export function sourceQuality(source: string | null | undefined): number {
 }
 
 /**
- * Parse a free-text budget string into a numeric rupee amount.
+ * Parse a free-text AED budget string into a numeric amount.
  *
- * Handles plain numbers, comma-grouped numbers (incl. Indian grouping), and
- * the "lakh"/"lac" (×100,000) and "crore"/"cr" (×10,000,000) suffixes, with or
- * without a currency symbol. Returns `null` when no positive amount can be
- * extracted.
+ * Handles plain numbers, comma grouping, and UAE `K` (×1,000) / `M`
+ * (×1,000,000) suffixes, with or without an AED currency marker.
  */
 export function parseBudget(budget: string | null | undefined): number | null {
     if (budget == null) return null
@@ -90,11 +91,9 @@ export function parseBudget(budget: string | null | undefined): number | null {
     if (!Number.isFinite(base) || base <= 0) return null
 
     let multiplier = 1
-    if (/\bcr\b|crore|cror/.test(text)) {
-        multiplier = 10_000_000
-    } else if (/lakh|lac|lk\b/.test(text)) {
-        multiplier = 100_000
-    } else if (/\bk\b/.test(text)) {
+    if (/\d\s*m\b|million/.test(text)) {
+        multiplier = 1_000_000
+    } else if (/\d\s*k\b|thousand/.test(text)) {
         multiplier = 1_000
     }
 
@@ -135,7 +134,7 @@ export interface RawDealData {
     dealValue: number
     /** The deal/contact acquisition source label, if any. */
     source: string | null
-    /** The buyer's stated budget in rupees, if known (already parsed). */
+    /** The buyer's stated budget in AED, if known (already parsed). */
     budget: number | null
     /** Number of logged site visits for the deal (≥ 0). */
     siteVisits: number

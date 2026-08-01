@@ -28,6 +28,7 @@
  */
 
 import { prisma } from '@/lib/db'
+import { uaePhoneVariants } from '@/lib/whatsapp/phone-utils'
 import { revalidatePath } from 'next/cache'
 import { computeDealScore, isHotDeal, isAtRiskDeal } from '@/lib/deal-score'
 import { deriveScoreInputs, parseBudget, type RawDealData } from '@/lib/deal-signals'
@@ -292,11 +293,10 @@ async function sendAtRiskNurtureWhatsApp(dealId: number, score: number): Promise
         })
         if (!deal?.contact?.phone) return
 
-        const phone = deal.contact.phone.replace(/\D/g, '').slice(-10)
-        if (phone.length < 10) return
+        const phoneVariants = uaePhoneVariants(deal.contact.phone)
+        if (phoneVariants.length === 0) return
 
-        // 2. Find the WaContact by phone variants (10-digit, with 91 prefix, with +91 prefix)
-        const phoneVariants = [phone, `91${phone}`, `+91${phone}`]
+        // 2. Find the WaContact by local/E.164 UAE variants.
         const waContact = await prisma.waContact.findFirst({
             where: { phone: { in: phoneVariants } },
             select: { id: true, user_id: true },
@@ -314,7 +314,7 @@ async function sendAtRiskNurtureWhatsApp(dealId: number, score: number): Promise
         const buyerName = deal.contact.name ?? 'there'
         const projectName = deal.unit?.tower?.project?.name ?? 'the property'
         const unitDesc = deal.unit
-            ? `${deal.unit.type.replace('BHK', ' BHK')} unit ${deal.unit.unitNumber}`
+            ? `${deal.unit.type.replace(/Apartment(\d|Plus)/, 'Apartment $1')} ${deal.unit.unitNumber}`
             : 'the unit'
         const message =
             `Hi ${buyerName}! 👋 We noticed you were interested in ${unitDesc} at ${projectName}. ` +

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   MessageSquare,
   UserPlus,
-  IndianRupee,
+  Banknote,
   Send,
 } from 'lucide-react'
 
@@ -146,7 +146,7 @@ export function OverviewTab() {
             <MetricCard
               title="Open Deals Value"
               value={formatCurrency(metrics.openDealsValue)}
-              icon={IndianRupee}
+              icon={Banknote}
               subtitle={`${metrics.openDealsCount} open deal${metrics.openDealsCount === 1 ? '' : 's'}`}
             />
             <MetricCard
@@ -196,9 +196,9 @@ export function OverviewTab() {
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function formatCurrency(v: number): string {
-  return new Intl.NumberFormat('en-IN', {
+  return new Intl.NumberFormat('en-AE', {
     style: 'currency',
-    currency: 'INR',
+    currency: 'AED',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(v)

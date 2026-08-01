@@ -5,7 +5,7 @@
  *
  * Why this model:
  *   - 384-dim vectors, ~120 MB on disk — memory-efficient on a 16 GB VPS
- *   - Handles English + Hindi (multilingual) natively
+ *   - Handles English + Arabic (multilingual) natively
  *   - Runs fully offline — no API key, no quota, no cost
  *
  * e5 prefix rules (critical — wrong prefixes silently tank retrieval quality):

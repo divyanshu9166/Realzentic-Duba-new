@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         requirement,
         budget: budget || null,
         date: now,
-        time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        time: now.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: true }),
         source: 'QR Walk-in',
       },
     })

@@ -60,10 +60,10 @@ function LogRow({ log }: { log: ApiLogEntry }) {
   const Icon = tc.icon
   const StatusIcon = sc.icon
 
-  const time = new Date(log.ts).toLocaleTimeString('en-IN', {
+  const time = new Date(log.ts).toLocaleTimeString('en-AE', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
   })
-  const date = new Date(log.ts).toLocaleDateString('en-IN', {
+  const date = new Date(log.ts).toLocaleDateString('en-AE', {
     day: '2-digit', month: 'short',
   })
 
@@ -337,7 +337,7 @@ export function ApiLogsTab() {
       {/* Last refresh time */}
       {lastRefresh && (
         <p className="text-[11px] text-muted text-right -mt-2">
-          Last updated: {lastRefresh.toLocaleTimeString('en-IN')}
+          Last updated: {lastRefresh.toLocaleTimeString('en-AE')}
           {autoRefresh && ' · auto-refreshing every 4s'}
         </p>
       )}

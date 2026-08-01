@@ -215,7 +215,7 @@ export default function TasksClient() {
                         <div className="space-y-3">
                             <div>
                                 <label className="block text-xs text-muted mb-1">Title *</label>
-                                <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g., Call back about 3 BHK" className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                                <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g., Call back about a Dubai Marina viewing" className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>

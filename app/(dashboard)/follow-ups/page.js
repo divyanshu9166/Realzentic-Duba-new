@@ -56,10 +56,12 @@ const priorityColor = {
 
 const normalizePhoneNumber = (value) => {
     const digits = String(value || '').replace(/\D/g, '');
-    const trimmed = digits.replace(/^0+/, '');
-    if (!trimmed) return '';
-    if (trimmed.length === 10) return `91${trimmed}`;
-    return trimmed;
+    if (!digits) return '';
+    if (digits.startsWith('00971')) return digits.slice(2);
+    if (digits.startsWith('971')) return digits;
+    if (digits.length === 10 && digits.startsWith('05')) return `971${digits.slice(1)}`;
+    if (digits.length === 9 && digits.startsWith('5')) return `971${digits}`;
+    return digits;
 };
 
 const buildWhatsAppUrl = (phone, message) => {
@@ -70,7 +72,7 @@ const buildWhatsAppUrl = (phone, message) => {
 
 const fmtDate = (iso) => {
     try {
-        return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        return new Date(iso).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' });
     } catch {
         return iso;
     }
@@ -330,7 +332,7 @@ export default function FollowUpsPage() {
                         <FieldInput name="name" label="Name *" required />
                         <FieldInput name="phone" label="Phone *" required type="tel" />
                         <FieldInput name="email" label="Email" type="email" />
-                        <FieldInput name="interest" label="Interest / Property *" required placeholder="e.g. 3 BHK in Wakad" />
+                        <FieldInput name="interest" label="Interest / Property *" required placeholder="e.g. 3-bedroom apartment in Dubai Marina" />
                         <FieldSelect name="budget" label="Budget" options={RE_BUDGET_RANGES} />
                         <div>
                             <label className="block text-xs font-medium text-muted mb-1.5">Follow-up Date *</label>

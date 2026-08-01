@@ -10,20 +10,20 @@ import { Scale, Loader2, Copy, Check } from 'lucide-react'
 import { generateCma, type CmaResult } from '@/app/actions/cma'
 import { listProjects } from '@/app/actions/properties'
 
-const UNIT_TYPES = ['BHK1', 'BHK2', 'BHK3', 'BHK4', 'Shop', 'Office', 'Plot']
+const UNIT_TYPES = ['Studio', 'Apartment1', 'Apartment2', 'Apartment3', 'Apartment4Plus', 'Penthouse', 'Villa', 'Townhouse', 'Duplex', 'Retail', 'Office', 'Warehouse', 'LandPlot']
 const TYPE_LABELS: Record<string, string> = {
-    BHK1: '1 BHK', BHK2: '2 BHK', BHK3: '3 BHK', BHK4: '4 BHK', Shop: 'Shop', Office: 'Office', Plot: 'Plot',
+    Studio: 'Studio', Apartment1: '1 Bedroom Apartment', Apartment2: '2 Bedroom Apartment', Apartment3: '3 Bedroom Apartment', Apartment4Plus: '4+ Bedroom Apartment', Penthouse: 'Penthouse', Villa: 'Villa', Townhouse: 'Townhouse', Duplex: 'Duplex', Retail: 'Commercial Retail', Office: 'Office Space', Warehouse: 'Warehouse / Industrial', LandPlot: 'Land Plot',
 }
 
-function formatINR(amount: number): string {
+function formatAed(amount: number): string {
     if (!Number.isFinite(amount) || amount === 0) return '—'
-    if (amount >= 1e7) return `₹${(amount / 1e7).toFixed(2)} Cr`
-    if (amount >= 1e5) return `₹${(amount / 1e5).toFixed(1)} L`
-    return `₹${Math.round(amount).toLocaleString('en-IN')}`
+    if (amount >= 1e7) return `AED ${(amount / 1e7).toFixed(2)} Cr`
+    if (amount >= 1e5) return `AED ${(amount / 1e5).toFixed(1)} L`
+    return `AED ${Math.round(amount).toLocaleString('en-AE')}`
 }
 
 export default function CmaClient() {
-    const [type, setType] = useState('BHK2')
+    const [type, setType] = useState('Apartment2')
     const [carpetArea, setCarpetArea] = useState('800')
     const [city, setCity] = useState('')
     const [projectId, setProjectId] = useState('')
@@ -64,7 +64,7 @@ export default function CmaClient() {
             `${result.subject.city ? ` (${result.subject.city})` : ''}\n` +
             `Based on ${result.comparableCount} comparable units.\n` +
             `Price/sqft: ${result.pricePerSqft.min}–${result.pricePerSqft.max} (avg ${result.pricePerSqft.avg}).\n` +
-            `Suggested price: ${formatINR(result.suggested.low)} – ${formatINR(result.suggested.high)} (mid ${formatINR(result.suggested.mid)}).`
+            `Suggested price: ${formatAed(result.suggested.low)} – ${formatAed(result.suggested.high)} (mid ${formatAed(result.suggested.mid)}).`
         try {
             await navigator.clipboard.writeText(text)
             setCopied(true)
@@ -124,17 +124,17 @@ export default function CmaClient() {
                             <p className="text-xl font-bold text-foreground">{result.comparableCount}</p>
                         </div>
                         <div className="glass-card p-4">
-                            <p className="text-xs text-muted">Avg ₹/sqft</p>
-                            <p className="text-xl font-bold text-accent">₹{result.pricePerSqft.avg.toLocaleString('en-IN')}</p>
-                            <p className="text-[11px] text-muted">range ₹{result.pricePerSqft.min.toLocaleString('en-IN')}–₹{result.pricePerSqft.max.toLocaleString('en-IN')}</p>
+                            <p className="text-xs text-muted">Avg AED /sqft</p>
+                            <p className="text-xl font-bold text-accent">AED {result.pricePerSqft.avg.toLocaleString('en-AE')}</p>
+                            <p className="text-[11px] text-muted">range AED {result.pricePerSqft.min.toLocaleString('en-AE')}–AED {result.pricePerSqft.max.toLocaleString('en-AE')}</p>
                         </div>
                         <div className="glass-card p-4">
                             <p className="text-xs text-muted">Suggested (mid)</p>
-                            <p className="text-xl font-bold text-emerald-600">{formatINR(result.suggested.mid)}</p>
+                            <p className="text-xl font-bold text-emerald-600">{formatAed(result.suggested.mid)}</p>
                         </div>
                         <div className="glass-card p-4">
                             <p className="text-xs text-muted">Suggested Range</p>
-                            <p className="text-sm font-bold text-foreground">{formatINR(result.suggested.low)} – {formatINR(result.suggested.high)}</p>
+                            <p className="text-sm font-bold text-foreground">{formatAed(result.suggested.low)} – {formatAed(result.suggested.high)}</p>
                         </div>
                     </div>
 
@@ -154,7 +154,7 @@ export default function CmaClient() {
                                         <th>City</th>
                                         <th>Carpet</th>
                                         <th>Price</th>
-                                        <th>₹/sqft</th>
+                                        <th>AED /sqft</th>
                                         <th>Status</th>
                                     </tr>
                                 </thead>
@@ -165,8 +165,8 @@ export default function CmaClient() {
                                             <td className="text-muted">{c.unitNumber}</td>
                                             <td className="text-muted">{c.city}</td>
                                             <td className="text-muted">{c.carpetArea} sqft</td>
-                                            <td className="text-foreground">{formatINR(c.totalPrice)}</td>
-                                            <td className="text-accent font-medium">₹{c.pricePerSqft.toLocaleString('en-IN')}</td>
+                                            <td className="text-foreground">{formatAed(c.totalPrice)}</td>
+                                            <td className="text-accent font-medium">AED {c.pricePerSqft.toLocaleString('en-AE')}</td>
                                             <td><span className="px-2 py-0.5 rounded-full text-xs bg-surface border border-border">{c.status}</span></td>
                                         </tr>
                                     ))}

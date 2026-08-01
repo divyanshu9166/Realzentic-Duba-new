@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────
-#  Furniture CRM — Stop Local Dev Environment (Windows)
+#  Realzentic Dubai — Stop Local Dev Environment (Windows)
 #  Usage: powershell -ExecutionPolicy Bypass -File scripts\stop-local.ps1
 # ──────────────────────────────────────────────────────────
 

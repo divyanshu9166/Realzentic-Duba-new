@@ -60,7 +60,7 @@ export async function createWalkin(data: unknown) {
       requirement,
       assignedToId,
       date: now,
-      time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      time: now.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: true }),
       budget,
       notes,
     },

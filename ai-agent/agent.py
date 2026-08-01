@@ -1,7 +1,7 @@
 """
-Furzentic AI Calling Agent (livekit-agents v1.5.x)
+Realzentic Dubai AI Calling Agent (livekit-agents v1.5.x)
 Uses LiveKit + Deepgram STT/TTS + Groq LLM + Vobiz sip
-Handles both inbound and outbound calls for furniture businesses
+Handles both inbound and outbound calls for Dubai real-estate enquiries
 """
 
 import asyncio
@@ -38,7 +38,7 @@ from config import (
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-logger = logging.getLogger("furniture-crm-agent")
+logger = logging.getLogger("realzentic-dubai-agent")
 logger.setLevel(logging.INFO)
 
 # ─── Config ───
@@ -71,7 +71,7 @@ def _env_int(name: str, default: int) -> int:
 
 # ─── Tools ───
 
-class FurnitureCRMTools(llm.ToolContext):
+class RealzenticDubaiTools(llm.ToolContext):
     def __init__(self, ctx: JobContext, phone_number: Optional[str] = None) -> None:
         super().__init__(tools=[])
         self._ctx = ctx
@@ -133,9 +133,9 @@ class FurnitureCRMTools(llm.ToolContext):
 
     @llm.function_tool(
         description=(
-            "Schedule a showroom visit or appointment for the customer. "
+            "Schedule a property viewing or appointment for the customer. "
             "Only call this tool AFTER you have collected and verbally confirmed with the customer: "
-            "their full name, phone number (digits only, e.g. +919876543210), "
+            "their full name, phone number (digits only, e.g. +971501234567), "
             "date in YYYY-MM-DD format, and time (e.g. '11:00 AM'). "
             "NEVER call this with placeholder values like 'unknown'."
         )
@@ -146,7 +146,7 @@ class FurnitureCRMTools(llm.ToolContext):
         phone: str,
         date: str,
         time: str,
-        purpose: Optional[str] = None,
+            purpose: Optional[str] = None,
         notes: Optional[str] = None,
     ) -> str:
         # Guard against placeholder values the LLM sometimes sends
@@ -191,7 +191,7 @@ class FurnitureCRMTools(llm.ToolContext):
             "phone": phone,
             "date": date,
             "time": time,
-            "purpose": purpose or "Showroom Visit",
+            "purpose": purpose or "Property Viewing",
             "notes": notes or f"Booked via AI Agent (Aria) during call",
         }
         try:
@@ -317,7 +317,7 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     # Tools
-    tools_ctx = FurnitureCRMTools(ctx, phone_number)
+    tools_ctx = RealzenticDubaiTools(ctx, phone_number)
 
     # System prompt
     system_prompt = OUTBOUND_SYSTEM_PROMPT if call_type == "outbound" else INBOUND_SYSTEM_PROMPT
@@ -499,6 +499,6 @@ if __name__ == "__main__":
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             prewarm_fnc=prewarm,
-            agent_name="furniture-crm-agent",
+            agent_name="realzentic-dubai-agent",
         ),
     )

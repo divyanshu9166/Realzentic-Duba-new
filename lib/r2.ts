@@ -6,7 +6,7 @@
  *
  * The UPLOAD_DIR env var is set in docker-compose.yml to "/app/uploads".
  * In local dev (no env var set), files go next to the project at
- *   ../furniture-crm-uploads
+ *   ../realzentic-dubai-uploads
  *
  * Files are served back via /api/uploads/[...path]/route.ts
  */
@@ -20,7 +20,7 @@ export function getUploadsRoot(): string {
   // UPLOAD_DIR is set in docker-compose to "/app/uploads" (the Docker volume)
   // In local dev, keep uploads outside the project so Turbopack does not try
   // to bundle/analyze every possible file under <project>/uploads.
-  return (process.env.UPLOAD_DIR || `${process.cwd()}/../furniture-crm-uploads`)
+  return (process.env.UPLOAD_DIR || `${process.cwd()}/../realzentic-dubai-uploads`)
     .replace(/[\\/]+$/, '')
 }
 
@@ -91,7 +91,7 @@ export async function uploadFile(
 // ─── Delete ───────────────────────────────────────────────────────────
 
 export async function deleteFile(key: string): Promise<void> {
-  // key is like "/api/uploads/products/uuid.jpg"
+  // key is like "/api/uploads/properties/uuid.jpg"
   const relativePath = key.replace(/^\/api\/uploads\//, '')
   const filePath = getUploadFilePath(relativePath)
   try {

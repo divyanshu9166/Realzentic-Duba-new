@@ -7,7 +7,7 @@
  *
  * Logic:
  *  1. Load the CRM Contact.phone from DB.
- *  2. Find the matching WaContact by phone (tries exact, +91 prefix, without-91 prefix).
+ *  2. Find the matching WaContact by phone (tries exact, +971 prefix, without-91 prefix).
  *  3. Load the last 40 WaMessages via WaConversation, ordered asc.
  *  4. Build a compact transcript (skip empty / template messages).
  *  5. Call Groq with a structured JSON prompt.
@@ -16,6 +16,7 @@
 
 import { prisma } from '@/lib/db'
 import { groqChat } from '@/lib/ai-agent/groq'
+import { uaePhoneVariants } from '@/lib/whatsapp/phone-utils'
 
 // ─── Public result type ──────────────────────────────────────────────────────
 
@@ -39,24 +40,10 @@ export interface ConversationSummaryResult {
 
 /**
  * Return the candidate phone strings to try when looking up a WaContact.
- * WhatsApp stores numbers with/without the leading 91 country code; we try
- * all three variants so we don't miss a match.
+ * WhatsApp and the CRM can store UAE numbers locally or in E.164 form.
  */
 function phoneVariants(phone: string): string[] {
-    const digits = phone.replace(/\D/g, '')
-    const variants = new Set<string>([phone, digits])
-
-    // Add +91 prefix variant
-    if (!digits.startsWith('91') && digits.length === 10) {
-        variants.add(`91${digits}`)
-    }
-
-    // Strip leading 91 to get bare 10-digit number
-    if (digits.startsWith('91') && digits.length === 12) {
-        variants.add(digits.slice(2))
-    }
-
-    return [...variants]
+    return uaePhoneVariants(phone)
 }
 
 // ─── Server action ────────────────────────────────────────────────────────────

@@ -14,7 +14,7 @@ import {
     muted,
     h2,
     badge,
-    formatINR,
+    formatAed,
     page as pageStyle,
     primaryButton,
     errorText,
@@ -30,7 +30,7 @@ export const dynamic = 'force-dynamic'
  * `contactId` so one buyer can never see another's data (Req 18.6, 21.2). Renders:
  *
  *   • Bookings & payment tracker — milestones per booking with outstanding
- *     balance and (when enabled) a Pay Now button or manual bank/UPI details
+ *     balance and (when enabled) a Pay Now button or manual bank-transfer details
  *     (Req 18.5, 18.11, A5).
  *   • Document downloads — documents attached to the buyer's contact or bookings,
  *     downloadable inline (Req 18.5).
@@ -113,7 +113,7 @@ export default async function BuyerPortalHome() {
             getConstructionTimeline(),
             // Support tickets (Req 18.9).
             listSupportTickets(),
-            // Payment options — mode + manual bank/UPI details (Req 18.11).
+            // Payment options — mode + manual bank-transfer details (Req 18.11).
             getPaymentOptions(),
         ])
 
@@ -177,7 +177,7 @@ export default async function BuyerPortalHome() {
                                     )}
                                     <div style={{ ...muted, marginTop: 4 }}>
                                         Booked {new Date(b.bookingDate).toLocaleDateString()} ·{' '}
-                                        Agreement {formatINR(b.agreementValue.toString())}
+                                        Agreement {formatAed(b.agreementValue.toString())}
                                     </div>
 
                                     {/* Milestone table */}
@@ -210,10 +210,10 @@ export default async function BuyerPortalHome() {
                                                             {new Date(m.dueDate).toLocaleDateString()}
                                                         </td>
                                                         <td style={cell}>
-                                                            {formatINR(m.amount.toString())}
+                                                            {formatAed(m.amount.toString())}
                                                         </td>
                                                         <td style={cell}>
-                                                            {formatINR(m.paidAmount.toString())}
+                                                            {formatAed(m.paidAmount.toString())}
                                                         </td>
                                                         <td style={cell}>
                                                             <span style={badge}>{m.status}</span>
@@ -230,7 +230,7 @@ export default async function BuyerPortalHome() {
 
                                     <div style={{ ...rowBetween, marginTop: 12, flexWrap: 'wrap' }}>
                                         <div style={{ fontWeight: 600, fontSize: 14 }}>
-                                            Outstanding: {formatINR(totalDue)}
+                                            Outstanding: {formatAed(totalDue)}
                                         </div>
                                         {paymentOptions?.mode === 'online' && totalDue > 0 ? (
                                             <button type="button" style={primaryButton}>
@@ -251,7 +251,7 @@ export default async function BuyerPortalHome() {
                             How to pay
                         </h3>
                         <p style={{ ...muted, marginBottom: 10 }}>
-                            Use the bank/UPI details below; your receipt will be recorded against
+                            Use the bank-transfer details below; your receipt will be recorded against
                             your milestones.
                         </p>
                         <dl
@@ -266,8 +266,7 @@ export default async function BuyerPortalHome() {
                             <Detail label="Bank" value={paymentOptions.manual.bankName} />
                             <Detail label="Account name" value={paymentOptions.manual.accountName} />
                             <Detail label="Account no." value={paymentOptions.manual.accountNumber} />
-                            <Detail label="IFSC" value={paymentOptions.manual.ifsc} />
-                            <Detail label="UPI ID" value={paymentOptions.manual.upiId} />
+                            <Detail label="IBAN" value={paymentOptions.manual.iban} />
                         </dl>
                         {paymentOptions.manual.qrUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element

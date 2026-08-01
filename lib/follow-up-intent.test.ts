@@ -31,7 +31,7 @@ describe('parseFollowUpIntent', () => {
         // Intent but no timeframe → cannot schedule.
         expect(parseFollowUpIntent('please call me', NOW).matched).toBe(false)
         // Neither.
-        expect(parseFollowUpIntent('what is the price of 2 BHK?', NOW).matched).toBe(false)
+        expect(parseFollowUpIntent('what is the price of a 2-bedroom apartment?', NOW).matched).toBe(false)
     })
 
     it('ignores empty / non-string input', () => {

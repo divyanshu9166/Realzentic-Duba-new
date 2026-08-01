@@ -11,7 +11,6 @@ import { testSmtp, sendSmtpTestEmail } from '@/app/actions/email-campaigns';
 
 import { updateAccountCredentials } from '@/app/actions/auth';
 import { useSession } from '@/components/AuthProvider';
-import IndiaMartIntegrationSettings from './IndiaMartIntegrationSettings';
 
 const channelDefinitions = [
   {
@@ -23,7 +22,7 @@ const channelDefinitions = [
       { key: 'phoneNumberId', label: 'Phone Number ID', placeholder: 'From Meta Business Suite', type: 'text' },
       { key: 'apiToken', label: 'Permanent API Token', placeholder: 'Meta Graph API token', type: 'password' },
       { key: 'verifyToken', label: 'Webhook Verify Token', placeholder: 'Any string you choose', type: 'text' },
-      { key: 'templateName', label: 'Notification Template Name', placeholder: 'e.g. furniture_order_update (approved template)', type: 'text' },
+      { key: 'templateName', label: 'Notification Template Name', placeholder: 'e.g. property_viewing_confirmation (approved template)', type: 'text' },
       { key: 'templateLanguage', label: 'Template Language Code', placeholder: 'en (default)', type: 'text' },
     ],
     docs: 'https://developers.facebook.com/docs/whatsapp/cloud-api/get-started',
@@ -71,7 +70,7 @@ const channelDefinitions = [
 const nonChannelIntegrations = [
   { name: 'Google Calendar', description: 'Sync appointments with Google Calendar', connected: true, icon: '📅' },
   { name: 'Google My Business', description: 'Manage Google reviews and listings', connected: true, icon: '⭐' },
-  { name: 'Razorpay', description: 'Accept online payments and track transactions', connected: false, icon: '💳' },
+  { name: 'PayTabs', description: 'Accept UAE online payments and track transactions', connected: false, icon: '💳' },
 ];
 
 const staffRoleOptions = [
@@ -79,7 +78,7 @@ const staffRoleOptions = [
   'Sales Executive',
   'Junior Sales Executive',
   'Design Consultant',
-  'Warehouse Manager',
+  'Property Consultant',
 ];
 
 const getInitialInviteForm = () => ({
@@ -130,8 +129,6 @@ export default function SettingsPage() {
   const [saveError, setSaveError] = useState('');
   const [detectingGps, setDetectingGps] = useState(false);
   const [gpsDetected, setGpsDetected] = useState(null); // { lat, lng, address }
-  const [stockCheckRunning, setStockCheckRunning] = useState(false);
-  const [stockCheckResult, setStockCheckResult] = useState(null);
 
   const [accountForm, setAccountForm] = useState({
     currentPassword: '',
@@ -448,9 +445,8 @@ export default function SettingsPage() {
         bankName: form.bankName.value,
         bankAccountName: form.bankAccountName.value,
         bankAccountNumber: form.bankAccountNumber.value,
-        bankIfsc: form.bankIfsc.value,
-        bankUpiId: form.bankUpiId.value,
-        gstNumber: form.gstNumber.value,
+        bankIban: form.bankIban.value,
+        vatTrn: form.vatTrn.value,
         storeLat: form.storeLat.value ? parseFloat(form.storeLat.value) : undefined,
         storeLng: form.storeLng.value ? parseFloat(form.storeLng.value) : undefined,
         geofenceRadius: form.geofenceRadius.value ? parseInt(form.geofenceRadius.value) : undefined,
@@ -626,7 +622,7 @@ export default function SettingsPage() {
                   <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">WhatsApp Number</label>
                     <input type="tel" name="whatsappNumber" defaultValue={storeSettings?.whatsappNumber || ''} className="w-full" />
-                    <p className="text-[10px] text-muted mt-1">Use full number with country code if possible (e.g. +91XXXXXXXXXX).</p>
+                    <p className="text-[10px] text-muted mt-1">Use full number with country code if possible (e.g. +971XXXXXXXXXX).</p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Email</label>
@@ -635,7 +631,7 @@ export default function SettingsPage() {
                 </div>
                 <div><label className="block text-xs font-medium text-muted mb-1.5">Address</label><textarea rows={2} name="address" defaultValue={storeSettings?.address || ''} className="w-full" /></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="block text-xs font-medium text-muted mb-1.5">GST Number</label><input type="text" name="gstNumber" defaultValue={storeSettings?.gstNumber || ''} className="w-full" /></div>
+                  <div><label className="block text-xs font-medium text-muted mb-1.5">VAT TRN</label><input type="text" name="vatTrn" defaultValue={storeSettings?.vatTrn || ''} className="w-full" /></div>
                   <div><label className="block text-xs font-medium text-muted mb-1.5">Shift Start Time</label><input type="time" name="shiftStartTime" defaultValue={storeSettings?.shiftStartTime || '09:00'} className="w-full" /></div>
                   <div><label className="block text-xs font-medium text-muted mb-1.5">Shift End Time</label><input type="time" name="shiftEndTime" defaultValue={storeSettings?.shiftEndTime || '20:00'} className="w-full" /></div>
                 </div>
@@ -660,8 +656,7 @@ export default function SettingsPage() {
                     <div><label className="block text-xs font-medium text-muted mb-1.5">Bank Name</label><input type="text" name="bankName" defaultValue={storeSettings?.bankName || ''} className="w-full" /></div>
                     <div><label className="block text-xs font-medium text-muted mb-1.5">Account Holder Name</label><input type="text" name="bankAccountName" defaultValue={storeSettings?.bankAccountName || ''} className="w-full" /></div>
                     <div><label className="block text-xs font-medium text-muted mb-1.5">Account Number</label><input type="text" name="bankAccountNumber" defaultValue={storeSettings?.bankAccountNumber || ''} className="w-full" /></div>
-                    <div><label className="block text-xs font-medium text-muted mb-1.5">IFSC Code</label><input type="text" name="bankIfsc" defaultValue={storeSettings?.bankIfsc || ''} className="w-full" /></div>
-                    <div><label className="block text-xs font-medium text-muted mb-1.5">UPI ID</label><input type="text" name="bankUpiId" defaultValue={storeSettings?.bankUpiId || ''} className="w-full" placeholder="name@bank" /></div>
+                    <div><label className="block text-xs font-medium text-muted mb-1.5">IBAN</label><input type="text" name="bankIban" defaultValue={storeSettings?.bankIban || ''} className="w-full" /></div>
                   </div>
                   <div className="mt-3">
                     <label className="block text-xs font-medium text-muted mb-1.5">Invoice Terms</label>
@@ -1329,7 +1324,6 @@ export default function SettingsPage() {
               {/* Non-channel integrations */}
               <div className="mt-6">
                 <h2 className="text-lg font-semibold text-foreground mb-2">Other Integrations</h2>
-                <IndiaMartIntegrationSettings />
                 <Link
                   href="/settings/portals"
                   className="glass-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between mt-3 hover:bg-surface-hover transition-colors"
@@ -1338,7 +1332,7 @@ export default function SettingsPage() {
                     <span className="text-2xl">🏢</span>
                     <div>
                       <p className="text-sm font-semibold text-foreground">Property Portal Integrations</p>
-                      <p className="text-xs text-muted">Auto-capture leads from 99acres, MagicBricks, Housing.com & NoBroker</p>
+                      <p className="text-xs text-muted">Auto-capture leads from Bayut, Property Finder, and Dubizzle</p>
                     </div>
                   </div>
                   <span className="text-xs font-medium text-accent">Configure →</span>
@@ -1420,7 +1414,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-muted mb-1.5">Display Name (From)</label>
-                      <input type="text" placeholder="Your Furniture Store" value={smtpForm.smtpFromName}
+                      <input type="text" placeholder="Realzentic Dubai" value={smtpForm.smtpFromName}
                         onChange={e => setSmtpForm(f => ({ ...f, smtpFromName: e.target.value }))}
                         className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm focus:outline-none focus:border-accent/50" />
                     </div>
@@ -1529,7 +1523,7 @@ export default function SettingsPage() {
                 {[
                   { label: 'New lead received', desc: 'Get notified when a new lead comes in', on: true },
                   { label: 'Appointment reminders', desc: '24hr and 2hr before appointments', on: true },
-                  { label: 'Low stock alerts', desc: 'When inventory falls below threshold', on: true },
+                  { label: 'New listing alerts', desc: 'When a matching property becomes available', on: true },
                   { label: 'Order status changes', desc: 'When orders are shipped or delivered', on: true },
                   { label: 'Negative reviews', desc: 'Alert when 1-2 star review is posted', on: true },
                   { label: 'Campaign completion', desc: 'When a campaign finishes sending', on: false },
@@ -1544,7 +1538,6 @@ export default function SettingsPage() {
                 ))}
               </div>
 
-              {/* Stock Alert Check removed — inventory module not in Real Estate CRM */}
             </div>
           )}
 
@@ -1562,11 +1555,11 @@ export default function SettingsPage() {
                   <select className="w-full"><option>Friendly & Professional</option><option>Formal</option><option>Casual</option></select>
                 </div>
                 <div><label className="block text-xs font-medium text-muted mb-1.5">Welcome Message</label>
-                  <textarea rows={3} defaultValue="Welcome to Kosmic Furniture. We provide modular office, school, and hospital furniture solutions across India. How may we help you today?" className="w-full" />
+                  <textarea rows={3} defaultValue="Welcome to Realzentic Dubai. We assist with property sales, rentals, off-plan opportunities, and property viewings across Dubai. How may we help you today?" className="w-full" />
                 </div>
                 <div><label className="block text-xs font-medium text-muted mb-1.5">Auto Follow-up Schedule</label>
                   <div className="space-y-2">
-                    {['Day 1: Share product catalog', 'Day 3: Schedule showroom visit', 'Day 7: Share discount offer'].map((d, i) => (
+                    {['Day 1: Share matching property options', 'Day 3: Schedule a property viewing', 'Day 7: Share a Dubai market update'].map((d, i) => (
                       <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-surface-hover text-sm text-foreground"><Bot className="w-4 h-4 text-accent flex-shrink-0" />{d}</div>
                     ))}
                   </div>

@@ -15,13 +15,13 @@ import {
 } from '@/app/actions/financials'
 import Modal from '@/components/Modal'
 
-const fmt = (v) => `₹${Math.abs(v || 0).toLocaleString('en-IN')}`
+const fmt = (v) => `AED ${Math.abs(v || 0).toLocaleString('en-AE')}`
 const fmtSigned = (v) => {
   const n = v || 0
-  return n < 0 ? `-₹${Math.abs(n).toLocaleString('en-IN')}` : `₹${n.toLocaleString('en-IN')}`
+  return n < 0 ? `-AED ${Math.abs(n).toLocaleString('en-AE')}` : `AED ${n.toLocaleString('en-AE')}`
 }
 const fmtPct = (v) => `${(v || 0).toFixed(1)}%`
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—'
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-AE') : '—'
 
 const TYPE_COLORS = {
   ASSET: 'bg-blue-500/10 text-blue-400',
@@ -292,8 +292,8 @@ export default function FinancialsPage() {
         {[
           { label: 'Accounts Receivable', value: bsData?.currentAssets?.accountsReceivable, color: 'text-amber-400', action: () => { setTab('aging') } },
           { label: 'Cash & Bank', value: bsData?.currentAssets?.cashAndBank, color: 'text-emerald-400', action: () => { setTab('bs'); fetchBS() } },
-          { label: 'Inventory Value', value: bsData?.currentAssets?.inventory, color: 'text-blue-400', action: null },
-          { label: 'Net GST Payable', value: bsData?.currentLiabilities?.netGSTPayable, color: 'text-red-400', action: null },
+          { label: 'Staff Advances', value: bsData?.currentAssets?.staffLoans, color: 'text-blue-400', action: null },
+          { label: 'Net VAT Payable', value: bsData?.currentLiabilities?.netVatPayable, color: 'text-red-400', action: null },
         ].map((k, i) => (
           <div key={i} onClick={k.action || undefined} className={`glass-card p-4 ${k.action ? 'cursor-pointer hover:bg-surface-hover' : ''}`}>
             <p className="text-xs text-muted mb-1">{k.label}</p>
@@ -431,30 +431,23 @@ export default function FinancialsPage() {
             {/* Revenue */}
             <div>
               <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2">Revenue</h4>
-              <PnLRow label="Gross Sales (incl. GST)" cur={cur.revenue?.grossSales} cmp={cmp?.revenue?.grossSales} indent />
-              <PnLRow label="Less: Sales GST" cur={-(cur.revenue?.salesGST || 0)} cmp={cmp ? -(cmp.revenue?.salesGST || 0) : undefined} indent />
-              <PnLRow label="Less: Returns / Credit Notes" cur={-(cur.revenue?.returns || 0)} cmp={cmp ? -(cmp.revenue?.returns || 0) : undefined} indent />
-              <PnLRow label="Net Revenue (Ex-GST)" cur={cur.revenue?.netRevenue} cmp={cmp?.revenue?.netRevenue} bold />
-            </div>
-
-            {/* COGS */}
-            <div>
-              <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2">Cost of Goods Sold</h4>
-              <PnLRow label="COGS (cost price of items sold)" cur={cur.cogs?.total} cmp={cmp?.cogs?.total} indent />
-              <PnLRow label={`Gross Profit (${fmtPct(cur.grossMarginPct)} margin)`} cur={cur.grossProfit} cmp={cmp?.grossProfit} bold />
+              <PnLRow label="Payment collections" cur={cur.revenue?.total} cmp={cmp?.revenue?.total} indent />
+              <PnLRow label="VAT collected (reported separately)" cur={cur.revenue?.vat || 0} cmp={cmp?.revenue?.vat || 0} indent />
+              <PnLRow label="Net Collection Revenue" cur={cur.revenue?.total} cmp={cmp?.revenue?.total} bold />
             </div>
 
             {/* Operating Expenses */}
             <div>
               <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2">Operating Expenses</h4>
-              <PnLRow label="Gross Salary (employee cost)" cur={cur.operatingExpenses?.salary} cmp={cmp?.operatingExpenses?.salary} indent />
-              <PnLRow label="Employer PF / ESI / Bonus" cur={cur.operatingExpenses?.employerPFESI} cmp={cmp?.operatingExpenses?.employerPFESI} indent />
-              <PnLRow label="Total Operating Expenses" cur={cur.operatingExpenses?.total} cmp={cmp?.operatingExpenses?.total} bold />
+              <PnLRow label="Payroll expense" cur={cur.expenses?.salary} cmp={cmp?.expenses?.salary} indent />
+              <PnLRow label="Employee benefits / EOSB" cur={cur.expenses?.employerBenefits} cmp={cmp?.expenses?.employerBenefits} indent />
+              <PnLRow label="Direct payment outflows" cur={cur.expenses?.directOutflows} cmp={cmp?.expenses?.directOutflows} indent />
+              <PnLRow label="Total Operating Expenses" cur={cur.expenses?.total} cmp={cmp?.expenses?.total} bold />
             </div>
 
             {/* Summary */}
             <div className="bg-surface-hover rounded-lg p-4 space-y-2">
-              <PnLRow label={`Operating Profit (${fmtPct(cur.opMarginPct)} margin)`} cur={cur.operatingProfit} cmp={cmp?.operatingProfit} bold />
+              <PnLRow label={`Operating Profit (${fmtPct(cur.netMarginPct)} margin)`} cur={cur.netProfit} cmp={cmp?.netProfit} bold />
               <div className="flex justify-between items-center pt-2 border-t-2 border-border">
                 <span className="text-lg font-bold text-foreground">Net Profit / (Loss)</span>
                 <div className="flex items-center gap-2">
@@ -462,13 +455,12 @@ export default function FinancialsPage() {
                   <span className={`text-2xl font-bold ${cur.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtSigned(cur.netProfit)}</span>
                 </div>
               </div>
-              <p className="text-xs text-muted">Net Margin: {fmtPct(cur.netMarginPct)} · Invoices: {cur.invoiceCount} · Returns: {cur.returnCount}</p>
+              <p className="text-xs text-muted">Net Margin: {fmtPct(cur.netMarginPct)} · {cur.revenue?.note}</p>
             </div>
 
-            {/* Purchase reference */}
             <div className="text-xs text-muted border-t border-border pt-3">
               <span className="font-medium text-foreground">For Reference — </span>
-              Purchases received in period (ex-GST): {fmt(cur.purchases?.total)} | GST on purchases: {fmt(cur.purchases?.gst)}
+              VAT entered on payment outflows: {fmt(cur.expenses?.vat)}
             </div>
           </div>
         )}
@@ -503,8 +495,7 @@ export default function FinancialsPage() {
               {[
                 { label: 'Cash & Bank', val: bsData.currentAssets?.cashAndBank },
                 { label: 'Accounts Receivable', val: bsData.currentAssets?.accountsReceivable },
-                { label: 'Closing Stock / Inventory', val: bsData.currentAssets?.inventory },
-                { label: 'GST Input Credit (ITC)', val: bsData.currentAssets?.itcReceivable },
+                { label: 'Staff Loans Outstanding', val: bsData.currentAssets?.staffLoans },
                 { label: 'Staff Loans Outstanding', val: bsData.currentAssets?.staffLoans },
               ].map(r => (
                 <div key={r.label} className="flex justify-between text-sm">
@@ -524,7 +515,7 @@ export default function FinancialsPage() {
               <p className="text-xs font-semibold text-foreground mb-1">Current Liabilities</p>
               {[
                 { label: 'Accounts Payable (Suppliers)', val: bsData.currentLiabilities?.accountsPayable },
-                { label: `GST Payable (Output: ${fmt(bsData.currentLiabilities?.gstOutput)} − ITC: ${fmt(bsData.currentLiabilities?.gstInput)})`, val: bsData.currentLiabilities?.netGSTPayable },
+                { label: `VAT Payable (Output: ${fmt(bsData.currentLiabilities?.vatOutput)} − Input: ${fmt(bsData.currentLiabilities?.vatInput)})`, val: bsData.currentLiabilities?.netVatPayable },
                 { label: 'Salary Payable (approved, unpaid)', val: bsData.currentLiabilities?.salaryPayable },
               ].map(r => (
                 <div key={r.label} className="flex justify-between text-sm">
@@ -1103,7 +1094,7 @@ export default function FinancialsPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-muted mb-1 block">Opening Balance (₹)</label>
+            <label className="text-xs text-muted mb-1 block">Opening Balance (AED )</label>
             <input type="number" value={accountForm.openingBalance}
               onChange={e => setAccountForm(p => ({ ...p, openingBalance: e.target.value }))}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent/50" />

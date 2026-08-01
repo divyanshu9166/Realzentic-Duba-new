@@ -6,21 +6,26 @@
  * directly property-testable. All monetary math reuses the shared helpers in
  * `lib/money.ts` (`roundMoney`, `assertMoneyRange`) so the entire platform
  * shares identical rounding (round-half-up to 2 dp) and range
- * (`0.00 … 999,999,999.99`) semantics. The stamp-duty estimate reuses
- * `computeStampDuty` from `lib/cost-sheet.ts` rather than re-deriving it.
+ * (`0.00 … 999,999,999.99`) semantics. Dubai transfer-fee estimates reuse
+ * `computeDldFee` from `lib/cost-sheet.ts` rather than re-deriving them.
  *
  * Requirements: 10.1 (EMI, total interest, amortization schedule),
- * 10.3 (stamp-duty estimate via configured state rate),
+ * 10.3 (Dubai Land Department transfer-fee estimate),
  * 10.6 (down payment must be below property value).
  * Design properties: 38 (EMI/amortization consistency), 39 (down-payment guard).
  */
 
-import { computeStampDuty } from './cost-sheet'
+import {
+    computeDldFee,
+    MORTGAGE_REGISTRATION_ADMIN_FEE,
+    MORTGAGE_REGISTRATION_FEE_RATE,
+    type BuyerType,
+} from './cost-sheet'
 import { assertMoneyRange, roundMoney } from './money'
 
-// Re-export the shared stamp-duty helper so the EMI tool can produce a
-// stamp-duty + registration estimate (Req 10.3) without duplicating logic.
-export { computeStampDuty } from './cost-sheet'
+// Re-export the shared DLD helper so the mortgage tool can produce a fee
+// estimate without duplicating the statutory calculation.
+export { computeDldFee } from './cost-sheet'
 
 // ---------------------------------------------------------------------------
 // Down payment validation (Req 10.6 / Property 39)
@@ -194,28 +199,38 @@ export function totalInterest(
 }
 
 // ---------------------------------------------------------------------------
-// Stamp duty & registration estimate (Req 10.3) — reuses computeStampDuty
+// DLD transfer & mortgage registration estimate (Req 10.3)
 // ---------------------------------------------------------------------------
 
-/** Default registration-charge rate (as a fraction) applied to the base value. */
-export const REGISTRATION_RATE = 0.01
-
 /**
- * Estimate the up-front statutory charges for a purchase: stamp duty (computed
- * via the configured state-wise rate, reusing {@link computeStampDuty}) plus a
- * registration charge. Returns the individual components and their total, all
- * rounded to 2 dp and within the money range.
- *
- * Requirements: 10.3.
+ * Estimate statutory Dubai purchase charges. `mortgageAmount` may be omitted
+ * for a cash purchase; its registration fee is never calculated against the
+ * full property price by mistake.
  */
-export function estimateStampDutyAndRegistration(
-    state: string,
-    baseAmount: number,
-    registrationRate: number = REGISTRATION_RATE
-): { stampDuty: number; registration: number; total: number } {
-    const stampDuty = computeStampDuty(state, baseAmount)
-    const safeRegRate = Number.isFinite(registrationRate) && registrationRate >= 0 ? registrationRate : REGISTRATION_RATE
-    const registration = assertMoneyRange(roundMoney(baseAmount * safeRegRate))
-    const total = assertMoneyRange(roundMoney(stampDuty + registration))
-    return { stampDuty, registration, total }
+export function estimateDldFeeAndRegistration(
+    propertyValue: number,
+    buyerType: BuyerType = 'Individual',
+    mortgageAmount = 0,
+): {
+    dldTransferFee: number
+    dldAdminFee: number
+    mortgageRegistrationFee: number
+    mortgageAdminFee: number
+    total: number
+} {
+    assertMoneyRange(propertyValue)
+    const dld = computeDldFee(propertyValue, buyerType)
+    const safeMortgage = Math.max(0, Number.isFinite(mortgageAmount) ? mortgageAmount : 0)
+    assertMoneyRange(safeMortgage)
+    const mortgageRegistrationFee = safeMortgage > 0
+        ? assertMoneyRange(roundMoney(safeMortgage * MORTGAGE_REGISTRATION_FEE_RATE))
+        : 0
+    const mortgageAdminFee = safeMortgage > 0 ? MORTGAGE_REGISTRATION_ADMIN_FEE : 0
+    return {
+        dldTransferFee: dld.transferFee,
+        dldAdminFee: dld.adminFee,
+        mortgageRegistrationFee,
+        mortgageAdminFee,
+        total: assertMoneyRange(roundMoney(dld.total + mortgageRegistrationFee + mortgageAdminFee)),
+    }
 }

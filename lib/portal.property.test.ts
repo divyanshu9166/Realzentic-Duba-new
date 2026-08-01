@@ -63,7 +63,7 @@ const validPhoneArb: fc.Arbitrary<string> = fc.oneof(
             fc.array(fc.integer({ min: 0, max: 9 }), { minLength: 9, maxLength: 9 }),
         )
         .map(([first, rest]) => String(first) + rest.join('')),
-    fc.constantFrom('+91 98765 43210', '098-7654-3210', '9876543210'),
+    fc.constantFrom('+971 98765 43210', '098-7654-3210', '9876543210'),
 )
 
 /** An optional, valid email (absent → undefined, or a well-formed address). */

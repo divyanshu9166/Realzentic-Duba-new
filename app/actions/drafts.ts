@@ -258,7 +258,7 @@ export async function moveExpenseToDraft(expenseId: number) {
     isRecurring: expense.isRecurring,
     notes: expense.notes,
     title: expense.vendor || expense.description,
-    subtitle: `Expense · ₹${expense.amount}`,
+    subtitle: `Expense · AED ${expense.amount}`,
   }
 
   await prisma.$transaction(async (tx) => {

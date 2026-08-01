@@ -12,11 +12,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowRight, IndianRupee } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Banknote } from 'lucide-react';
 import { getOverdueCollections } from '@/app/actions/deals';
 
-const formatINR = (value) =>
-    `₹${Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(value || 0)}`;
+const formatAed = (value) =>
+    `AED ${Intl.NumberFormat('en-AE', { maximumFractionDigits: 0 }).format(value || 0)}`;
 
 export default function OverdueCollectionsWidget() {
     const [data, setData] = useState(null);
@@ -82,8 +82,8 @@ export default function OverdueCollectionsWidget() {
                         <p
                             className={`mt-1 flex items-center text-2xl font-bold ${hasOverdue ? 'text-red-600' : 'text-foreground'}`}
                         >
-                            <IndianRupee className="w-5 h-5" />
-                            {Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(sumUnpaid)}
+                            <Banknote className="w-5 h-5" />
+                            {Intl.NumberFormat('en-AE', { maximumFractionDigits: 0 }).format(sumUnpaid)}
                         </p>
                     </div>
                 </div>
@@ -94,7 +94,7 @@ export default function OverdueCollectionsWidget() {
             )}
             {!loading && hasOverdue && (
                 <p className="mt-3 text-xs text-muted">
-                    {count} milestone{count === 1 ? '' : 's'} totaling {formatINR(sumUnpaid)} require follow-up.
+                    {count} milestone{count === 1 ? '' : 's'} totaling {formatAed(sumUnpaid)} require follow-up.
                 </p>
             )}
         </div>

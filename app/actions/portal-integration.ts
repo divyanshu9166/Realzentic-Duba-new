@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth-helpers'
 import { sendEmail } from '@/lib/email'
 import { isDuplicate, normalizePhone } from '@/lib/dedup'
+import { uaePhoneVariants } from '@/lib/whatsapp/phone-utils'
 import {
     sourceForPortal,
     validatePortalPayload,
@@ -27,7 +28,7 @@ import type { Prisma } from '@prisma/client'
  *     when no duplicate exists a Contact and Lead are created, auto-assigned per
  *     PortalConfig, and the assignee is notified (Req 15.3); a PortalLead record
  *     is always persisted with the raw payload and dedup flag (Req 15.2); the
- *     source attribution (99acres/MagicBricks/Housing/NoBroker) is recorded on
+ *     source attribution (Bayut/Property Finder/Dubizzle) is recorded on
  *     the created Lead (Req 15.5, A7).
  *
  * `ingestPortalLead` is invoked by the unauthenticated webhook route
@@ -154,14 +155,14 @@ export async function listPortalConfigs(): Promise<
 
 /**
  * Find an existing Contact that duplicates the inbound portal lead
- * (Req 15.3). Queries candidates by normalized phone or email (the strong,
+ * (Req 15.3). Queries candidates by every common UAE phone representation or email (the strong,
  * indexed signals) and confirms with the shared `isDuplicate` predicate so the
  * decision matches the rest of the dedup pipeline (`lib/dedup.ts`).
  */
 async function findDuplicateContact(
     lead: ParsedPortalLead
 ): Promise<{ id: number; name: string; phone: string; email: string | null } | null> {
-    const or: Prisma.ContactWhereInput[] = [{ phone: lead.phone }]
+    const or: Prisma.ContactWhereInput[] = [{ phone: { in: uaePhoneVariants(lead.phone) } }]
     if (lead.email) or.push({ email: lead.email })
 
     const candidates = await prisma.contact.findMany({

@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import {
     Milestone as MilestoneIcon,
     Send,
-    IndianRupee,
+    Banknote,
     Mail,
     MessageCircle,
     History,
@@ -64,8 +64,8 @@ function num(value: unknown): number {
     return value == null ? 0 : Number(value);
 }
 
-function formatINR(value: unknown): string {
-    return `₹${num(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+function formatAed(value: unknown): string {
+    return `AED ${num(value).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(value: Date | string | null | undefined): string {
@@ -73,7 +73,7 @@ function formatDate(value: Date | string | null | undefined): string {
     const d = new Date(value);
     return Number.isNaN(d.getTime())
         ? '—'
-        : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        : d.toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export default function MilestoneTracker({ milestones }: { milestones: MilestoneView[] }) {
@@ -144,7 +144,7 @@ export default function MilestoneTracker({ milestones }: { milestones: Milestone
             `pay-${milestone.id}`,
             () => recordMilestonePayment(milestone.id, amount),
             () => {
-                setNotice(`Payment of ${formatINR(amount)} recorded for "${milestone.name}".`);
+                setNotice(`Payment of ${formatAed(amount)} recorded for "${milestone.name}".`);
                 setOpenPayment(null);
                 setPaymentAmount('');
             },
@@ -230,7 +230,7 @@ export default function MilestoneTracker({ milestones }: { milestones: Milestone
                                 <div className="mt-1 flex items-center justify-between text-[11px] text-muted">
                                     <span>Due {formatDate(m.dueDate)}</span>
                                     <span>
-                                        {formatINR(paid)} / {formatINR(amount)}
+                                        {formatAed(paid)} / {formatAed(amount)}
                                     </span>
                                 </div>
                                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
@@ -272,7 +272,7 @@ export default function MilestoneTracker({ milestones }: { milestones: Milestone
                                         title={isPaid ? 'Milestone already fully paid' : 'Record a payment'}
                                         className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface disabled:opacity-50"
                                     >
-                                        <IndianRupee className="h-3.5 w-3.5" />
+                                        <Banknote className="h-3.5 w-3.5" />
                                         Mark Paid
                                     </button>
                                 </div>
@@ -281,7 +281,7 @@ export default function MilestoneTracker({ milestones }: { milestones: Milestone
                                 {openPayment === m.id && !isPaid && (
                                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-surface p-2.5">
                                         <span className="text-[11px] text-muted">
-                                            Outstanding {formatINR(outstanding)}
+                                            Outstanding {formatAed(outstanding)}
                                         </span>
                                         <input
                                             type="number"

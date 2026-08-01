@@ -54,19 +54,20 @@ import {
 import {
     computeGross,
     computeNetPayable,
-    computeStampDuty,
-    gstRateForProject,
+    computeDldFee,
+    vatRateForProperty,
     splitMilestones,
     validateDiscount,
     type PaymentPlanInput,
     type SplitMilestone,
 } from '@/lib/cost-sheet'
 import { assertMoneyRange, roundMoney } from '@/lib/money'
+import { formatCompactCurrency, formatCurrency } from '@/lib/currency'
 import { uploadFile } from '@/lib/r2'
 import { sendEmail } from '@/lib/email'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { isValidE164, normalizePhoneForMetaIndia } from '@/lib/whatsapp/phone-utils'
+import { isValidE164, normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-utils'
 
 // ---------------------------------------------------------------------------
 // Shared result type and helpers
@@ -389,8 +390,8 @@ export interface ProjectCard {
     name: string
     location: string
     city: string
-    state: string
-    reraNumber: string | null
+    emirate: string
+    dldProjectRegNo: string | null
     photoUrl: string | null
     unitCount: number
     percentSold: number
@@ -429,8 +430,8 @@ export async function listProjects(): Promise<Result<ProjectCard[]>> {
                 name: project.name,
                 location: project.location,
                 city: project.city,
-                state: project.state,
-                reraNumber: project.reraNumber,
+                emirate: project.emirate,
+                dldProjectRegNo: project.dldProjectRegNo,
                 photoUrl: project.photoUrls[0] ?? null,
                 unitCount: total,
                 percentSold: computePercentSold(booked, sold, total),
@@ -949,9 +950,9 @@ function errorMessage(err: unknown, fallback: string): string {
 // Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.11, 20.4
 //
 // `buildCostSheet` auto-populates the unit-derived figures (base cost, floor
-// rise, view premium, parking) from the Unit (Req 3.1), computes stamp duty
-// from the project's state (Req 3.5, via `computeStampDuty`) and GST from the
-// project's status (Req 3.6–3.8, via `gstRateForProject`), and derives net
+// rise, view premium, parking) from the Unit (Req 3.1), computes DLD transfer fees
+// from the Dubai Land Department fee and VAT from the project's property type,
+// and derives net
 // payable as `total + Σ(add-ons) − discount` (Req 3.3) while rejecting any
 // discount that exceeds the gross so net payable can never go negative
 // (Req 3.4, via `validateDiscount`). `upsertPaymentPlan` enforces at most one
@@ -972,8 +973,8 @@ type CostSheetWithMoney = {
     parkingCharges: Prisma.Decimal
     clubhouseCharges: Prisma.Decimal
     legalCharges: Prisma.Decimal
-    stampDuty: Prisma.Decimal
-    gst: Prisma.Decimal
+    dldTransferFee: Prisma.Decimal
+    vatAmount: Prisma.Decimal
     registrationCharges: Prisma.Decimal
     total: Prisma.Decimal
     discount: Prisma.Decimal
@@ -990,8 +991,8 @@ function serializeCostSheet<T extends CostSheetWithMoney>(sheet: T) {
         parkingCharges: toNumber(sheet.parkingCharges),
         clubhouseCharges: toNumber(sheet.clubhouseCharges),
         legalCharges: toNumber(sheet.legalCharges),
-        stampDuty: toNumber(sheet.stampDuty),
-        gst: toNumber(sheet.gst),
+        dldTransferFee: toNumber(sheet.dldTransferFee),
+        vatAmount: toNumber(sheet.vatAmount),
         registrationCharges: toNumber(sheet.registrationCharges),
         total: toNumber(sheet.total),
         discount: toNumber(sheet.discount),
@@ -1006,7 +1007,7 @@ function serializeCostSheet<T extends CostSheetWithMoney>(sheet: T) {
 /**
  * Add-on charges supplied by the caller. Unit-derived figures (base cost,
  * floor rise, view premium) are read from the Unit and are NOT part of this
- * input (Req 3.1). Stamp duty and GST are computed automatically (Req 3.5–3.8)
+ * input (Req 3.1). DLD fees and VAT are computed automatically (Req 3.5–3.8)
  * but MAY be overridden here when a deal-specific figure is required. Every
  * field defaults to `0` when omitted.
  */
@@ -1016,9 +1017,10 @@ const costSheetAddonsSchema = z
         clubhouseCharges: moneyAmount.optional(),
         legalCharges: moneyAmount.optional(),
         registrationCharges: moneyAmount.optional(),
-        // Optional explicit overrides; otherwise computed from state/status.
-        stampDuty: moneyAmount.optional(),
-        gst: moneyAmount.optional(),
+        // Optional explicit overrides; otherwise computed from the Dubai fee
+        // and property-use rules.
+        dldTransferFee: moneyAmount.optional(),
+        vatAmount: moneyAmount.optional(),
     })
     .strict()
     .default({})
@@ -1032,9 +1034,9 @@ const costSheetAddonsSchema = z
  *   - `viewPremium`= the unit's view premium
  *   - `total`      = the unit's total price (base + floor rise + view)
  *
- * Computed (Req 3.5–3.8): stamp duty from the project's state via
- * {@link computeStampDuty} and GST from the project's status via
- * {@link gstRateForProject}; either may be overridden through `addons`.
+ * Computed (Req 3.5–3.8): DLD transfer fees for the project's Dubai sale via
+ * {@link computeDldFee} and VAT from the project's property type via
+ * {@link vatRateForProperty}; either may be overridden through `addons`.
  *
  * Net payable is `total + Σ(add-ons) − discount` (Req 3.3). A discount that
  * exceeds the gross amount is rejected with an error so net payable can never
@@ -1042,7 +1044,7 @@ const costSheetAddonsSchema = z
  *
  * @param unitId    The unit to price.
  * @param contactId The buyer the cost sheet is for.
- * @param addons    Add-on charges and optional stamp-duty/GST overrides.
+ * @param addons    Add-on charges and optional DLD/VAT overrides.
  * @param discount  The discount to apply (default 0).
  * @param actor     Who is generating the sheet (for `generatedById`).
  */
@@ -1092,15 +1094,15 @@ export async function buildCostSheet(
         const clubhouseCharges = parsedAddons.data.clubhouseCharges ?? 0
         const legalCharges = parsedAddons.data.legalCharges ?? 0
         const registrationCharges = parsedAddons.data.registrationCharges ?? 0
-        const stampDuty = parsedAddons.data.stampDuty ?? computeStampDuty(project.state, total)
-        const gst = parsedAddons.data.gst ?? roundMoney(total * gstRateForProject(project.status))
+        const dldTransferFee = parsedAddons.data.dldTransferFee ?? computeDldFee(total).transferFee
+        const vatAmount = parsedAddons.data.vatAmount ?? roundMoney(total * vatRateForProperty(project.type))
 
         const addonList = [
             parkingCharges,
             clubhouseCharges,
             legalCharges,
-            stampDuty,
-            gst,
+            dldTransferFee,
+            vatAmount,
             registrationCharges,
         ]
 
@@ -1125,8 +1127,8 @@ export async function buildCostSheet(
                 parkingCharges,
                 clubhouseCharges,
                 legalCharges,
-                stampDuty,
-                gst,
+                dldTransferFee,
+                vatAmount,
                 registrationCharges,
                 total,
                 discount: discountAmount,
@@ -1393,7 +1395,7 @@ export async function generateCostSheetPdf(
         const bankName = settings?.bankName ?? ''
         const bankAccountName = settings?.bankAccountName ?? ''
         const bankAccountNumber = settings?.bankAccountNumber ?? ''
-        const bankIfsc = settings?.bankIfsc ?? ''
+        const bankIban = settings?.bankIban ?? ''
 
         const project = sheet.unit.tower.project
         const contact = sheet.contact
@@ -1442,10 +1444,10 @@ export async function generateCostSheetPdf(
         doc.setFont('helvetica', 'normal')
         doc.text(`Project: ${project.name}`, marginX, y)
         y += 5
-        doc.text(`Location: ${project.location}, ${project.city}, ${project.state}`, marginX, y)
+        doc.text(`Location: ${project.location}, ${project.city}, ${project.emirate}`, marginX, y)
         y += 5
-        if (project.reraNumber) {
-            doc.text(`RERA No: ${project.reraNumber}`, marginX, y)
+        if (project.dldProjectRegNo) {
+            doc.text(`DLD Registration No: ${project.dldProjectRegNo}`, marginX, y)
             y += 5
         }
         doc.text(`Unit No: ${sheet.unit.unitNumber}  |  Floor: ${sheet.unit.floorNumber}  |  Type: ${sheet.unit.type}`, marginX, y)
@@ -1491,14 +1493,14 @@ export async function generateCostSheetPdf(
             ['Parking Charges', toNumber(sheet.parkingCharges) ?? 0],
             ['Clubhouse Charges', toNumber(sheet.clubhouseCharges) ?? 0],
             ['Legal Charges', toNumber(sheet.legalCharges) ?? 0],
-            ['Stamp Duty', toNumber(sheet.stampDuty) ?? 0],
-            ['GST', toNumber(sheet.gst) ?? 0],
+            ['DLD Transfer Fee', toNumber(sheet.dldTransferFee) ?? 0],
+            ['VAT', toNumber(sheet.vatAmount) ?? 0],
             ['Registration Charges', toNumber(sheet.registrationCharges) ?? 0],
         ]
 
         for (const [label, value] of rows) {
             doc.text(label, col1X, y)
-            doc.text(`₹ ${value.toFixed(2)}`, col2X, y, { align: 'right' })
+            doc.text(`AED  ${value.toFixed(2)}`, col2X, y, { align: 'right' })
             y += 5
         }
 
@@ -1510,21 +1512,21 @@ export async function generateCostSheetPdf(
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(10)
         doc.text('Total', col1X, y)
-        doc.text(`₹ ${(toNumber(sheet.total) ?? 0).toFixed(2)}`, col2X, y, { align: 'right' })
+        doc.text(`AED  ${(toNumber(sheet.total) ?? 0).toFixed(2)}`, col2X, y, { align: 'right' })
         y += 5
 
         const discountVal = toNumber(sheet.discount) ?? 0
         if (discountVal > 0) {
             doc.setFont('helvetica', 'normal')
             doc.text('Discount', col1X, y)
-            doc.text(`- ₹ ${discountVal.toFixed(2)}`, col2X, y, { align: 'right' })
+            doc.text(`- AED  ${discountVal.toFixed(2)}`, col2X, y, { align: 'right' })
             y += 5
         }
 
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(11)
         doc.text('Net Payable', col1X, y)
-        doc.text(`₹ ${(toNumber(sheet.netPayable) ?? 0).toFixed(2)}`, col2X, y, { align: 'right' })
+        doc.text(`AED  ${(toNumber(sheet.netPayable) ?? 0).toFixed(2)}`, col2X, y, { align: 'right' })
         y += 8
 
         // Bank details (for payment)
@@ -1537,7 +1539,7 @@ export async function generateCostSheetPdf(
             if (bankName) { doc.text(`Bank: ${bankName}`, marginX, y); y += 4 }
             if (bankAccountName) { doc.text(`Account Name: ${bankAccountName}`, marginX, y); y += 4 }
             if (bankAccountNumber) { doc.text(`Account No: ${bankAccountNumber}`, marginX, y); y += 4 }
-            if (bankIfsc) { doc.text(`IFSC: ${bankIfsc}`, marginX, y); y += 4 }
+            if (bankIban) { doc.text(`IBAN: ${bankIban}`, marginX, y); y += 4 }
             y += 4
         }
 
@@ -1546,7 +1548,7 @@ export async function generateCostSheetPdf(
         doc.setFont('helvetica', 'italic')
         doc.setTextColor(120, 120, 120)
         doc.text(
-            `Generated on ${new Date().toLocaleString('en-IN')} — ${storeName}`,
+            `Generated on ${new Date().toLocaleString('en-AE')} — ${storeName}`,
             marginX,
             y
         )
@@ -1671,7 +1673,7 @@ export async function shareCostSheet(
             if (!phone) {
                 result.whatsapp = 'Skipped'
             } else {
-                const normalizedPhone = normalizePhoneForMetaIndia(phone)
+                const normalizedPhone = normalizePhoneForMetaUae(phone)
                 if (!isValidE164(normalizedPhone)) {
                     result.whatsapp = 'Skipped'
                 } else {
@@ -1684,7 +1686,7 @@ export async function shareCostSheet(
                             const messageText =
                                 `Hi ${contact.name},\n\n` +
                                 `Your cost sheet for *${project.name}* — Unit ${sheet.unit.unitNumber} is ready.\n\n` +
-                                `Net Payable: ₹${netPayable}\n\n` +
+                                `Net Payable: AED ${netPayable}\n\n` +
                                 `Download your cost sheet: ${absolutePdfUrl}\n\n` +
                                 `For queries, feel free to reach us.`
                             await sendTextMessage({
@@ -1730,7 +1732,7 @@ export async function shareCostSheet(
                                     </tr>
                                     <tr>
                                         <td style="padding:6px 0;color:#555;">Net Payable</td>
-                                        <td style="padding:6px 0;font-weight:600;color:#16a34a;">₹${netPayable}</td>
+                                        <td style="padding:6px 0;font-weight:600;color:#16a34a;">AED ${netPayable}</td>
                                     </tr>
                                 </table>
                                 <a
@@ -1770,13 +1772,19 @@ export async function shareCostSheet(
 // ═══════════════════════════════════════════════════════════
 
 const UNIT_TYPE_LABELS: Record<string, string> = {
-    BHK1: '1 BHK apartment',
-    BHK2: '2 BHK apartment',
-    BHK3: '3 BHK apartment',
-    BHK4: '4 BHK apartment',
-    Shop: 'retail shop',
+    Studio: 'studio apartment',
+    Apartment1: '1-bedroom apartment',
+    Apartment2: '2-bedroom apartment',
+    Apartment3: '3-bedroom apartment',
+    Apartment4Plus: '4+ bedroom apartment',
+    Penthouse: 'penthouse',
+    Villa: 'villa',
+    Townhouse: 'townhouse',
+    Duplex: 'duplex',
+    Retail: 'retail unit',
     Office: 'office space',
-    Plot: 'plot',
+    Warehouse: 'warehouse',
+    LandPlot: 'land plot',
 }
 
 const FACING_LABELS: Record<string, string> = {
@@ -1784,12 +1792,10 @@ const FACING_LABELS: Record<string, string> = {
     NE: 'North-East', NW: 'North-West', SE: 'South-East', SW: 'South-West',
 }
 
-/** Compact INR formatting (e.g. ₹85.0 L, ₹1.25 Cr) for listing copy. */
-function formatIndianPrice(amount: number): string {
+/** Compact AED formatting for listing copy. */
+function formatDubaiPrice(amount: number): string {
     if (!Number.isFinite(amount) || amount <= 0) return 'Price on request'
-    if (amount >= 1e7) return `₹${(amount / 1e7).toFixed(2)} Cr`
-    if (amount >= 1e5) return `₹${(amount / 1e5).toFixed(1)} L`
-    return `₹${Math.round(amount).toLocaleString('en-IN')}`
+    return amount >= 1_000 ? formatCompactCurrency(amount) : formatCurrency(amount)
 }
 
 /** Deterministic fallback copy built purely from the unit's facts. */
@@ -1843,7 +1849,7 @@ export async function generateUnitDescription(
 
     const project = unit.tower?.project ?? null
     const facts = {
-        typeLabel: UNIT_TYPE_LABELS[unit.type] ?? unit.type,
+        typeLabel: UNIT_TYPE_LABELS[unit.type] ?? 'property',
         projectName: project?.name ?? 'our project',
         location: project?.location ?? '',
         city: project?.city ?? null,
@@ -1851,7 +1857,7 @@ export async function generateUnitDescription(
         superBuiltUpArea: unit.superBuiltUpArea,
         carpetArea: unit.carpetArea,
         facingLabel: FACING_LABELS[unit.facing] ?? unit.facing,
-        priceLabel: formatIndianPrice(Number(unit.totalPrice)),
+        priceLabel: formatDubaiPrice(Number(unit.totalPrice)),
         amenities: project?.amenities ?? [],
     }
 

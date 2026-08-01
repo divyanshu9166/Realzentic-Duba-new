@@ -422,7 +422,7 @@ export async function cpCommissionStatementPdf(): Promise<Result<{ pdfUrl: strin
     try {
         const partner = await prisma.channelPartner.findUnique({
             where: { id: partnerId },
-            select: { id: true, name: true, company: true, reraBrokerNo: true },
+            select: { id: true, name: true, company: true, brnNumber: true },
         })
         if (!partner) return { success: false, error: 'Channel partner not found' }
 
@@ -448,9 +448,9 @@ export async function cpCommissionStatementPdf(): Promise<Result<{ pdfUrl: strin
             doc.text(`Company: ${partner.company}`, marginX, cursorY)
             cursorY += 6
         }
-        doc.text(`RERA Broker No: ${partner.reraBrokerNo}`, marginX, cursorY)
+        doc.text(`RERA Broker No: ${partner.brnNumber}`, marginX, cursorY)
         cursorY += 6
-        doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, marginX, cursorY)
+        doc.text(`Generated: ${new Date().toLocaleString('en-AE')}`, marginX, cursorY)
         cursorY += 10
 
         doc.setFontSize(10)
@@ -475,7 +475,7 @@ export async function cpCommissionStatementPdf(): Promise<Result<{ pdfUrl: strin
             doc.text(`${decimalToNumber(c.percentage).toFixed(2)}%`, marginX + 70, cursorY)
             doc.text(c.status, marginX + 105, cursorY)
             doc.text(
-                c.paymentDate ? c.paymentDate.toLocaleDateString('en-IN') : '-',
+                c.paymentDate ? c.paymentDate.toLocaleDateString('en-AE') : '-',
                 marginX + 140,
                 cursorY
             )

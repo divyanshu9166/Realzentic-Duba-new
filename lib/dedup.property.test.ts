@@ -41,17 +41,17 @@ import { fcAssert } from '@/test/generators'
  * frequently collide (after normalization) — exercising the phone-match
  * branch — while still admitting free-form and empty values.
  *
- * The first three pool entries all normalize to the same `9876543210`, so
+ * The first three pool entries all normalize to the same UAE mobile number, so
  * formatting/country-code variants are covered.
  */
 const phoneArb: fc.Arbitrary<string> = fc.oneof(
     fc.constantFrom(
-        '9876543210',
-        '+91 98765 43210',
-        '098-7654-3210',
-        '9999999999',
-        '8888888888',
-        '7777777777',
+        '501234567',
+        '+971 50 123 4567',
+        '050-123-4567',
+        '509999999',
+        '508888888',
+        '507777777',
         '',
     ),
     fc.string({ maxLength: 14 }),

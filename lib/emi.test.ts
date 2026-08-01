@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import {
     amortizationSchedule,
     computeEmi,
-    estimateStampDutyAndRegistration,
+    estimateDldFeeAndRegistration,
     totalInterest,
     validateDownPayment,
 } from './emi'
@@ -35,8 +35,8 @@ describe('validateDownPayment', () => {
 })
 
 describe('computeEmi', () => {
-    it('matches the standard formula for a typical home loan', () => {
-        // ₹40,00,000 at 8.5% p.a. for 240 months → ≈ ₹34,712.93
+    it('matches the standard formula for a typical mortgage', () => {
+        // AED 4,000,000 at 8.5% p.a. for 240 months → ≈ 34,712.93
         const emi = computeEmi(4_000_000, 8.5, 240)
         expect(emi).toBeCloseTo(34_712.93, 1)
     })
@@ -86,12 +86,13 @@ describe('totalInterest', () => {
     })
 })
 
-describe('estimateStampDutyAndRegistration', () => {
-    it('reuses the state stamp-duty rate and adds registration charges', () => {
-        // Maharashtra default 6% stamp duty + 1% registration on ₹50,00,000.
-        const estimate = estimateStampDutyAndRegistration('Maharashtra', 5_000_000)
-        expect(estimate.stampDuty).toBe(300_000)
-        expect(estimate.registration).toBe(50_000)
-        expect(estimate.total).toBe(350_000)
+describe('estimateDldFeeAndRegistration', () => {
+    it('computes DLD and mortgage registration charges', () => {
+        const estimate = estimateDldFeeAndRegistration(5_000_000, 'Individual', 3_000_000)
+        expect(estimate.dldTransferFee).toBe(200_000)
+        expect(estimate.dldAdminFee).toBe(580)
+        expect(estimate.mortgageRegistrationFee).toBe(7_500)
+        expect(estimate.mortgageAdminFee).toBe(290)
+        expect(estimate.total).toBe(208_370)
     })
 })

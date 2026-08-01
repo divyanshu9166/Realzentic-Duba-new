@@ -243,7 +243,7 @@ export default function SnagsClient() {
                                         </td>
                                         <td>
                                             <span className="text-xs text-muted">
-                                                {new Date(snag.createdAt).toLocaleDateString('en-IN', {
+                                                {new Date(snag.createdAt).toLocaleDateString('en-AE', {
                                                     day: 'numeric',
                                                     month: 'short',
                                                     year: 'numeric',

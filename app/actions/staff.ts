@@ -7,23 +7,22 @@ import { requireAuth, requireRole } from '@/lib/auth-helpers'
 import bcrypt from 'bcryptjs'
 import type { Prisma, UserRole } from '@prisma/client'
 
-// ─── IST helpers ─────────────────────────────────────────────────────────────
-// All attendance dates/times must be in IST (Asia/Kolkata, UTC+5:30)
+// ─── Dubai-time helpers ─────────────────────────────────────────────────────
+// All attendance dates/times must be in Asia/Dubai (UTC+4)
 // regardless of the server's system timezone.
-function getISTDate(): { today: Date; time: string } {
+function getDubaiDate(): { today: Date; time: string } {
   const now = new Date()
-  // Current IST offset in ms (+5:30 = 19800 s)
-  const istOffsetMs = 5.5 * 60 * 60 * 1000
-  const istNow = new Date(now.getTime() + istOffsetMs)
+  const dubaiOffsetMs = 4 * 60 * 60 * 1000
+  const dubaiNow = new Date(now.getTime() + dubaiOffsetMs)
 
-  // midnight of today in IST, stored as UTC equivalent
+  // Midnight of today in Dubai, stored as a UTC calendar date.
   const today = new Date(
-    Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate())
+    Date.UTC(dubaiNow.getUTCFullYear(), dubaiNow.getUTCMonth(), dubaiNow.getUTCDate())
   )
 
-  // HH:mm in IST (24-hour)
-  const hh = String(istNow.getUTCHours()).padStart(2, '0')
-  const mm = String(istNow.getUTCMinutes()).padStart(2, '0')
+  // HH:mm in Dubai (24-hour)
+  const hh = String(dubaiNow.getUTCHours()).padStart(2, '0')
+  const mm = String(dubaiNow.getUTCMinutes()).padStart(2, '0')
   const time = `${hh}:${mm}`
 
   return { today, time }
@@ -44,6 +43,14 @@ const mapStaffForPortal = (s: any) => ({
   role: s.role,
   phone: s.phone,
   email: s.email,
+  emiratesId: s.emiratesId,
+  laborCardNo: s.laborCardNo,
+  mohreNo: s.mohreNo,
+  iban: s.iban,
+  bankName: s.bankName,
+  visaStatus: s.visaStatus,
+  eosbAccrued: Number(s.eosbAccrued ?? 0),
+  wpsRegistered: s.wpsRegistered,
   loginUsername: s.user?.email || null,
   hasLogin: !!s.user,
   loginActive: s.user?.isActive ?? false,
@@ -346,7 +353,7 @@ function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 export async function clockIn(staffId: number, gps?: { lat: number; lng: number }) {
-  const { today, time } = getISTDate()
+  const { today, time } = getDubaiDate()
 
   // 1. Check if already clocked in
   const existing = await prisma.attendance.findUnique({
@@ -400,7 +407,7 @@ export async function clockIn(staffId: number, gps?: { lat: number; lng: number 
 }
 
 export async function clockOut(staffId: number, gps?: { lat: number; lng: number }) {
-  const { today, time } = getISTDate()
+  const { today, time } = getDubaiDate()
 
   const existing = await prisma.attendance.findUnique({
     where: { staffId_date: { staffId, date: today } },
@@ -494,7 +501,7 @@ export async function getAttendance(staffId: number, days: number = 30) {
 }
 
 export async function getDailyAttendanceReport() {
-  const { today } = getISTDate()
+  const { today } = getDubaiDate()
 
   const allStaff = await prisma.staff.findMany({
     where: { status: 'Active' },

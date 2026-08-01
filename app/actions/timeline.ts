@@ -314,7 +314,7 @@ export async function getContactTimeline(
             timestamp: ms(p.date) ?? ms(p.createdAt) ?? 0,
             description:
                 `Payment ${p.type === 'OUT' ? 'out' : 'in'}` +
-                ` ₹${p.amount} via ${p.method} (${p.status})`,
+                ` AED ${p.amount} via ${p.method} (${p.status})`,
             performedBy: p.receivedByStaff?.name ?? null,
             metadata: {
                 amount: p.amount,

@@ -24,7 +24,7 @@ import type {
  * Channel Partner admin server actions (Module 4 / Requirement 6).
  *
  * These actions back the internal channel-partners admin surface:
- *   - `onboardPartner`      — create a ChannelPartner; RERA broker number is
+ *   - `onboardPartner`      — create a ChannelPartner; BRN number is
  *                             required and must be unique (Req 6.1, 6.9).
  *   - `createCpLead`        — attribute a lead to a partner (Req 6.2).
  *   - `createCommission`    — compute and persist a CPCommission for a booking
@@ -81,15 +81,15 @@ export async function onboardPartner(data: unknown): Promise<Result<{ id: number
 
     const input = parsed.data
 
-    // Req 6.9: reject a RERA broker number that already exists on another partner.
+    // Req 6.9: reject a BRN number that already exists on another partner.
     const existingRera = await prisma.channelPartner.findUnique({
-        where: { reraBrokerNo: input.reraBrokerNo },
+        where: { brnNumber: input.brnNumber },
         select: { id: true },
     })
     if (existingRera) {
         return {
             success: false,
-            error: `RERA broker number "${input.reraBrokerNo}" is already registered to another partner`,
+            error: `BRN number "${input.brnNumber}" is already registered to another partner`,
         }
     }
 
@@ -106,7 +106,8 @@ export async function onboardPartner(data: unknown): Promise<Result<{ id: number
         data: {
             name: input.name,
             company: input.company ?? null,
-            reraBrokerNo: input.reraBrokerNo,
+            brnNumber: input.brnNumber,
+            ornNumber: input.ornNumber ?? null,
             phone: input.phone,
             email: input.email,
             type: input.type,
@@ -118,7 +119,7 @@ export async function onboardPartner(data: unknown): Promise<Result<{ id: number
                 ? (input.commissionSlabs as unknown as Prisma.InputJsonValue)
                 : Prisma.DbNull,
             agreementDocUrl: input.agreementDocUrl ?? null,
-            panNumber: input.panNumber ?? null,
+            tradeLicenseNo: input.tradeLicenseNo ?? null,
             bankDetails: input.bankDetails
                 ? (input.bankDetails as Prisma.InputJsonValue)
                 : Prisma.DbNull,
@@ -470,7 +471,7 @@ export interface PartnerRow {
     id: number
     name: string
     company: string | null
-    reraBrokerNo: string
+    brnNumber: string
     phone: string
     email: string
     type: string
@@ -496,7 +497,7 @@ export async function getPartners(): Promise<Result<PartnerRow[]>> {
             id: true,
             name: true,
             company: true,
-            reraBrokerNo: true,
+            brnNumber: true,
             phone: true,
             email: true,
             type: true,
@@ -515,7 +516,7 @@ export async function getPartners(): Promise<Result<PartnerRow[]>> {
             id: p.id,
             name: p.name,
             company: p.company,
-            reraBrokerNo: p.reraBrokerNo,
+            brnNumber: p.brnNumber,
             phone: p.phone,
             email: p.email,
             type: p.type,

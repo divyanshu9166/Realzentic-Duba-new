@@ -27,7 +27,7 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [storeProfile, setStoreProfile] = useState({ name: 'Furniture CRM', logo: '' });
+  const [storeProfile, setStoreProfile] = useState({ name: 'Realzentic Dubai', logo: '' });
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/';
@@ -53,7 +53,7 @@ function LoginContent() {
     getStoreSettings().then(res => {
       if (!active || !res.success) return;
       setStoreProfile({
-        name: res.data.storeName || 'Furniture CRM',
+        name: res.data.storeName || 'Realzentic Dubai',
         logo: res.data.logo || '',
       });
     });

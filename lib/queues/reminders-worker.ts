@@ -9,7 +9,7 @@
  *
  * Schedule is configurable via env:
  *   - REMINDERS_CRON  (default '0 9 * * *'  → 09:00 daily)
- *   - REMINDERS_TZ    (default 'Asia/Kolkata')
+ *   - REMINDERS_TZ    (default 'Asia/Dubai')
  *
  * The scheduler is idempotent (upsert), so restarting the server never creates
  * duplicate schedules. The HTTP route /api/cron/whatsapp-reminders remains as a
@@ -53,7 +53,7 @@ export async function startRemindersWorker(): Promise<void> {
 
     // 2. Register (idempotently) the daily repeatable schedule.
     const pattern = process.env.REMINDERS_CRON ?? '0 9 * * *'
-    const tz = process.env.REMINDERS_TZ ?? 'Asia/Kolkata'
+    const tz = process.env.REMINDERS_TZ ?? 'Asia/Dubai'
     try {
         await getRemindersQueue().upsertJobScheduler(
             SCHEDULER_ID,

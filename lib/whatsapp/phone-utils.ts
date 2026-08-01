@@ -9,34 +9,21 @@ export function sanitizePhoneForMeta(phone: string): string {
 }
 
 /**
- * Normalize numbers for Meta WhatsApp API with India defaults.
+ * Normalize UAE mobile numbers for the Meta WhatsApp API.
  * - Strips non-digits
- * - Drops international prefix (00) or trunk 0 when present
- * - Ensures +91 for 10-digit local numbers
- * - Removes a trunk 0 after 91 (e.g. 910XXXXXXXXXX -> 91XXXXXXXXXX)
+ * - Drops the international prefix (00) when present
+ * - Converts local `05XXXXXXXX` and `5XXXXXXXX` to `9715XXXXXXXX`
+ * - Keeps already international numbers unchanged
  */
-export function normalizePhoneForMetaIndia(phone: string): string {
+export function normalizePhoneForMetaUae(phone: string): string {
   const sanitized = sanitizePhoneForMeta(phone)
   if (!sanitized) return ''
 
   let normalized = sanitized.replace(/^00+/, '')
 
-  if (normalized.startsWith('0')) {
-    const trimmed = normalized.replace(/^0+/, '')
-    if (trimmed.length === 10 || trimmed.startsWith('91')) {
-      normalized = trimmed
-    }
-  }
-
-  if (normalized.startsWith('91') && normalized.length >= 13) {
-    if (normalized[2] === '0') {
-      normalized = `91${normalized.slice(3)}`
-    }
-  }
-
-  if (normalized.length === 10) {
-    normalized = `91${normalized}`
-  }
+  if (normalized.startsWith('971') && normalized.length >= 12) return normalized
+  if (normalized.length === 10 && normalized.startsWith('05')) return `971${normalized.slice(1)}`
+  if (normalized.length === 9 && normalized.startsWith('5')) return `971${normalized}`
 
   return normalized
 }
@@ -51,18 +38,38 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
- * Compare two phone numbers accounting for trunk prefix differences.
- * e.g. "370063949836" (with trunk 0) matches "37063949836" (without trunk 0)
- * by comparing the last 8 digits.
+ * Compare two phone numbers accounting for UAE trunk-prefix differences.
+ * UAE mobile numbers are compared by their nine-digit subscriber number, so
+ * `050 123 4567`, `501234567`, and `+971 50 123 4567` all match.
  */
 export function phonesMatch(phone1: string, phone2: string): boolean {
-  const n1 = normalizePhone(phone1)
-  const n2 = normalizePhone(phone2)
+  const n1 = normalizePhoneForMetaUae(phone1)
+  const n2 = normalizePhoneForMetaUae(phone2)
   if (n1 === n2) return true
-  if (n1.length >= 8 && n2.length >= 8) {
-    return n1.slice(-8) === n2.slice(-8)
+  if (n1.length >= 9 && n2.length >= 9) {
+    return n1.slice(-9) === n2.slice(-9)
   }
   return false
+}
+
+/**
+ * Return all common UAE representations of a mobile number for matching
+ * historical CRM and WhatsApp records. The first canonical form is suitable
+ * for new records and Meta's API (for example `971501234567`).
+ */
+export function uaePhoneVariants(phone: string): string[] {
+  const raw = phone.trim()
+  const canonical = normalizePhoneForMetaUae(phone)
+  if (!canonical) return raw ? [raw] : []
+
+  const variants = new Set<string>([raw, canonical, `+${canonical}`])
+  if (canonical.startsWith('9715') && canonical.length === 12) {
+    const local = canonical.slice(3)
+    variants.add(`0${local}`)
+    variants.add(local)
+    variants.add(`+971${local}`)
+  }
+  return [...variants].filter(Boolean)
 }
 
 /**

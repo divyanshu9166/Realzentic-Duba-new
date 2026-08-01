@@ -66,7 +66,7 @@ export default function TopBar() {
   const formatDateTime = (dateStr) => {
     const date = new Date(dateStr);
     if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString('en-IN', {
+    return date.toLocaleString('en-AE', {
       day: '2-digit',
       month: 'short',
       hour: '2-digit',
@@ -152,7 +152,7 @@ export default function TopBar() {
 
         {/* Mobile: App title / Desktop: Search */}
         <div className="md:hidden flex items-center gap-2 min-w-0">
-          <span className="text-base font-bold text-foreground tracking-tight truncate">Furzentic</span>
+          <span className="text-base font-bold text-foreground tracking-tight truncate">Realzentic Dubai</span>
         </div>
         <div className={`hidden md:flex relative items-center transition-all duration-200 ${searchFocused ? 'w-[400px]' : 'w-[300px]'}`}>
           <Search className="absolute left-3 w-4 h-4 text-muted pointer-events-none" />

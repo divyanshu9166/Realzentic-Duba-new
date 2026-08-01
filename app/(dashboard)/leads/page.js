@@ -25,7 +25,7 @@ const stageToEnum = {
   'Quotation': 'QUOTATION', 'Won': 'WON', 'Lost': 'LOST',
 };
 
-const sourceIconMap = { WhatsApp: MessageSquare, 'WhatsApp Inquiry': MessageSquare, Instagram, Facebook, Website: Globe, 'Showroom Visit': Store, 'Site Visit': Store, 'Walk-in': Store, Referral: Users, 'Channel Partner': Building2, IndiaMART: Building2, '99acres': Building2, MagicBricks: Building2, Housing: Building2, NoBroker: Building2 };
+const sourceIconMap = { WhatsApp: MessageSquare, 'WhatsApp Inquiry': MessageSquare, Instagram, Facebook, Website: Globe, 'Property Viewing': Store, 'Site Visit': Store, 'Walk-in': Store, Referral: Users, 'Channel Partner': Building2, Bayut: Building2, 'Property Finder': Building2, Dubizzle: Building2 };
 
 const sourceColorMap = {
   WhatsApp: 'text-success bg-success-light',
@@ -38,7 +38,9 @@ const sourceColorMap = {
   'Walk-in': 'text-amber-700 bg-amber-500/10',
   Referral: 'text-purple bg-purple-light',
   'Channel Partner': 'text-blue-700 bg-blue-500/10',
-  IndiaMART: 'text-blue-700 bg-blue-500/10',
+  Bayut: 'text-blue-700 bg-blue-500/10',
+  'Property Finder': 'text-indigo-700 bg-indigo-500/10',
+  Dubizzle: 'text-amber-700 bg-amber-500/10',
 };
 
 const defaultSourceColor = 'text-muted bg-surface-hover';
@@ -54,10 +56,12 @@ const statusColorMap = {
 
 const normalizePhoneNumber = (value) => {
   const digits = String(value || '').replace(/\D/g, '');
-  const trimmed = digits.replace(/^0+/, '');
-  if (!trimmed) return '';
-  if (trimmed.length === 10) return `91${trimmed}`;
-  return trimmed;
+  if (!digits) return '';
+  if (digits.startsWith('00971')) return digits.slice(2);
+  if (digits.startsWith('971')) return digits;
+  if (digits.length === 10 && digits.startsWith('05')) return `971${digits.slice(1)}`;
+  if (digits.length === 9 && digits.startsWith('5')) return `971${digits}`;
+  return digits;
 };
 
 const buildWhatsAppUrl = (phone, message) => {
@@ -784,7 +788,7 @@ export default function LeadsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted mb-1.5">Phone</label>
-              <input type="tel" name="phone" required placeholder="+91..." className="w-full" />
+              <input type="tel" name="phone" required placeholder="+971..." className="w-full" />
             </div>
           </div>
           <div>

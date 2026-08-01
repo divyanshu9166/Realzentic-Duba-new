@@ -172,7 +172,7 @@ function SetTargetModal({
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-muted mb-1.5">Revenue Target (₹)</label>
+                        <label className="block text-xs font-medium text-muted mb-1.5">Revenue Target (AED )</label>
                         <input
                             type="number"
                             min="0"
@@ -338,10 +338,10 @@ export default function AgentTargetsTab() {
                                         </td>
                                         <td>
                                             <span className="text-sm font-semibold text-foreground">
-                                                ₹{(row.revenueAchieved / 100000).toFixed(1)}L
+                                                AED {(row.revenueAchieved / 100000).toFixed(1)}L
                                             </span>
                                             <span className="text-xs text-muted">
-                                                {' '}/ ₹{(row.revenueTarget / 100000).toFixed(1)}L
+                                                {' '}/ AED {(row.revenueTarget / 100000).toFixed(1)}L
                                             </span>
                                         </td>
                                         <td className="min-w-[140px]">

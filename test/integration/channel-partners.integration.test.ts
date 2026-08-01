@@ -5,7 +5,7 @@
  *
  * Covers the DB-backed property tasks:
  *   - 10.2 Property 28: completing a payout batch marks commissions Paid (Req 6.6)
- *   - 10.3 Property 29: RERA broker number required and unique (Req 6.9)
+ *   - 10.3 Property 29: BRN number required and unique (Req 6.9)
  *   - 10.7 Property 30: channel partner data isolation (Req 7.3, 7.4, 21.2)
  *   - 10.8 Property 31: channel portal browses only Available units (Req 7.5)
  *   - 10.9 Property 32: channel partner lead submission validation (Req 7.6)
@@ -81,8 +81,8 @@ async function seedPartner(overrides: Record<string, unknown> = {}) {
     const partner = await prisma.channelPartner.create({
         data: {
             name: `CP ${uid()}`,
-            reraBrokerNo: uid('RERA'),
-            phone: `+9197${Math.floor(1000000 + Math.random() * 8999999)}`,
+            brnNumber: uid('BRN'),
+            phone: `+9715${Math.floor(1000000 + Math.random() * 8999999)}`,
             email: `${uid('cp').toLowerCase()}@test.local`,
             type: 'Individual',
             status: 'Active',
@@ -98,11 +98,11 @@ async function seedPartner(overrides: Record<string, unknown> = {}) {
 describe('Channel Partner / Portal — DB integration', () => {
     // 10.2 / Property 28: completing a payout batch marks every included commission Paid (Req 6.6)
     it('completePayoutBatch marks all included commissions Paid', async () => {
-        // onboardPartner — RERA required + unique; Fixed commission so the amount is computable without a booking.
+        // onboardPartner — BRN required + unique; Fixed commission so the amount is computable without a booking.
         const onboard = await onboardPartner({
             name: `CP ${uid()}`,
-            reraBrokerNo: uid('RERA'),
-            phone: '+919700000001',
+            brnNumber: uid('BRN'),
+            phone: '+971500000001',
             email: `${uid('cp').toLowerCase()}@test.local`,
             type: 'Individual',
             commissionType: 'Fixed',
@@ -155,30 +155,30 @@ describe('Channel Partner / Portal — DB integration', () => {
         }
     })
 
-    // 10.3 / Property 29: RERA broker number is required and unique (Req 6.9)
-    it('onboardPartner requires a RERA broker number', async () => {
+    // 10.3 / Property 29: BRN number is required and unique (Req 6.9)
+    it('onboardPartner requires a BRN number', async () => {
         const base = {
             name: `CP ${uid()}`,
-            phone: '+919700000002',
+            phone: '+971500000002',
             email: `${uid('cp').toLowerCase()}@test.local`,
             type: 'Individual' as const,
         }
 
-        // Missing RERA → rejected.
+        // Missing BRN → rejected.
         const missing = await onboardPartner({ ...base })
         expect(missing.success).toBe(false)
 
-        // Empty RERA → rejected.
-        const empty = await onboardPartner({ ...base, reraBrokerNo: '   ' })
+        // Empty BRN → rejected.
+        const empty = await onboardPartner({ ...base, brnNumber: '   ' })
         expect(empty.success).toBe(false)
     })
 
-    it('onboardPartner rejects a duplicate RERA broker number', async () => {
-        const rera = uid('RERA')
+    it('onboardPartner rejects a duplicate BRN number', async () => {
+        const brn = uid('BRN')
         const first = await onboardPartner({
             name: `CP ${uid()}`,
-            reraBrokerNo: rera,
-            phone: '+919700000003',
+            brnNumber: brn,
+            phone: '+971500000003',
             email: `${uid('cp').toLowerCase()}@test.local`,
             type: 'Individual',
         })
@@ -187,11 +187,11 @@ describe('Channel Partner / Portal — DB integration', () => {
             cleanup.add(() => prisma.channelPartner.delete({ where: { id: first.data.id } }))
         }
 
-        // Second onboard with the SAME RERA (different email) → rejected (Req 6.9).
+        // Second onboard with the SAME BRN (different email) → rejected (Req 6.9).
         const dup = await onboardPartner({
             name: `CP ${uid()}`,
-            reraBrokerNo: rera,
-            phone: '+919700000004',
+            brnNumber: brn,
+            phone: '+971500000004',
             email: `${uid('cp').toLowerCase()}@test.local`,
             type: 'Individual',
         })
@@ -258,9 +258,9 @@ describe('Channel Partner / Portal — DB integration', () => {
         // Blank clientName → rejected, nothing written.
         const res = await cpSubmitLead({
             clientName: '   ',
-            phone: '+919700000010',
-            interestedProperty: 'Tower A 2BHK',
-            budget: '50L',
+            phone: '+971500000010',
+            interestedProperty: 'Tower A 2 Bedroom Apartment',
+            budget: '500K AED',
         })
         expect(res.success).toBe(false)
 

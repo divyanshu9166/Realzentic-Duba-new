@@ -291,7 +291,7 @@ export function FacebookConfig() {
               <div className="space-y-1.5">
                 <Label className="text-foreground text-xs sm:text-sm">Webhook Verify Token</Label>
                 <Input
-                  placeholder="Create a custom verify token (e.g. kosmic_fb_2024)"
+                  placeholder="Create a custom verify token (e.g. realzentic_fb_2026)"
                   value={verifyToken}
                   onChange={(e) => { setVerifyToken(e.target.value); isDirtyRef.current = true }}
                 />

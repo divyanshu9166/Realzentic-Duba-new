@@ -17,7 +17,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Generate Prisma client
-ARG DATABASE_URL="postgresql://postgres:postgres@localhost:5432/furniturecrm"
+ARG DATABASE_URL="postgresql://postgres:postgres@localhost:5432/realzentic_dubai"
 ENV DATABASE_URL=$DATABASE_URL
 RUN --mount=type=cache,target=/root/.npm npx prisma generate
 

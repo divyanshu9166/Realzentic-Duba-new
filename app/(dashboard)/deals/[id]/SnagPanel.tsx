@@ -285,10 +285,10 @@ export default function SnagPanel({ bookingId }: SnagPanelProps) {
                                 )}
                                 <div className="flex flex-wrap gap-x-3 mt-1 text-[10px] text-muted">
                                     {snag.assignedToName && <span>Assigned: {snag.assignedToName}</span>}
-                                    <span>{new Date(snag.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                    <span>{new Date(snag.createdAt).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                                     {snag.resolvedAt && (
                                         <span className="text-emerald-700">
-                                            Resolved: {new Date(snag.resolvedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                            Resolved: {new Date(snag.resolvedAt).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })}
                                         </span>
                                     )}
                                 </div>

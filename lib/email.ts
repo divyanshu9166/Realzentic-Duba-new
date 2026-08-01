@@ -21,7 +21,7 @@ export async function getSmtpConfig(): Promise<SmtpConfig | null> {
     smtpPort: settings.smtpPort || 587,
     smtpUser: settings.smtpUser,
     smtpPass: settings.smtpPass,
-    smtpFromName: settings.smtpFromName || settings.storeName || 'Furniture Store',
+    smtpFromName: settings.smtpFromName || settings.storeName || 'Realzentic Dubai',
     smtpSecure: settings.smtpSecure,
   }
 }
@@ -162,11 +162,11 @@ export async function sendTestEmail(config: SmtpConfig, to: string): Promise<{ s
     await transporter.sendMail({
       from: `"${config.smtpFromName}" <${config.smtpUser}>`,
       to,
-      subject: 'Test Email from Furzentic',
+      subject: 'Test Email from Realzentic Dubai',
       html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 30px;">
           <h2 style="color: #1a1a1a;">Email Setup Successful!</h2>
-          <p style="color: #555;">Your Furzentic email is configured and working correctly.</p>
+          <p style="color: #555;">Your Realzentic Dubai email is configured and working correctly.</p>
           <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
             <p style="color: #166534; margin: 0; font-weight: 600;">SMTP Host: ${config.smtpHost}</p>
             <p style="color: #166534; margin: 4px 0 0;">From: ${config.smtpUser}</p>

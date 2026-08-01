@@ -51,7 +51,7 @@ afterAll(async () => {
 
 /** A test-only, well-formed phone number (>= 10 digits, unique-ish). */
 function testPhone(): string {
-    return `+9195${Math.floor(1000000 + Math.random() * 8999999)}`
+    return `+9715${Math.floor(1000000 + Math.random() * 8999999)}`
 }
 
 describe('Dedup / merge service — DB integration', () => {
@@ -69,8 +69,8 @@ describe('Dedup / merge service — DB integration', () => {
             name: source.name,
             phone: sourcePhone,
             source: 'Website',
-            interest: 'BHK2 apartment',
-            budget: '50L',
+            interest: 'Apartment2 apartment',
+            budget: '500K AED',
         })
         expect(leadRes.success).toBe(true)
         const leadId = (leadRes.data as { id: number; contactId: number }).id
@@ -115,7 +115,7 @@ describe('Dedup / merge service — DB integration', () => {
             name: 'Someone Else', // different name, same phone
             phone: existing.phone,
             source: 'Website',
-            interest: 'BHK3 apartment',
+            interest: 'Apartment3 apartment',
         })
         expect(leadRes.success).toBe(true)
         const leadId = (leadRes.data as { id: number; contactId: number }).id
@@ -146,7 +146,7 @@ describe('Dedup / merge service — DB integration', () => {
             name: source.name,
             phone: sourcePhone,
             source: 'Website',
-            interest: 'BHK2 apartment',
+            interest: 'Apartment2 apartment',
         })
         expect(leadRes.success).toBe(true)
         const leadId = (leadRes.data as { id: number }).id

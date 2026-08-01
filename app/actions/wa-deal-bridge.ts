@@ -22,19 +22,19 @@
 
 import { prisma } from '@/lib/db'
 import { requireRole } from '@/lib/auth-helpers'
+import { normalizePhoneForMetaUae, uaePhoneVariants } from '@/lib/whatsapp/phone-utils'
 
 // ---------------------------------------------------------------------------
 // Phone normalisation helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Strip every non-digit character from a phone string and return the last 10
- * digits. Returns null when the stripped value has fewer than 10 digits.
+ * Canonicalize a UAE mobile phone for CRM storage. Returns null for a value
+ * that cannot be recognized as a UAE mobile number.
  */
-function stripToLast10(raw: string): string | null {
-    const digits = raw.replace(/\D/g, '')
-    if (digits.length < 10) return null
-    return digits.slice(-10)
+function canonicalUaePhone(raw: string): string | null {
+    const normalized = normalizePhoneForMetaUae(raw)
+    return normalized.startsWith('9715') && normalized.length === 12 ? normalized : null
 }
 
 /**
@@ -43,21 +43,12 @@ function stripToLast10(raw: string): string | null {
  * `{ phone: { in: candidates } }`.
  *
  * Variants produced:
- *   - The raw value as-is (handles e.g. "+91XXXXXXXXXX" already in DB).
- *   - Last 10 digits (e.g. "XXXXXXXXXX").
- *   - Last 10 digits prefixed with "91" (e.g. "91XXXXXXXXXX").
- *   - Last 10 digits prefixed with "+91" (e.g. "+91XXXXXXXXXX").
+ *   - The raw value as-is (handles e.g. "+971XXXXXXXXXX" already in DB).
+ *   - Canonical UAE E.164 digits (e.g. "971501234567").
+ *   - UAE domestic forms with and without the `0` trunk prefix.
  */
 function phoneVariants(raw: string): string[] {
-    const last10 = stripToLast10(raw)
-    const candidates = new Set<string>()
-    candidates.add(raw.trim())
-    if (last10) {
-        candidates.add(last10)
-        candidates.add(`91${last10}`)
-        candidates.add(`+91${last10}`)
-    }
-    return [...candidates].filter(Boolean)
+    return uaePhoneVariants(raw)
 }
 
 // ---------------------------------------------------------------------------
@@ -127,8 +118,8 @@ export async function bridgeWaDealToCrm(waDealId: string): Promise<BridgeResult>
     })
 
     if (!crmContact) {
-        // Normalise to last-10 for storage, fall back to raw value.
-        const storagePhone = stripToLast10(waContact.phone) ?? waContact.phone.trim()
+        // Store the canonical UAE number for new CRM contacts.
+        const storagePhone = canonicalUaePhone(waContact.phone) ?? waContact.phone.trim()
         crmContact = await prisma.contact.create({
             data: {
                 name: waContact.name ?? waContact.phone,

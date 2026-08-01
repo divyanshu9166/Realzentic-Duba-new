@@ -19,6 +19,8 @@ import { useState, useTransition } from 'react';
 import { Sparkles, MessageSquare, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { matchUnits } from '@/app/actions/ai-matching';
 import type { MatchedUnit } from '@/app/actions/ai-matching';
+import { formatCurrency } from '@/lib/currency';
+import { normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-utils';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,7 +37,7 @@ interface Props {
     /** Pre-derived preferences from the lead / deal (all optional). */
     preferences?: AiMatchPreferences;
     /**
-     * Free-text budget string from a lead (e.g. "50 Lakh", "1 Cr").
+ * Free-text AED budget string from a lead (e.g. "800K", "2.5M").
      * If provided the panel will attempt to parse and pre-fill the budget fields.
      */
     initialBudgetText?: string;
@@ -49,15 +51,8 @@ interface Props {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatINR(value: number): string {
-    return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
-}
-
 function normalizePhone(phone: string | undefined): string {
-    if (!phone) return '';
-    const digits = phone.replace(/\D/g, '').replace(/^0+/, '');
-    if (digits.length === 10) return `91${digits}`;
-    return digits;
+    return phone ? normalizePhoneForMetaUae(phone) : '';
 }
 
 function buildWhatsAppUrl(phone: string | undefined, text: string): string {
@@ -70,7 +65,7 @@ function buildUnitMessage(unit: MatchedUnit, buyerName?: string): string {
     const name = buyerName ? `Hello ${buyerName}, ` : 'Hello, ';
     const unitDesc = `${unit.type} at ${unit.projectName || 'a project'}${unit.location ? `, ${unit.location}` : ''}`;
     const details = `Unit ${unit.unitNumber}, Floor ${unit.floorNumber}, ${unit.carpetArea} sqft`;
-    const price = formatINR(unit.totalPrice);
+    const price = formatCurrency(unit.totalPrice);
     return `${name}we have a great property match for you!\n\n🏠 ${unitDesc}\n📐 ${details}\n💰 ${price}\n✅ ${unit.matchPercentage}% match with your preferences\n\nInterested? Let's schedule a site visit!`;
 }
 
@@ -81,24 +76,22 @@ const MATCH_COLOR = (pct: number) => {
 };
 
 const UNIT_TYPE_LABELS: Record<string, string> = {
-    BHK1: '1 BHK', BHK2: '2 BHK', BHK3: '3 BHK', BHK4: '4 BHK',
-    Shop: 'Shop', Office: 'Office', Plot: 'Plot',
+    Studio: 'Studio', Apartment1: '1 Bedroom Apartment', Apartment2: '2 Bedroom Apartment',
+    Apartment3: '3 Bedroom Apartment', Apartment4Plus: '4+ Bedroom Apartment',
+    Penthouse: 'Penthouse', Villa: 'Villa', Townhouse: 'Townhouse', Duplex: 'Duplex',
+    Retail: 'Retail', Office: 'Office', Warehouse: 'Warehouse', LandPlot: 'Land',
 };
 
 /**
- * Parse a free-text Indian budget string (e.g. "50 Lakh", "1.5 Cr", "₹30L")
- * into a numeric rupee value. Returns undefined when parsing fails.
+ * Parse a free-text AED budget string (e.g. "800K", "2.5M") into a value.
  */
 function parseFreeTextBudget(text: string): number | undefined {
     if (!text) return undefined;
-    const cleaned = text.toLowerCase().replace(/[₹,\s]/g, '');
-    let scale = 1;
-    if (/cr(ore)?/.test(cleaned)) scale = 1e7;
-    else if (/lakh|lac|\dl\b|l$/.test(cleaned)) scale = 1e5;
-    else if (/k$/.test(cleaned)) scale = 1e3;
-    const match = cleaned.match(/\d+(?:\.\d+)?/);
+    const cleaned = text.toLowerCase().replace(/[aed,\s]/g, '');
+    const match = cleaned.match(/(\d+(?:\.\d+)?)([km])?/);
     if (!match) return undefined;
-    const val = Number(match[0]) * scale;
+    const scale = match[2] === 'm' ? 1_000_000 : match[2] === 'k' ? 1_000 : 1;
+    const val = Number(match[1]) * scale;
     return Number.isFinite(val) && val > 0 ? val : undefined;
 }
 
@@ -175,7 +168,7 @@ export default function AiMatchPanel({ preferences, initialBudgetText, buyerName
                     {/* Budget filter row */}
                     <div className="flex flex-wrap items-end gap-2">
                         <div className="flex-1 min-w-[110px]">
-                            <label className="block text-[11px] text-muted mb-1">Min budget (₹)</label>
+                            <label className="block text-[11px] text-muted mb-1">Min budget (AED )</label>
                             <input
                                 type="number"
                                 value={minBudget}
@@ -185,7 +178,7 @@ export default function AiMatchPanel({ preferences, initialBudgetText, buyerName
                             />
                         </div>
                         <div className="flex-1 min-w-[110px]">
-                            <label className="block text-[11px] text-muted mb-1">Max budget (₹)</label>
+                            <label className="block text-[11px] text-muted mb-1">Max budget (AED )</label>
                             <input
                                 type="number"
                                 value={maxBudget}
@@ -261,7 +254,7 @@ export default function AiMatchPanel({ preferences, initialBudgetText, buyerName
                                                 {' · '}Floor {unit.floorNumber}
                                                 {' · '}{unit.carpetArea} sqft
                                             </p>
-                                            <p className="text-xs font-medium text-accent">{formatINR(unit.totalPrice)}</p>
+                                            <p className="text-xs font-medium text-accent">{formatCurrency(unit.totalPrice)}</p>
                                         </div>
 
                                         {/* WhatsApp send */}

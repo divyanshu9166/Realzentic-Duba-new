@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { Plus, Loader2, Building2, LayoutGrid } from 'lucide-react'
 import { createTower, bulkCreateUnits } from '@/app/actions/properties'
 
-const UNIT_TYPES = ['BHK1', 'BHK2', 'BHK3', 'BHK4', 'Shop', 'Office', 'Plot']
+const UNIT_TYPES = ['Studio', 'Apartment1', 'Apartment2', 'Apartment3', 'Apartment4Plus', 'Penthouse', 'Villa', 'Townhouse', 'Duplex', 'Retail', 'Office', 'Warehouse', 'LandPlot']
 const FACINGS = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW']
 
 export default function AddInventoryButton({
@@ -31,7 +31,7 @@ export default function AddInventoryButton({
     const [units, setUnits] = useState({
         towerId: towers[0] ? String(towers[0].id) : '',
         floorStart: '1', floorEnd: '10', unitsPerFloor: '4',
-        type: 'BHK2', carpetArea: '800', superBuiltUpArea: '1000', facing: 'N',
+        type: 'Apartment2', carpetArea: '800', superBuiltUpArea: '1000', facing: 'N',
         basePricePerSqft: '5000', floorRisePremium: '0', viewPremium: '0',
     })
 
@@ -165,7 +165,7 @@ export default function AddInventoryButton({
                                         <input type="number" value={units.superBuiltUpArea} onChange={(e) => setUnits((u) => ({ ...u, superBuiltUpArea: e.target.value }))} className={field} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-muted mb-1">₹ / sqft</label>
+                                        <label className="block text-xs text-muted mb-1">AED  / sqft</label>
                                         <input type="number" value={units.basePricePerSqft} onChange={(e) => setUnits((u) => ({ ...u, basePricePerSqft: e.target.value }))} className={field} />
                                     </div>
                                 </div>

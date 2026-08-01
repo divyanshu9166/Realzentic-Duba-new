@@ -24,7 +24,7 @@ import { assertMoneyRange, roundMoney } from '@/lib/money'
 export type UnitStatus = 'Available' | 'Blocked' | 'Booked' | 'Sold' | 'Mortgaged'
 
 /** Unit type values (Prisma enum `UnitType`). */
-export type UnitType = 'BHK1' | 'BHK2' | 'BHK3' | 'BHK4' | 'Shop' | 'Office' | 'Plot'
+export type UnitType = 'Studio' | 'Apartment1' | 'Apartment2' | 'Apartment3' | 'Apartment4Plus' | 'Penthouse' | 'Villa' | 'Townhouse' | 'Duplex' | 'Retail' | 'Office' | 'Warehouse' | 'LandPlot' | 'BHK1' | 'BHK2' | 'BHK3' | 'BHK4' | 'Shop' | 'Plot'
 
 /** Unit facing values (Prisma enum `UnitFacing`). */
 export type UnitFacing = 'N' | 'S' | 'E' | 'W' | 'NE' | 'NW' | 'SE' | 'SW'

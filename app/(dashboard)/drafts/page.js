@@ -21,31 +21,29 @@ export default function DraftsPage() {
   const [saving, setSaving] = useState(false);
 
   const sourceTypeLabels = {
-    CustomOrder: 'Custom Orders',
+    CustomOrder: 'Property Bookings',
     FieldVisit: 'Self Visits',
     Lead: 'Leads',
     Walkin: 'Walk-ins',
     Appointment: 'Appointments',
-    Order: 'Orders',
-    Quotation: 'Quotations',
-    Invoice: 'Invoices',
-    PurchaseOrder: 'Purchase Orders',
+    Order: 'Property Deals',
+    Quotation: 'Cost Sheets',
+    Invoice: 'Payment Records',
+    PurchaseOrder: 'Developer Payment Plans',
     Expense: 'Expenses',
-    Product: 'Products',
   };
 
   const sourceTypeActionLabels = {
-    CustomOrder: 'Custom Order',
+    CustomOrder: 'Property Booking',
     FieldVisit: 'Self Visit',
     Lead: 'Lead',
     Walkin: 'Walk-in',
     Appointment: 'Appointment',
-    Order: 'Order',
-    Quotation: 'Quotation',
-    Invoice: 'Invoice',
-    PurchaseOrder: 'Purchase Order',
+    Order: 'Property Deal',
+    Quotation: 'Cost Sheet',
+    Invoice: 'Payment Record',
+    PurchaseOrder: 'Developer Payment Plan',
     Expense: 'Expense',
-    Product: 'Product',
   };
 
   const getDraftLabel = sourceType => sourceTypeLabels[sourceType] || sourceType;
@@ -165,7 +163,7 @@ export default function DraftsPage() {
           />
         </div>
         <div className="flex gap-1.5">
-          {['All', 'CustomOrder', 'FieldVisit', 'Lead', 'Walkin', 'Appointment', 'Order', 'Quotation', 'Invoice', 'PurchaseOrder', 'Expense', 'Product'].map(f => (
+          {['All', 'CustomOrder', 'FieldVisit', 'Lead', 'Walkin', 'Appointment', 'Order', 'Quotation', 'Invoice', 'PurchaseOrder', 'Expense'].map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -215,7 +213,7 @@ export default function DraftsPage() {
                       {draft.daysLeft} day{draft.daysLeft !== 1 ? 's' : ''} left
                     </div>
                     <p className="text-[10px] text-muted mt-0.5">
-                      Deleted {deletedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      Deleted {deletedDate.toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   </div>
                 </div>
@@ -224,7 +222,7 @@ export default function DraftsPage() {
                   {data.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {data.phone}</span>}
                   {draft.sourceType === 'FieldVisit' && data.address && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {data.address}</span>}
                   {draft.sourceType === 'FieldVisit' && data.staffName && <span className="flex items-center gap-1"><User className="w-3 h-3" /> {data.staffName}</span>}
-                  {data.quotedPrice != null && <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> ₹{data.quotedPrice.toLocaleString()}</span>}
+                  {data.quotedPrice != null && <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> AED {data.quotedPrice.toLocaleString()}</span>}
                   {data.materials && <span>{data.materials}</span>}
                 </div>
 
@@ -270,7 +268,7 @@ export default function DraftsPage() {
               {/* Warning Banner */}
               <div className={`flex items-center gap-2 p-3 rounded-xl text-xs font-medium ${selectedDraft.daysLeft <= 7 ? 'bg-red-500/10 text-red-700 border border-red-500/20' : 'bg-amber-500/10 text-amber-700 border border-amber-500/20'}`}>
                 <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                <span>This draft will be permanently deleted on {expiresDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })} ({selectedDraft.daysLeft} days remaining)</span>
+                <span>This draft will be permanently deleted on {expiresDate.toLocaleDateString('en-AE', { day: 'numeric', month: 'long', year: 'numeric' })} ({selectedDraft.daysLeft} days remaining)</span>
               </div>
 
               {/* Info Section — adapts based on sourceType */}
@@ -308,7 +306,7 @@ export default function DraftsPage() {
                     {data.date && (
                       <div className="bg-surface rounded-xl p-3">
                         <p className="text-[10px] text-muted uppercase tracking-wide mb-1">Date</p>
-                        <p className="text-xs text-foreground">{new Date(data.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                        <p className="text-xs text-foreground">{new Date(data.date).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                       </div>
                     )}
                     {data.time && (
@@ -402,13 +400,13 @@ export default function DraftsPage() {
                     {data.quotedPrice != null && (
                       <div className="bg-surface rounded-xl p-3">
                         <p className="text-[10px] text-muted uppercase tracking-wide mb-1">Quoted Price</p>
-                        <p className="text-xs text-foreground font-medium">₹{data.quotedPrice.toLocaleString()}</p>
+                        <p className="text-xs text-foreground font-medium">AED {data.quotedPrice.toLocaleString()}</p>
                       </div>
                     )}
                     {data.advancePaid > 0 && (
                       <div className="bg-surface rounded-xl p-3">
                         <p className="text-[10px] text-muted uppercase tracking-wide mb-1">Advance Paid</p>
-                        <p className="text-xs text-foreground font-medium">₹{data.advancePaid.toLocaleString()}</p>
+                        <p className="text-xs text-foreground font-medium">AED {data.advancePaid.toLocaleString()}</p>
                       </div>
                     )}
                     {data.assignedStaff && (
@@ -436,13 +434,6 @@ export default function DraftsPage() {
                     </div>
                   )}
 
-                  {data.productionNotes && (
-                    <div className="bg-surface rounded-xl p-3">
-                      <p className="text-[10px] text-muted uppercase tracking-wide mb-1">Production Notes</p>
-                      <p className="text-xs text-foreground">{data.productionNotes}</p>
-                    </div>
-                  )}
-
                   {data.referenceImages && data.referenceImages.length > 0 && (
                     <div className="bg-surface rounded-xl p-3">
                       <p className="text-[10px] text-muted uppercase tracking-wide mb-2">Reference Images</p>
@@ -452,18 +443,6 @@ export default function DraftsPage() {
                             <img src={url} alt={`Ref ${i + 1}`} className="w-full h-full object-cover" />
                           </a>
                         ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {data.referenceProduct && (
-                    <div className="bg-surface rounded-xl p-3">
-                      <p className="text-[10px] text-muted uppercase tracking-wide mb-2">Reference Product</p>
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <p className="text-xs font-medium text-foreground">{data.referenceProduct.name}</p>
-                          <p className="text-[10px] text-muted">SKU: {data.referenceProduct.sku} · ₹{data.referenceProduct.price?.toLocaleString()}</p>
-                        </div>
                       </div>
                     </div>
                   )}
@@ -478,7 +457,7 @@ export default function DraftsPage() {
                             <div>
                               <p className="text-xs text-foreground">{t.event}</p>
                               <p className="text-[10px] text-muted">
-                                {new Date(t.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                {new Date(t.date).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })}
                                 {t.updatedBy && ` · ${t.updatedBy}`}
                               </p>
                             </div>
@@ -493,7 +472,7 @@ export default function DraftsPage() {
               {/* Deletion Info */}
               <div className="bg-surface rounded-xl p-3">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted">Deleted by <span className="text-foreground font-medium">{selectedDraft.deletedBy}</span> on {deletedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  <span className="text-muted">Deleted by <span className="text-foreground font-medium">{selectedDraft.deletedBy}</span> on {deletedDate.toLocaleDateString('en-AE', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                 </div>
               </div>
 

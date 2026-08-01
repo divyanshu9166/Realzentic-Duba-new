@@ -3,7 +3,7 @@ set -e
 
 echo ""
 echo "======================================"
-echo "  Furniture CRM — Setup"
+echo "  Realzentic Dubai — UAE Setup"
 echo "======================================"
 echo ""
 

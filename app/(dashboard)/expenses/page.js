@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Plus, Search, Calendar, Trash2, Download, Filter, MoreHorizontal,
-  IndianRupee, TrendingUp, TrendingDown, Wallet, PieChart, BarChart3,
+  TrendingUp, TrendingDown, Wallet, PieChart, BarChart3,
   Receipt, CreditCard, Banknote, ChevronDown, ChevronRight, CheckCircle2,
   XCircle, Clock, AlertTriangle, RefreshCw, Settings2, Repeat, Edit3,
   ArrowUpRight, ArrowDownRight, X, ChevronLeft, Check, Eye,
@@ -29,11 +29,11 @@ const ICON_MAP = {
   FileText, Megaphone, Factory, Store, HardHat, Landmark, MoreHorizontal,
 };
 
-const PAYMENT_MODES = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Cheque', 'Credit'];
-const PAYMENT_ICONS = { Cash: Banknote, UPI: Wallet, Card: CreditCard, 'Bank Transfer': Landmark, Cheque: FileText, Credit: Receipt };
+const PAYMENT_MODES = ['Cash', 'Card', 'Bank Transfer', 'Cheque', 'PDC', 'Mortgage Disbursement', 'Credit'];
+const PAYMENT_ICONS = { Cash: Banknote, Card: CreditCard, 'Bank Transfer': Landmark, Cheque: FileText, PDC: FileText, 'Mortgage Disbursement': Landmark, Credit: Receipt };
 const FREQUENCIES = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Yearly'];
 
-const formatCurrency = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
+const formatCurrency = (n) => `AED ${(n || 0).toLocaleString('en-AE')}`;
 
 const today = () => new Date().toISOString().split('T')[0];
 const monthStr = () => new Date().toISOString().slice(0, 7); // YYYY-MM
@@ -417,7 +417,7 @@ export default function ExpensesPage() {
           <div><p className="text-xs text-muted">Today</p><p className="text-lg font-bold text-red-600">{formatCurrency(todayTotal)}</p></div>
         </div>
         <div className="glass-card p-4 flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-accent-light"><IndianRupee className="w-5 h-5 text-accent" /></div>
+          <div className="p-2.5 rounded-xl bg-accent-light"><Banknote className="w-5 h-5 text-accent" /></div>
           <div><p className="text-xs text-muted">This Period</p><p className="text-lg font-bold text-foreground">{formatCurrency(totalInRange)}</p></div>
         </div>
         <div className="glass-card p-4 flex items-center gap-3">
@@ -464,7 +464,7 @@ export default function ExpensesPage() {
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <div className="relative w-full sm:col-span-2">
-                <IndianRupee className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
+                <Banknote className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
                 <input type="number" placeholder="Amount" min="1" value={expForm.amount}
                   onChange={e => setExpForm(f => ({ ...f, amount: e.target.value }))}
                   className="w-full pl-8 pr-3 py-2 bg-surface border border-border rounded-xl text-sm focus:outline-none focus:border-accent/50" />
@@ -1203,7 +1203,7 @@ export default function ExpensesPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted mb-1.5">Amount (₹) <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-muted mb-1.5">Amount (AED ) <span className="text-red-500">*</span></label>
               <input type="number" min="1" placeholder="e.g. 5000" value={expForm.amount}
                 onChange={e => setExpForm(f => ({ ...f, amount: e.target.value }))}
                 className="w-full px-3 py-2.5 bg-surface border border-border rounded-xl text-sm focus:outline-none focus:border-accent/50" />
@@ -1307,7 +1307,7 @@ export default function ExpensesPage() {
                 className="w-full h-10 bg-surface border border-border rounded-xl cursor-pointer" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted mb-1.5">Monthly Budget (₹)</label>
+              <label className="block text-xs font-medium text-muted mb-1.5">Monthly Budget (AED )</label>
               <input type="number" min="0" placeholder="0" value={catForm.budget}
                 onChange={e => setCatForm(f => ({ ...f, budget: e.target.value }))}
                 className="w-full px-3 py-2.5 bg-surface border border-border rounded-xl text-sm focus:outline-none focus:border-accent/50" />
@@ -1345,13 +1345,13 @@ export default function ExpensesPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-muted mb-1.5">Description <span className="text-red-500">*</span></label>
-            <input type="text" placeholder="e.g. Showroom Rent" value={recForm.description}
+            <input type="text" placeholder="e.g. Office rent" value={recForm.description}
               onChange={e => setRecForm(f => ({ ...f, description: e.target.value }))}
               className="w-full px-3 py-2.5 bg-surface border border-border rounded-xl text-sm focus:outline-none focus:border-accent/50" />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted mb-1.5">Amount (₹) <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-muted mb-1.5">Amount (AED ) <span className="text-red-500">*</span></label>
               <input type="number" min="1" placeholder="25000" value={recForm.amount}
                 onChange={e => setRecForm(f => ({ ...f, amount: e.target.value }))}
                 className="w-full px-3 py-2.5 bg-surface border border-border rounded-xl text-sm focus:outline-none focus:border-accent/50" />
@@ -1391,7 +1391,7 @@ export default function ExpensesPage() {
         <div className="space-y-4">
           <p className="text-sm text-muted">Set the monthly budget limit for this category. You&apos;ll see alerts when spending exceeds the budget.</p>
           <div>
-            <label className="block text-xs font-medium text-muted mb-1.5">Monthly Budget (₹)</label>
+            <label className="block text-xs font-medium text-muted mb-1.5">Monthly Budget (AED )</label>
             <input type="number" min="0" value={budgetVal} onChange={e => setBudgetVal(parseInt(e.target.value) || 0)}
               className="w-full px-3 py-2.5 bg-surface border border-border rounded-xl text-sm focus:outline-none focus:border-accent/50" />
           </div>

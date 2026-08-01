@@ -1,10 +1,10 @@
 /**
- * India finance calculators — additional PURE helpers.
+ * UAE finance calculators — additional PURE helpers.
  *
  * Complements the existing tested math (`computeEmi`, `amortizationSchedule`,
- * `computeStampDuty`/`estimateStampDutyAndRegistration`, `gstRateForProject`)
- * with the two pieces the CRM did not yet have: home-loan eligibility (FOIR
- * based) and investor metrics (rental yield + appreciation projection).
+ * `computeDldFee`/`estimateDldFeeAndRegistration`, `vatRateForProperty`)
+ * with mortgage eligibility (DBR + LTV) and investor metrics (rental yield +
+ * appreciation projection).
  *
  * All functions are pure and deterministic; invalid/non-finite inputs degrade
  * to safe zeros rather than throwing, so they are convenient to drive directly
@@ -24,9 +24,12 @@ function clamp(n: number, lo: number, hi: number): number {
     return Math.min(hi, Math.max(lo, n))
 }
 
-// ─── Home-loan eligibility (FOIR) ─────────────────────────────────────────────
+// ─── Mortgage eligibility (DBR + UAE Central Bank LTV caps) ──────────────────
 
-export interface LoanEligibilityInput {
+export type MortgageApplicantType = 'UAE_NATIONAL' | 'EXPATRIATE'
+export type MortgagePurchaseType = 'FIRST_HOME' | 'SECONDARY_OR_INVESTMENT' | 'OFF_PLAN'
+
+export interface MortgageEligibilityInput {
     /** Gross monthly income. */
     monthlyIncome: number
     /** Existing monthly EMIs / obligations (default 0). */
@@ -35,32 +38,59 @@ export interface LoanEligibilityInput {
     annualRatePct: number
     /** Tenure in months. */
     tenureMonths: number
-    /** Fixed-obligation-to-income ratio cap as a fraction (default 0.5 = 50%). */
-    foir?: number
+    /** Property value is required to apply the regulatory LTV cap. */
+    propertyValue: number
+    applicantType?: MortgageApplicantType
+    purchaseType?: MortgagePurchaseType
+    /** Debt-burden-ratio cap as a fraction (default 0.5 = 50%). */
+    dbr?: number
 }
 
-export interface LoanEligibilityResult {
+export interface MortgageEligibilityResult {
     /** Maximum EMI the applicant can service. */
     maxEmi: number
     /** Maximum loan principal that EMI supports at the given rate/tenure. */
     eligibleLoan: number
+    /** Regulatory maximum percentage of the property value that may be financed. */
+    ltvCap: number
+    /** Monetary limit created by the LTV cap. */
+    maxLoanByLtv: number
 }
 
 /**
- * Estimate home-loan eligibility using the FOIR method: the bank caps total
- * obligations at `foir × income`, so the affordable EMI is
+ * Return the applicable UAE Central Bank LTV ceiling. Lenders may apply more
+ * conservative underwriting criteria; this is a regulatory maximum, not an
+ * approval promise.
+ */
+export function mortgageLtvCap(
+    propertyValue: number,
+    applicantType: MortgageApplicantType = 'EXPATRIATE',
+    purchaseType: MortgagePurchaseType = 'FIRST_HOME',
+): number {
+    if (purchaseType === 'OFF_PLAN') return 0.5
+    if (purchaseType === 'SECONDARY_OR_INVESTMENT') return applicantType === 'UAE_NATIONAL' ? 0.65 : 0.6
+    if (applicantType === 'UAE_NATIONAL') return propertyValue <= 5_000_000 ? 0.85 : 0.75
+    return propertyValue < 5_000_000 ? 0.75 : 0.65
+}
+
+/**
+ * Estimate mortgage eligibility using debt burden ratio (DBR) and the UAE
+ * Central Bank LTV ceiling. The bank caps total obligations at `dbr × income`, so the affordable EMI is
  * `income × foir − existing obligations`. That EMI is then reverse-amortized
  * into the maximum supportable principal at the given rate and tenure.
  */
-export function loanEligibility(input: LoanEligibilityInput): LoanEligibilityResult {
+export function mortgageEligibility(input: MortgageEligibilityInput): MortgageEligibilityResult {
     const income = num(input.monthlyIncome)
     const obligations = num(input.monthlyObligations)
-    const foir = clamp(num(input.foir) || 0.5, 0, 1)
+    const dbr = clamp(num(input.dbr) || 0.5, 0, 1)
     const tenure = Math.max(0, Math.trunc(num(input.tenureMonths)))
     const r = num(input.annualRatePct) / 12 / 100
 
-    const maxEmi = round2(Math.max(0, income * foir - obligations))
-    if (maxEmi <= 0 || tenure <= 0) return { maxEmi, eligibleLoan: 0 }
+    const propertyValue = num(input.propertyValue)
+    const ltvCap = mortgageLtvCap(propertyValue, input.applicantType, input.purchaseType)
+    const maxLoanByLtv = round2(Math.max(0, propertyValue * ltvCap))
+    const maxEmi = round2(Math.max(0, income * dbr - obligations))
+    if (maxEmi <= 0 || tenure <= 0 || maxLoanByLtv <= 0) return { maxEmi, eligibleLoan: 0, ltvCap, maxLoanByLtv }
 
     // Undiscounted sum of all EMIs — the mathematical upper bound for the
     // principal. With any positive interest the reverse-amortized principal is
@@ -82,7 +112,7 @@ export function loanEligibility(input: LoanEligibilityInput): LoanEligibilityRes
     // Clamp to the undiscounted sum: positive interest can only reduce the
     // supportable principal, never increase it past EMI × tenure.
     eligibleLoan = Math.min(eligibleLoan, undiscounted)
-    return { maxEmi, eligibleLoan: round2(eligibleLoan) }
+    return { maxEmi, eligibleLoan: round2(Math.min(eligibleLoan, maxLoanByLtv)), ltvCap, maxLoanByLtv }
 }
 
 // ─── Rental yield ─────────────────────────────────────────────────────────────
@@ -144,13 +174,13 @@ export function appreciationProjection(input: AppreciationInput): AppreciationRe
     return { futureValue, totalGain: round2(futureValue - current), schedule }
 }
 
-// ─── GST on under-construction purchase ─────────────────────────────────────────
+// ─── VAT on property ─────────────────────────────────────────────────────────
 
 /**
- * GST amount on a base value at a given fractional rate (e.g. 0.05). Pure
- * multiply + round; the rate itself comes from `gstRateForProject` in
+ * VAT amount on a base value at a given fractional rate (e.g. 0.05). Pure
+ * multiply + round; the rate itself comes from `vatRateForProperty` in
  * `lib/cost-sheet.ts`.
  */
-export function gstAmount(baseValue: number, rate: number): number {
+export function vatAmount(baseValue: number, rate: number): number {
     return round2(num(baseValue) * num(rate))
 }

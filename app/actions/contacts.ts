@@ -24,7 +24,7 @@ export async function bulkImportContacts(rows: BulkContactRow[]) {
   // Normalise phone — strip spaces/dashes
   const normalised = valid.map(r => ({
     name: r.name.trim(),
-    phone: r.phone.replace(/[\s\-().+]/g, '').slice(-10), // keep last 10 digits
+    phone: normalizePhone(r.phone),
     email: r.email?.trim() || undefined,
     address: r.city ? `${r.address || ''}, ${r.city}`.replace(/^,\s*/, '') : r.address?.trim() || undefined,
     source: r.source?.trim() || 'Import',
@@ -65,7 +65,7 @@ export interface CreateContactInput {
   phone: string
   email?: string
   source?: string
-  state?: string
+  emirate?: string
   address?: string
   notes?: string
   nriCountry?: string
@@ -102,7 +102,7 @@ export async function createContact(input: CreateContactInput) {
         phone,
         email,
         source: input.source?.trim() || 'Manual',
-        state: input.state?.trim() || null,
+        emirate: input.emirate?.trim() || null,
         address: input.address?.trim() || null,
         notes: input.notes?.trim() || null,
         nriCountry: input.nriCountry?.trim() || null,
@@ -147,7 +147,7 @@ export interface ContactDirectoryRow {
   phone: string
   email: string | null
   source: string | null
-  state: string | null
+  emirate: string | null
   nriCountry: string | null
   createdAt: string
   leadCount: number
@@ -187,7 +187,7 @@ export async function getContactsDirectory(params?: { search?: string }): Promis
         phone: true,
         email: true,
         source: true,
-        state: true,
+        emirate: true,
         nriCountry: true,
         createdAt: true,
         _count: { select: { leads: true, deals: true, bookings: true } },
@@ -202,7 +202,7 @@ export async function getContactsDirectory(params?: { search?: string }): Promis
         phone: c.phone,
         email: c.email,
         source: c.source,
-        state: c.state,
+        emirate: c.emirate,
         nriCountry: c.nriCountry,
         createdAt: c.createdAt.toISOString(),
         leadCount: c._count.leads,

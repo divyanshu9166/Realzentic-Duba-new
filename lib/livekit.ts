@@ -1,5 +1,5 @@
 /**
- * LiveKit Server API utilities for the Furniture CRM.
+ * LiveKit Server API utilities for Realzentic Dubai.
  * Used by API routes to create rooms, dispatch agents, and generate tokens.
  * Uses LiveKit's REST API directly (no heavy SDK dependency in Next.js).
  */
@@ -10,7 +10,7 @@ const LIVEKIT_URL = () => process.env.LIVEKIT_URL || ''
 const LIVEKIT_API_KEY = () => process.env.LIVEKIT_API_KEY || ''
 const LIVEKIT_API_SECRET = () => process.env.LIVEKIT_API_SECRET || ''
 // LIVEKIT_AGENT_NAME must match the agent_name in agent.py WorkerOptions
-const LIVEKIT_AGENT_NAME = () => process.env.LIVEKIT_AGENT_NAME || 'furniture-crm-agent'
+const LIVEKIT_AGENT_NAME = () => process.env.LIVEKIT_AGENT_NAME || 'realzentic-dubai-agent'
 
 /**
  * Get the HTTP URL for LiveKit API from the WebSocket URL.

@@ -4,8 +4,8 @@
  * Channel Partner admin UI (Req 6.7).
  *
  * Displays partner listings with metrics (partner count, total commission
- * amount by status, pending payout total), an onboarding form requiring RERA
- * broker number, a commission ledger, and payout-batch management.
+ * amount by status, pending payout total), an onboarding form requiring BRN
+ * and optional ORN details, a commission ledger, and payout-batch management.
  *
  * All mutations delegate to the `Channel_Partner_Service` server actions in
  * `app/actions/channel-partners.ts`.
@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import {
     Plus, Search, Handshake, Users2, Wallet, CircleDollarSign, Clock,
-    CheckCircle2, BadgeIndianRupee, Layers, ShieldCheck,
+    CheckCircle2, Banknote, Layers, ShieldCheck,
 } from 'lucide-react';
 import {
     getPartners,
@@ -56,7 +56,7 @@ interface TabDef {
 
 const tabs: TabDef[] = [
     { id: 'partners', label: 'Partners', icon: Users2 },
-    { id: 'commissions', label: 'Commission Ledger', icon: BadgeIndianRupee },
+    { id: 'commissions', label: 'Commission Ledger', icon: Banknote },
     { id: 'payouts', label: 'Payout Batches', icon: Layers },
 ];
 
@@ -83,14 +83,14 @@ const batchStatusColor: Record<string, string> = {
 
 // ─── Helpers ─────────────────────────────────────────────
 
-function formatINR(n: number | null | undefined): string {
-    return `₹${Number(n ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+function formatAed(n: number | null | undefined): string {
+    return `AED ${Number(n ?? 0).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(iso: string | null | undefined): string {
     if (!iso) return '—';
     try {
-        return new Date(iso).toLocaleDateString('en-IN', {
+        return new Date(iso).toLocaleDateString('en-AE', {
             day: '2-digit', month: 'short', year: 'numeric',
         });
     } catch {
@@ -144,7 +144,7 @@ export default function ChannelPartnersPage() {
         const payload = {
             name: (f.elements.namedItem('name') as HTMLInputElement).value,
             company: (f.elements.namedItem('company') as HTMLInputElement).value,
-            reraBrokerNo: (f.elements.namedItem('reraBrokerNo') as HTMLInputElement).value,
+            brnNumber: (f.elements.namedItem('brnNumber') as HTMLInputElement).value,
             phone: (f.elements.namedItem('phone') as HTMLInputElement).value,
             email: (f.elements.namedItem('email') as HTMLInputElement).value,
             type: (f.elements.namedItem('type') as HTMLSelectElement).value,
@@ -154,7 +154,7 @@ export default function ChannelPartnersPage() {
                 ? Number((f.elements.namedItem('commissionRate') as HTMLInputElement).value || 0) : 0,
             fixedCommission: commissionType === 'Fixed'
                 ? Number((f.elements.namedItem('fixedCommission') as HTMLInputElement).value || 0) : 0,
-            panNumber: (f.elements.namedItem('panNumber') as HTMLInputElement).value,
+            tradeLicenseNo: (f.elements.namedItem('tradeLicenseNo') as HTMLInputElement).value,
             agreementDocUrl: (f.elements.namedItem('agreementDocUrl') as HTMLInputElement).value,
         };
         setSubmitting(true);
@@ -184,7 +184,7 @@ export default function ChannelPartnersPage() {
         const res = await createCommission(payload);
         setSubmitting(false);
         if (res.success) {
-            notify(`Commission created: ${formatINR(res.data.amount)}`, { variant: 'success' });
+            notify(`Commission created: ${formatAed(res.data.amount)}`, { variant: 'success' });
             setShowCommission(false);
             await refresh();
         } else {
@@ -225,7 +225,7 @@ export default function ChannelPartnersPage() {
         setSubmitting(false);
         if (res.success) {
             notify(
-                `Batch created: ${formatINR(res.data.totalAmount)} across ${res.data.partnerCount} partner(s)`,
+                `Batch created: ${formatAed(res.data.totalAmount)} across ${res.data.partnerCount} partner(s)`,
                 { variant: 'success' },
             );
             setShowBatch(false);
@@ -266,7 +266,7 @@ export default function ChannelPartnersPage() {
     const filteredPartners = partners.filter(
         (p) =>
             p.name.toLowerCase().includes(search.toLowerCase()) ||
-            p.reraBrokerNo.toLowerCase().includes(search.toLowerCase()) ||
+            p.brnNumber.toLowerCase().includes(search.toLowerCase()) ||
             (p.company ?? '').toLowerCase().includes(search.toLowerCase()),
     );
 
@@ -406,7 +406,7 @@ export default function ChannelPartnersPage() {
                                             <p className="text-sm font-medium text-foreground truncate">{c.partnerName}</p>
                                             <p className="text-xs text-muted">Commission #{c.id}</p>
                                         </div>
-                                        <span className="text-sm font-semibold text-accent">{formatINR(c.amount)}</span>
+                                        <span className="text-sm font-semibold text-accent">{formatAed(c.amount)}</span>
                                     </label>
                                 ))}
                             </div>
@@ -476,7 +476,7 @@ function MetricsRow({ metrics }: { metrics: PartnerMetrics | null }) {
                             </span>
                         </div>
                         <p className="text-lg md:text-xl font-bold text-foreground">
-                            {c.money ? formatINR(c.value) : c.value}
+                            {c.money ? formatAed(c.value) : c.value}
                         </p>
                     </div>
                 );
@@ -500,7 +500,7 @@ function PartnersTab({ partners, search, setSearch }: PartnersTabProps) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                 <input
                     type="text"
-                    placeholder="Search by name, company, or RERA number..."
+                    placeholder="Search by name, company, or BRN number..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full md:max-w-md pl-10 pr-4 py-2.5 bg-surface rounded-xl border border-border text-sm"
@@ -540,7 +540,7 @@ function PartnersTab({ partners, search, setSearch }: PartnersTabProps) {
                                         </td>
                                         <td>
                                             <span className="inline-flex items-center gap-1 text-foreground">
-                                                <ShieldCheck className="w-3.5 h-3.5 text-success" /> {p.reraBrokerNo}
+                                                <ShieldCheck className="w-3.5 h-3.5 text-success" /> {p.brnNumber}
                                             </span>
                                         </td>
                                         <td className="text-muted">{p.type}</td>
@@ -548,7 +548,7 @@ function PartnersTab({ partners, search, setSearch }: PartnersTabProps) {
                                             {p.commissionType === 'Percentage'
                                                 ? `${p.commissionRate}%`
                                                 : p.commissionType === 'Fixed'
-                                                    ? formatINR(p.fixedCommission)
+                                                    ? formatAed(p.fixedCommission)
                                                     : 'Slab'}
                                         </td>
                                         <td className="text-muted">{p.commissionCount}</td>
@@ -611,7 +611,7 @@ function CommissionsTab({ commissions, onApprove, onCreate }: CommissionsTabProp
                                     <tr key={c.id}>
                                         <td className="text-muted">{c.id}</td>
                                         <td className="font-medium text-foreground">{c.partnerName}</td>
-                                        <td className="text-accent font-medium">{formatINR(c.amount)}</td>
+                                        <td className="text-accent font-medium">{formatAed(c.amount)}</td>
                                         <td className="text-muted">{c.percentage ? `${c.percentage}%` : '—'}</td>
                                         <td className="text-muted">
                                             {c.bookingId ? `Booking #${c.bookingId}` : c.dealId ? `Deal #${c.dealId}` : '—'}
@@ -683,7 +683,7 @@ function PayoutsTab({ batches, batchable, onCreate, onComplete }: PayoutsTabProp
                             <div className="flex items-center gap-4 mb-3">
                                 <div>
                                     <p className="text-[11px] text-muted">Total</p>
-                                    <p className="text-base font-bold text-accent">{formatINR(b.totalAmount)}</p>
+                                    <p className="text-base font-bold text-accent">{formatAed(b.totalAmount)}</p>
                                 </div>
                                 <div>
                                     <p className="text-[11px] text-muted">Partners</p>
@@ -738,7 +738,7 @@ function OnboardForm({ submitting, onSubmit, onCancel }: OnboardFormProps) {
                 <label className="block text-xs font-medium text-muted mb-1.5">RERA Broker Number *</label>
                 <input
                     type="text"
-                    name="reraBrokerNo"
+                    name="brnNumber"
                     required
                     placeholder="e.g. A51234567890"
                     className="w-full"
@@ -749,7 +749,7 @@ function OnboardForm({ submitting, onSubmit, onCancel }: OnboardFormProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Phone *</label>
-                    <input type="tel" name="phone" required placeholder="+91..." className="w-full" />
+                    <input type="tel" name="phone" required placeholder="+971..." className="w-full" />
                 </div>
                 <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Email *</label>
@@ -792,7 +792,7 @@ function OnboardForm({ submitting, onSubmit, onCancel }: OnboardFormProps) {
                 )}
                 {commissionType === 'Fixed' && (
                     <div>
-                        <label className="block text-xs font-medium text-muted mb-1.5">Fixed Commission (₹)</label>
+                        <label className="block text-xs font-medium text-muted mb-1.5">Fixed Commission (AED )</label>
                         <input type="number" name="fixedCommission" min="0" step="0.01" placeholder="e.g. 50000" className="w-full" />
                     </div>
                 )}
@@ -809,8 +809,8 @@ function OnboardForm({ submitting, onSubmit, onCancel }: OnboardFormProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-xs font-medium text-muted mb-1.5">PAN Number</label>
-                    <input type="text" name="panNumber" placeholder="ABCDE1234F" className="w-full" />
+                    <label className="block text-xs font-medium text-muted mb-1.5">Trade License No.</label>
+                    <input type="text" name="tradeLicenseNo" placeholder="ABCDE1234F" className="w-full" />
                 </div>
                 <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Agreement Doc URL</label>

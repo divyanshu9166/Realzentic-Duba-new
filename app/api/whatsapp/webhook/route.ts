@@ -10,7 +10,7 @@ import { getAutomationQueue, getAiAgentQueue } from '@/lib/queues/jobs'
 import { WHATSAPP_INQUIRY_SOURCE } from '@/lib/lead-sources'
 import {
   sendInquiryWelcomeMessage,
-  sendProductInfoMessage,
+  sendPropertyInfoMessage,
   sendAddressMessage,
 } from '@/lib/whatsapp/inquiry-message'
 import { autoQualifyLeadFromWhatsApp } from '@/app/actions/lead-qualification'
@@ -521,8 +521,8 @@ async function processMessage(
         await startAppointmentBot({ conversationId: conversation.id, contactId: contactRecord.id, contactPhone: senderPhone, contactName: contactName || senderPhone, userId }, waConfig)
         return
       }
-      if (buttonId === 'INFO_PRODUCTS') {
-        await sendProductInfoMessage(userId, senderPhone, conversation.id)
+      if (buttonId === 'INFO_PROPERTIES') {
+        await sendPropertyInfoMessage(userId, senderPhone, conversation.id)
         return
       }
       if (buttonId === 'INFO_ADDRESS') {

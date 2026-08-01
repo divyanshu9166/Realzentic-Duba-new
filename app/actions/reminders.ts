@@ -169,12 +169,12 @@ interface RunSummary {
     failed: number
 }
 
-function inr(amount: number): string {
-    return `₹${Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(amount)}`
+function aed(amount: number): string {
+    return `AED ${Intl.NumberFormat('en-AE', { maximumFractionDigits: 0 }).format(amount)}`
 }
 
 function fmtDate(d: Date): string {
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    return d.toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 // ─── 1. Follow-up reminders ───────────────────────────────────────────────────────
@@ -359,7 +359,7 @@ export async function runPaymentReminders(): Promise<RunSummary | { success: fal
         if (due <= 0) { skipped++; continue }
         if (await alreadyReminded('payment', m.id, sentOn)) { skipped++; continue }
 
-        const dueStr = inr(due)
+        const dueStr = aed(due)
         const when = fmtDate(m.dueDate)
         const text = `Hi ${contact.name}, a gentle reminder: your payment "${m.name}" of ${dueStr} is due on ${when}. Please reach out if you need any assistance.`
         const template: CrmTemplate | undefined = cfg.paymentTemplate

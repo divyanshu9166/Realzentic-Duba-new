@@ -54,25 +54,25 @@ const defaultTemplates = [
   <div style="text-align: center; margin: 30px 0;">
     <a href="{{storeUrl}}" style="background: #8B5CF6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">Explore the Collection</a>
   </div>
-  <p style="color: #666;">Visit our showroom or browse online to see what's new.</p>
+  <p style="color: #666;">Explore Dubai property opportunities and arrange a viewing with our team.</p>
   <p>Warm regards,<br/>{{storeName}}</p>
 </div>`,
     variables: ['customerName', 'collectionName', 'storeUrl', 'storeName'],
   },
   {
     name: 'Exclusive Offer',
-    subject: '{{customerName}}, Exclusive {{discountPercent}}% Off Just For You!',
+    subject: '{{customerName}}, A Curated Dubai Property Opportunity for You',
     category: 'Offer',
     body: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-  <h1 style="color: #1a1a1a;">Special Offer for You, {{customerName}}!</h1>
-  <p>As a valued customer, we'd like to offer you an exclusive <strong>{{discountPercent}}% discount</strong> on your next purchase.</p>
+  <h1 style="color: #1a1a1a;">A Curated Opportunity for You, {{customerName}}</h1>
+  <p>Our team has selected a Dubai property opportunity aligned with your requirements and budget.</p>
   <div style="background: #f8f4ff; border: 2px dashed #8B5CF6; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
-    <p style="font-size: 12px; color: #666; margin: 0;">YOUR PROMO CODE</p>
+    <p style="font-size: 12px; color: #666; margin: 0;">PRIVATE VIEWING</p>
     <p style="font-size: 28px; font-weight: 700; color: #8B5CF6; margin: 8px 0;">{{offerCode}}</p>
-    <p style="font-size: 13px; color: #888; margin: 0;">Valid until {{expiryDate}}</p>
+    <p style="font-size: 13px; color: #888; margin: 0;">Available until {{expiryDate}}</p>
   </div>
   <div style="text-align: center; margin: 30px 0;">
-    <a href="{{storeUrl}}" style="background: #8B5CF6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">Shop Now</a>
+    <a href="{{storeUrl}}" style="background: #8B5CF6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">View Property Details</a>
   </div>
   <p>Warm regards,<br/>{{storeName}}</p>
 </div>`,
@@ -84,10 +84,10 @@ const defaultTemplates = [
     category: 'Follow-up',
     body: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
   <h1 style="color: #1a1a1a;">Thanks for Visiting, {{customerName}}!</h1>
-  <p>It was wonderful having you at our showroom. We hope you enjoyed exploring our furniture collection.</p>
-  <p>If you have any questions about the pieces you viewed, or need help with measurements and customizations, we're just a call away.</p>
+  <p>It was a pleasure arranging your property viewing. We hope the project and community matched your requirements.</p>
+  <p>If you would like a cost sheet, mortgage estimate, or another viewing, our team is ready to help.</p>
   <div style="text-align: center; margin: 30px 0;">
-    <a href="{{storeUrl}}" style="background: #8B5CF6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">Browse Our Catalog</a>
+    <a href="{{storeUrl}}" style="background: #8B5CF6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">View Available Properties</a>
   </div>
   <p style="color: #666;">Need assistance? Call us at {{storePhone}} or reply to this email.</p>
   <p>Best regards,<br/>{{storeName}}</p>
@@ -96,20 +96,20 @@ const defaultTemplates = [
   },
   {
     name: 'Lead Nurture Sequence',
-    subject: '{{customerName}}, Still Looking for the Perfect Piece?',
+    subject: '{{customerName}}, Still Looking for the Right Dubai Property?',
     category: 'Nurture',
     body: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
   <h1 style="color: #1a1a1a;">Hi {{customerName}},</h1>
-  <p>We noticed you were interested in some of our furniture pieces. Finding the right fit for your home is important — we're here to help!</p>
+  <p>We noticed you were exploring Dubai property options. Finding the right home or investment is important — we're here to help.</p>
   <h3 style="color: #444;">Why Choose Us?</h3>
   <ul style="color: #555; line-height: 1.8;">
-    <li>Handcrafted quality with premium materials</li>
-    <li>Custom sizes and finishes available</li>
-    <li>Free delivery and professional assembly</li>
-    <li>Easy EMI options available</li>
+    <li>Verified Dubai projects and available units</li>
+    <li>Clear DLD fee and VAT cost sheets</li>
+    <li>Private property viewings with a consultant</li>
+    <li>Mortgage and developer payment-plan guidance</li>
   </ul>
   <div style="text-align: center; margin: 30px 0;">
-    <a href="{{storeUrl}}" style="background: #8B5CF6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">View Our Bestsellers</a>
+    <a href="{{storeUrl}}" style="background: #8B5CF6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">Explore Properties</a>
   </div>
   <p>Cheers,<br/>{{storeName}}</p>
 </div>`,

@@ -13,7 +13,7 @@
  *   - Property 54 — invalid webhook payloads create no records.             Req 15.6
  *
  * Source attribution (assumption A7): the first-supported portals are
- * 99acres, MagicBricks, Housing, and NoBroker. {@link sourceForPortal} maps a
+ * Bayut, Property Finder, and Dubizzle. {@link sourceForPortal} maps a
  * free-form portal identifier (a URL slug, a header value, etc.) to one of the
  * canonical source strings recorded on the created Lead.
  *
@@ -26,17 +26,16 @@
 import { normalizePhone } from './dedup'
 
 /** Canonical lead-source string recorded on a Lead created from a portal. */
-export type PortalSource = '99acres' | 'MagicBricks' | 'Housing' | 'NoBroker'
+export type PortalSource = 'Bayut' | 'Property Finder' | 'Dubizzle'
 
 /**
  * The canonical source strings for the first-supported portals (A7), in
  * priority order. Exported so callers can present the supported set.
  */
 export const PORTAL_SOURCES: readonly PortalSource[] = [
-    '99acres',
-    'MagicBricks',
-    'Housing',
-    'NoBroker',
+    'Bayut',
+    'Property Finder',
+    'Dubizzle',
 ] as const
 
 /**
@@ -44,13 +43,10 @@ export const PORTAL_SOURCES: readonly PortalSource[] = [
  * source string. Multiple spellings collapse to one key via {@link normalizeKey}.
  */
 const PORTAL_KEY_TO_SOURCE: Record<string, PortalSource> = {
-    '99acres': '99acres',
-    '99acre': '99acres',
-    magicbricks: 'MagicBricks',
-    magicbrick: 'MagicBricks',
-    housing: 'Housing',
-    housingcom: 'Housing',
-    nobroker: 'NoBroker',
+    bayut: 'Bayut',
+    propertyfinder: 'Property Finder',
+    pf: 'Property Finder',
+    dubizzle: 'Dubizzle',
 }
 
 /**
@@ -108,7 +104,7 @@ export interface ParsedPortalLead {
     portalLeadId: string
     /** Buyer's full name (trimmed). */
     name: string
-    /** Normalized phone number (digits only, India dialing prefixes stripped). */
+    /** Normalized phone number (digits only, UAE dialing prefixes normalized). */
     phone: string
     /** Lowercased, trimmed email, or `null` when absent. */
     email: string | null
@@ -126,7 +122,7 @@ export type PortalValidation =
     | { ok: false; field: string; error: string }
 
 /** Minimum number of digits a normalized phone number must contain. */
-export const MIN_PHONE_DIGITS = 10
+export const MIN_PHONE_DIGITS = 9
 
 /** Email shape check: a non-empty local part, an `@`, and a dotted domain. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

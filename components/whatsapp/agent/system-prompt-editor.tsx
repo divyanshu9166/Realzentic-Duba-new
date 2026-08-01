@@ -153,7 +153,7 @@ export function SystemPromptEditor({ value, onChange, onSave, saving, savedAt }:
         {savedAt && (
           <span className="flex items-center gap-1.5 text-xs text-green-700">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            Saved {savedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+            Saved {savedAt.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit' })}
           </span>
         )}
       </div>

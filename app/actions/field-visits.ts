@@ -21,7 +21,7 @@ import {
 } from '@/lib/validations/field-visits'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { normalizePhoneForMetaIndia, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { normalizePhoneForMetaUae, isValidE164 } from '@/lib/whatsapp/phone-utils'
 
 // ─── GET FIELD VISITS FOR A STAFF MEMBER ─────────────────
 // Returns assigned/active visits for the staff member
@@ -414,7 +414,7 @@ export async function sendCheckinOtp(
   const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
 
-  const phoneE164 = normalizePhoneForMetaIndia(buyerPhone)
+  const phoneE164 = normalizePhoneForMetaUae(buyerPhone)
   if (!isValidE164(phoneE164)) {
     return { success: false, error: `Invalid phone number: ${buyerPhone}` }
   }

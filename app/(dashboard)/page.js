@@ -51,8 +51,8 @@ const statusBadgeMap = {
   LOST: 'bg-danger-light text-danger',
 };
 
-const formatCompactINR = (value) => `₹${Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0)}`;
-const formatCurrency = (value) => `₹${(value || 0).toLocaleString('en-IN')}`;
+const formatCompactAed = (value) => `AED ${Intl.NumberFormat('en-AE', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0)}`;
+const formatCurrency = (value) => `AED ${(value || 0).toLocaleString('en-AE')}`;
 
 const formatPctChange = (value) => {
   if (value > 0) return `+${value}%`;
@@ -412,7 +412,7 @@ export default function Dashboard() {
             {(stats.actionCenter?.recentPayments || []).slice(0, 3).map(p => (
               <div key={`pay-${p.id}`} className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
                 <p className="text-xs font-medium text-foreground truncate">{p.displayId} · {p.customerName}</p>
-                <p className="text-[10px] text-emerald-700">{formatCompactINR(p.amount)} · {p.method} · {p.date}</p>
+                <p className="text-[10px] text-emerald-700">{formatCompactAed(p.amount)} · {p.method} · {p.date}</p>
               </div>
             ))}
             {(stats.actionCenter?.followUpItems || []).length === 0 && (stats.actionCenter?.recentPayments || []).length === 0 && (

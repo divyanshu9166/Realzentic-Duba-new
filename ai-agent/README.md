@@ -59,9 +59,9 @@ python agent.py start
 ### 2. Make an Outbound Call
 In a **new terminal window** (ensure `venv` is active), run:
 ```bash
-python make_call.py --to +91XXXXXXXXXX
+python make_call.py --to +971XXXXXXXXXX
 ```
-*Note: The number must include the country code (e.g., +1 or +91).*
+*Note: The number must include the country code (e.g., +1 or +971).*
 
 ---
 

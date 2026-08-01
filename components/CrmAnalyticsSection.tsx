@@ -12,15 +12,15 @@
 
 import { useEffect, useState } from 'react'
 import {
-    BarChart3, Loader2, TrendingUp, Building2, IndianRupee, Users, Trophy, Filter,
+    BarChart3, Loader2, TrendingUp, Building2, Banknote, Users, Trophy, Filter,
 } from 'lucide-react'
 import { getCrmReports, type CrmReports } from '@/app/actions/reports'
+import { formatCompactCurrency } from '@/lib/currency'
 
-function formatINR(amount: number): string {
-    if (!Number.isFinite(amount) || amount === 0) return '₹0'
-    if (amount >= 1e7) return `₹${(amount / 1e7).toFixed(2)} Cr`
-    if (amount >= 1e5) return `₹${(amount / 1e5).toFixed(1)} L`
-    return `₹${Math.round(amount).toLocaleString('en-IN')}`
+function formatAed(amount: number): string {
+    if (!Number.isFinite(amount) || amount === 0) return 'AED 0'
+    return formatCompactCurrency(amount)
+    return `AED ${Math.round(amount).toLocaleString('en-AE')}`
 }
 
 function Bar({ value, max, className }: { value: number; max: number; className?: string }) {
@@ -87,9 +87,9 @@ export default function CrmAnalyticsSection() {
             {/* Headline KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <KpiCard label="Total Leads" value={String(data.leads.total)} sub={`${data.leads.conversionRate}% conversion`} Icon={Users} tint="bg-blue-500/10 text-blue-600" />
-                <KpiCard label="Open Pipeline" value={formatINR(data.deals.openValue)} sub={`${data.deals.total} deals`} Icon={TrendingUp} tint="bg-accent/10 text-accent" />
-                <KpiCard label="Bookings" value={String(data.bookings.count)} sub={formatINR(data.bookings.agreementValue)} Icon={Building2} tint="bg-emerald-500/10 text-emerald-600" />
-                <KpiCard label="Collections" value={formatINR(data.collections.collected)} sub={`${data.collections.collectionRate}% of demanded`} Icon={IndianRupee} tint="bg-purple-500/10 text-purple-600" />
+                <KpiCard label="Open Pipeline" value={formatAed(data.deals.openValue)} sub={`${data.deals.total} deals`} Icon={TrendingUp} tint="bg-accent/10 text-accent" />
+                <KpiCard label="Bookings" value={String(data.bookings.count)} sub={formatAed(data.bookings.agreementValue)} Icon={Building2} tint="bg-emerald-500/10 text-emerald-600" />
+                <KpiCard label="Collections" value={formatAed(data.collections.collected)} sub={`${data.collections.collectionRate}% of demanded`} Icon={Banknote} tint="bg-purple-500/10 text-purple-600" />
             </div>
 
             <div className="grid lg:grid-cols-2 gap-4">
@@ -123,7 +123,7 @@ export default function CrmAnalyticsSection() {
                             <div key={s.stage} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
                                     <span className="text-muted">{s.stage} <span className="opacity-70">({s.count})</span></span>
-                                    <span className="font-medium text-foreground">{formatINR(s.value)}</span>
+                                    <span className="font-medium text-foreground">{formatAed(s.value)}</span>
                                 </div>
                                 <Bar value={s.value} max={maxStageValue} className={s.isWon ? 'bg-emerald-500' : s.isLost ? 'bg-red-500' : 'bg-accent'} />
                             </div>
@@ -134,21 +134,21 @@ export default function CrmAnalyticsSection() {
                 {/* Collections */}
                 <div className="glass-card p-5 space-y-3">
                     <div className="flex items-center gap-2">
-                        <IndianRupee className="size-4 text-accent" />
+                        <Banknote className="size-4 text-accent" />
                         <h3 className="text-sm font-semibold text-foreground">Collections</h3>
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-center">
                         <div>
                             <p className="text-xs text-muted">Demanded</p>
-                            <p className="text-sm font-bold text-foreground">{formatINR(data.collections.demanded)}</p>
+                            <p className="text-sm font-bold text-foreground">{formatAed(data.collections.demanded)}</p>
                         </div>
                         <div>
                             <p className="text-xs text-muted">Collected</p>
-                            <p className="text-sm font-bold text-emerald-600">{formatINR(data.collections.collected)}</p>
+                            <p className="text-sm font-bold text-emerald-600">{formatAed(data.collections.collected)}</p>
                         </div>
                         <div>
                             <p className="text-xs text-muted">Outstanding</p>
-                            <p className="text-sm font-bold text-amber-600">{formatINR(data.collections.outstanding)}</p>
+                            <p className="text-sm font-bold text-amber-600">{formatAed(data.collections.outstanding)}</p>
                         </div>
                     </div>
                     <Bar value={data.collections.collected} max={Math.max(1, data.collections.demanded)} className="bg-emerald-500" />
@@ -175,7 +175,7 @@ export default function CrmAnalyticsSection() {
                             </span>
                         ))}
                     </div>
-                    <p className="text-xs text-muted">Available stock value: <span className="text-foreground font-medium">{formatINR(data.inventory.availableStockValue)}</span></p>
+                    <p className="text-xs text-muted">Available stock value: <span className="text-foreground font-medium">{formatAed(data.inventory.availableStockValue)}</span></p>
                 </div>
             </div>
         </div>

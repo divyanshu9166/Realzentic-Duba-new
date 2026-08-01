@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
     Plus, Search, Handshake, Users2, Wallet, CircleDollarSign, Clock,
-    CheckCircle2, BadgeIndianRupee, Layers, ShieldCheck,
+    CheckCircle2, Banknote, Layers, ShieldCheck,
 } from 'lucide-react';
 import {
     getPartners, getCommissions, getPayoutBatches, getPartnerMetrics,
@@ -19,7 +19,7 @@ const COMMISSION_TYPES = ['Percentage', 'Fixed', 'Slab'];
 
 const tabs = [
     { id: 'partners', label: 'Partners', icon: Users2 },
-    { id: 'commissions', label: 'Commission Ledger', icon: BadgeIndianRupee },
+    { id: 'commissions', label: 'Commission Ledger', icon: Banknote },
     { id: 'payouts', label: 'Payout Batches', icon: Layers },
 ];
 
@@ -42,13 +42,13 @@ const batchStatusColor = {
     Completed: 'bg-success-light text-success border-success/20',
 };
 
-const formatINR = (n) =>
-    `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+const formatAed = (n) =>
+    `AED ${Number(n || 0).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`;
 
 const formatDate = (iso) => {
     if (!iso) return '—';
     try {
-        return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        return new Date(iso).toLocaleDateString('en-AE', { day: '2-digit', month: 'short', year: 'numeric' });
     } catch {
         return '—';
     }
@@ -95,7 +95,7 @@ export default function ChannelPartnersPage() {
         const payload = {
             name: f.name.value,
             company: f.company.value,
-            reraBrokerNo: f.reraBrokerNo.value,
+            brnNumber: f.brnNumber.value,
             phone: f.phone.value,
             email: f.email.value,
             type: f.type.value,
@@ -103,7 +103,7 @@ export default function ChannelPartnersPage() {
             commissionType,
             commissionRate: commissionType === 'Percentage' ? Number(f.commissionRate.value || 0) : 0,
             fixedCommission: commissionType === 'Fixed' ? Number(f.fixedCommission.value || 0) : 0,
-            panNumber: f.panNumber.value,
+            tradeLicenseNo: f.tradeLicenseNo.value,
             agreementDocUrl: f.agreementDocUrl.value,
         };
         setSubmitting(true);
@@ -129,7 +129,7 @@ export default function ChannelPartnersPage() {
         const res = await createCommission(payload);
         setSubmitting(false);
         if (res.success) {
-            notify(`Commission created: ${formatINR(res.data.amount)}`, { variant: 'success' });
+            notify(`Commission created: ${formatAed(res.data.amount)}`, { variant: 'success' });
             setShowCommission(false);
             await refresh();
         } else {
@@ -168,7 +168,7 @@ export default function ChannelPartnersPage() {
         });
         setSubmitting(false);
         if (res.success) {
-            notify(`Batch created: ${formatINR(res.data.totalAmount)} across ${res.data.partnerCount} partner(s)`, { variant: 'success' });
+            notify(`Batch created: ${formatAed(res.data.totalAmount)} across ${res.data.partnerCount} partner(s)`, { variant: 'success' });
             setShowBatch(false);
             setSelectedCommissionIds([]);
             await refresh();
@@ -204,7 +204,7 @@ export default function ChannelPartnersPage() {
     const filteredPartners = partners.filter(
         (p) =>
             p.name.toLowerCase().includes(search.toLowerCase()) ||
-            p.reraBrokerNo.toLowerCase().includes(search.toLowerCase()) ||
+            p.brnNumber.toLowerCase().includes(search.toLowerCase()) ||
             (p.company || '').toLowerCase().includes(search.toLowerCase())
     );
 
@@ -349,7 +349,7 @@ export default function ChannelPartnersPage() {
                                             <p className="text-sm font-medium text-foreground truncate">{c.partnerName}</p>
                                             <p className="text-xs text-muted">Commission #{c.id}</p>
                                         </div>
-                                        <span className="text-sm font-semibold text-accent">{formatINR(c.amount)}</span>
+                                        <span className="text-sm font-semibold text-accent">{formatAed(c.amount)}</span>
                                     </label>
                                 ))}
                             </div>
@@ -410,7 +410,7 @@ function MetricsRow({ metrics }) {
                             </span>
                         </div>
                         <p className="text-lg md:text-xl font-bold text-foreground">
-                            {c.money ? formatINR(c.value) : c.value}
+                            {c.money ? formatAed(c.value) : c.value}
                         </p>
                     </div>
                 );
@@ -427,7 +427,7 @@ function PartnersTab({ partners, search, setSearch }) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                 <input
                     type="text"
-                    placeholder="Search by name, company, or RERA number..."
+                    placeholder="Search by name, company, or BRN number..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full md:max-w-md pl-10 pr-4 py-2.5 bg-surface rounded-xl border border-border text-sm"
@@ -459,7 +459,7 @@ function PartnersTab({ partners, search, setSearch }) {
                                         </td>
                                         <td>
                                             <span className="inline-flex items-center gap-1 text-foreground">
-                                                <ShieldCheck className="w-3.5 h-3.5 text-success" /> {p.reraBrokerNo}
+                                                <ShieldCheck className="w-3.5 h-3.5 text-success" /> {p.brnNumber}
                                             </span>
                                         </td>
                                         <td className="text-muted">{p.type}</td>
@@ -467,7 +467,7 @@ function PartnersTab({ partners, search, setSearch }) {
                                             {p.commissionType === 'Percentage'
                                                 ? `${p.commissionRate}%`
                                                 : p.commissionType === 'Fixed'
-                                                    ? formatINR(p.fixedCommission)
+                                                    ? formatAed(p.fixedCommission)
                                                     : 'Slab'}
                                         </td>
                                         <td className="text-muted">{p.commissionCount}</td>
@@ -507,7 +507,7 @@ function CommissionsTab({ commissions, onApprove, onCreate }) {
                                     <tr key={c.id}>
                                         <td className="text-muted">{c.id}</td>
                                         <td className="font-medium text-foreground">{c.partnerName}</td>
-                                        <td className="text-accent font-medium">{formatINR(c.amount)}</td>
+                                        <td className="text-accent font-medium">{formatAed(c.amount)}</td>
                                         <td className="text-muted">{c.percentage ? `${c.percentage}%` : '—'}</td>
                                         <td className="text-muted">
                                             {c.bookingId ? `Booking #${c.bookingId}` : c.dealId ? `Deal #${c.dealId}` : '—'}
@@ -561,7 +561,7 @@ function PayoutsTab({ batches, batchable, onCreate, onComplete }) {
                             <div className="flex items-center gap-4 mb-3">
                                 <div>
                                     <p className="text-[11px] text-muted">Total</p>
-                                    <p className="text-base font-bold text-accent">{formatINR(b.totalAmount)}</p>
+                                    <p className="text-base font-bold text-accent">{formatAed(b.totalAmount)}</p>
                                 </div>
                                 <div>
                                     <p className="text-[11px] text-muted">Partners</p>
@@ -603,14 +603,14 @@ function OnboardForm({ submitting, onSubmit, onCancel }) {
 
             <div>
                 <label className="block text-xs font-medium text-muted mb-1.5">RERA Broker Number *</label>
-                <input type="text" name="reraBrokerNo" required placeholder="e.g. A51234567890" className="w-full" />
+                <input type="text" name="brnNumber" required placeholder="e.g. A51234567890" className="w-full" />
                 <p className="text-[11px] text-muted mt-1">Required and must be unique across all partners.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Phone *</label>
-                    <input type="tel" name="phone" required placeholder="+91..." className="w-full" />
+                    <input type="tel" name="phone" required placeholder="+971..." className="w-full" />
                 </div>
                 <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Email *</label>
@@ -648,7 +648,7 @@ function OnboardForm({ submitting, onSubmit, onCancel }) {
                 )}
                 {commissionType === 'Fixed' && (
                     <div>
-                        <label className="block text-xs font-medium text-muted mb-1.5">Fixed Commission (₹)</label>
+                        <label className="block text-xs font-medium text-muted mb-1.5">Fixed Commission (AED )</label>
                         <input type="number" name="fixedCommission" min="0" step="0.01" placeholder="e.g. 50000" className="w-full" />
                     </div>
                 )}
@@ -665,8 +665,8 @@ function OnboardForm({ submitting, onSubmit, onCancel }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-xs font-medium text-muted mb-1.5">PAN Number</label>
-                    <input type="text" name="panNumber" placeholder="ABCDE1234F" className="w-full" />
+                    <label className="block text-xs font-medium text-muted mb-1.5">Trade License No.</label>
+                    <input type="text" name="tradeLicenseNo" placeholder="ABCDE1234F" className="w-full" />
                 </div>
                 <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Agreement Doc URL</label>

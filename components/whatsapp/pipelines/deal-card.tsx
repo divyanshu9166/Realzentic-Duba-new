@@ -11,9 +11,9 @@ interface DealCardProps {
 }
 
 function formatCurrency(value: number, currency?: string) {
-  return new Intl.NumberFormat("en-IN", {
+  return new Intl.NumberFormat("en-AE", {
     style: "currency",
-    currency: currency || "INR",
+    currency: currency || "AED",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Number(value || 0));

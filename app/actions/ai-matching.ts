@@ -236,8 +236,8 @@ export interface NotifyMatchingAgentsResult {
  *
  * Heuristics (intentionally conservative):
  *   - Budget: a single figure is treated as a price ceiling (`maxBudget`); a
- *     range yields both bounds. Indian units `Cr`/`Lakh`/`Lac`/`K` are scaled.
- *   - Interest: BHK keywords and Shop/Office/Plot keywords map to unit types.
+ *     range yields both bounds. UAE `K` and `M` price suffixes are scaled.
+ *   - Interest: bedroom, villa, townhouse and commercial keywords map to unit types.
  */
 function preferencesFromLead(lead: { budget: string | null; interest: string | null }): BuyerPreferences | null {
     const prefs: BuyerPreferences = {}
@@ -257,20 +257,19 @@ function preferencesFromLead(lead: { budget: string | null; interest: string | n
     return active ? prefs : null
 }
 
-/** Parse a free-text budget string into an inclusive rupee range. */
+/** Parse a free-text AED budget string into an inclusive range. */
 function parseBudgetToRange(budget: string | null): { minBudget?: number; maxBudget?: number } {
     if (!budget) return {}
     const cleaned = budget.toLowerCase().replace(/,/g, '')
 
-    let scale = 1
-    if (/cr(ore)?/.test(cleaned)) scale = 1e7
-    else if (/lakh|lac|\d\s*l\b/.test(cleaned)) scale = 1e5
-    else if (/\dk\b|\bk\b/.test(cleaned)) scale = 1e3
-
-    const numbers = (cleaned.match(/\d+(?:\.\d+)?/g) ?? [])
-        .map(Number)
+    const numbers = [...cleaned.matchAll(/(\d+(?:\.\d+)?)\s*([km])?\b/g)]
+        .map((match) => {
+            const value = Number(match[1])
+            const suffix = match[2]
+            const scale = suffix === 'm' ? 1_000_000 : suffix === 'k' ? 1_000 : 1
+            return value * scale
+        })
         .filter((n) => Number.isFinite(n) && n > 0)
-        .map((n) => n * scale)
 
     if (numbers.length === 0) return {}
     if (numbers.length === 1) return { maxBudget: numbers[0] }
@@ -283,17 +282,23 @@ function interestToUnitTypes(interest: string | null): UnitType[] {
     const text = interest.toLowerCase()
     const types: UnitType[] = []
 
-    const bhk: Array<[RegExp, UnitType]> = [
-        [/\b1\s*bhk\b/, 'BHK1'],
-        [/\b2\s*bhk\b/, 'BHK2'],
-        [/\b3\s*bhk\b/, 'BHK3'],
-        [/\b4\s*bhk\b/, 'BHK4'],
+    const homes: Array<[RegExp, UnitType]> = [
+        [/\bstudio\b/, 'Studio'],
+        [/\b1\s*(?:bed(?:room)?|br)\b/, 'Apartment1'],
+        [/\b2\s*(?:bed(?:room)?|br)\b/, 'Apartment2'],
+        [/\b3\s*(?:bed(?:room)?|br)\b/, 'Apartment3'],
+        [/\b(?:4|4\+)\s*(?:bed(?:room)?|br)\b/, 'Apartment4Plus'],
     ]
-    for (const [re, type] of bhk) if (re.test(text)) types.push(type)
+    for (const [re, type] of homes) if (re.test(text)) types.push(type)
 
-    if (/\bshop\b/.test(text)) types.push('Shop')
+    if (/\bpenthouse\b/.test(text)) types.push('Penthouse')
+    if (/\bvilla\b/.test(text)) types.push('Villa')
+    if (/\btownhouse\b/.test(text)) types.push('Townhouse')
+    if (/\bduplex\b/.test(text)) types.push('Duplex')
+    if (/\bretail|\bshop\b/.test(text)) types.push('Retail')
     if (/\boffice\b/.test(text)) types.push('Office')
-    if (/\bplot\b|\bland\b/.test(text)) types.push('Plot')
+    if (/\bwarehouse\b/.test(text)) types.push('Warehouse')
+    if (/\bplot\b|\bland\b/.test(text)) types.push('LandPlot')
 
     return types
 }

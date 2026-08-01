@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date()
-    const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+    const time = now.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: true })
     const name = customerName || `Website Visitor`
 
     let conversation = await prisma.conversation.findFirst({

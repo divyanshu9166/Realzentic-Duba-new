@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Plus, Search, Calendar, Trash2, Download, Filter, MoreHorizontal,
-  IndianRupee, TrendingUp, TrendingDown, Wallet, PieChart, BarChart3,
+  TrendingUp, TrendingDown, Wallet, PieChart, BarChart3,
   Receipt, CreditCard, Banknote, ChevronDown, ChevronRight, CheckCircle2,
   XCircle, Clock, AlertTriangle, RefreshCw, Settings2, Edit3,
   X, Eye, Paperclip, Landmark, User, FileText, ShoppingCart, RotateCcw,
@@ -24,11 +24,11 @@ import {
   getReconciliationSummary
 } from '@/app/actions/payments';
 
-const PAYMENT_MODES = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Cheque'];
+const PAYMENT_MODES = ['Cash', 'Card', 'Bank Transfer', 'Cheque', 'PDC', 'Mortgage Disbursement'];
 const PAYMENT_STATUSES = ['Pending', 'Reconciled', 'Reversed', 'Bounced'];
-const PAYMENT_ICONS = { Cash: Banknote, UPI: Wallet, Card: CreditCard, 'Bank Transfer': Landmark, Cheque: FileText };
+const PAYMENT_ICONS = { Cash: Banknote, Card: CreditCard, 'Bank Transfer': Landmark, Cheque: FileText, PDC: FileText, 'Mortgage Disbursement': Landmark };
 
-const formatCurrency = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
+const formatCurrency = (n) => `AED ${(n || 0).toLocaleString('en-AE')}`;
 
 const today = () => {
   const d = new Date();
@@ -81,9 +81,9 @@ export default function PaymentsPage() {
   const [form, setForm] = useState({
     date: today(),
     amount: '',
-    gstAmount: '',
+    vatAmount: '',
     type: 'IN',
-    method: 'UPI',
+    method: 'Bank Transfer',
     reference: '',
     chequeNumber: '',
     chequeDate: '',
@@ -167,7 +167,7 @@ export default function PaymentsPage() {
     const res = await createDailyPayment(form);
     if (res.success) {
       setShowAddPayment(false);
-      setForm({ date: today(), amount: '', gstAmount: '', type: 'IN', method: 'UPI', reference: '', chequeNumber: '', chequeDate: '', customerName: '', notes: '', attachment: '' });
+      setForm({ date: today(), amount: '', vatAmount: '', type: 'IN', method: 'Bank Transfer', reference: '', chequeNumber: '', chequeDate: '', customerName: '', notes: '', attachment: '' });
       await loadData();
       alertToast.notify?.('Payment recorded successfully', 'success');
     } else {
@@ -252,7 +252,7 @@ export default function PaymentsPage() {
   };
 
   const handleExportCSV = () => {
-    const header = 'Date,ID,Type,Status,Amount,GST,Total,Method,Reference,Customer,Notes\n';
+    const header = 'Date,ID,Type,Status,Amount,VAT,Total,Method,Reference,Customer,Notes\n';
     const rows = filtered.map(p =>
       [
         new Date(p.date).toISOString().split('T')[0],
@@ -260,8 +260,8 @@ export default function PaymentsPage() {
         p.type,
         p.status,
         p.amount,
-        p.gstAmount || 0,
-        p.amount + (p.gstAmount || 0),
+        p.vatAmount || 0,
+        p.amount + (p.vatAmount || 0),
         p.method,
         `"${p.reference || ''}"`,
         `"${p.customerName || p.contact?.name || ''}"`,
@@ -303,7 +303,7 @@ export default function PaymentsPage() {
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-foreground">Daily Payment Register</h1>
           <p className="text-xs md:text-sm text-muted mt-1">
-            Track daily cash flow, UPI, cards and bank transfers
+            Track daily cash flow, cards, bank transfers, cheques and mortgage disbursements
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -332,8 +332,8 @@ export default function PaymentsPage() {
         </div>
         <div className="glass-card p-4 flex flex-col gap-2 relative overflow-hidden">
           <div className="absolute -right-4 -top-4 w-16 h-16 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
-          <p className="text-xs text-muted flex items-center gap-1.5"><Wallet className="w-3.5 h-3.5 text-blue-500" /> UPI Total</p>
-          <p className="text-xl font-bold text-foreground">{formatCurrency(filtered.filter(p => p.method === 'UPI' && p.type === 'IN').reduce((s, p) => s + p.amount, 0))}</p>
+          <p className="text-xs text-muted flex items-center gap-1.5"><Landmark className="w-3.5 h-3.5 text-blue-500" /> Bank transfers</p>
+          <p className="text-xl font-bold text-foreground">{formatCurrency(filtered.filter(p => p.method === 'Bank Transfer' && p.type === 'IN').reduce((s, p) => s + p.amount, 0))}</p>
         </div>
         <div className="glass-card p-4 flex flex-col gap-2 relative overflow-hidden">
           <div className="absolute -right-4 -top-4 w-16 h-16 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
@@ -499,14 +499,14 @@ export default function PaymentsPage() {
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-semibold text-foreground truncate">{p.customerName || p.contact?.name || p.notes || 'Unknown'}</p>
                           <span className={`text-sm font-bold flex-shrink-0 ${isOut ? 'text-red-500' : 'text-green-500'}`}>
-                            {isOut ? '-' : '+'}{formatCurrency(p.amount + (p.gstAmount || 0))}
+                            {isOut ? '-' : '+'}{formatCurrency(p.amount + (p.vatAmount || 0))}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-2 mt-1">
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border w-max ${statusColors[p.status] || 'bg-surface'}`}>
                             {p.status}
                           </span>
-                          {p.gstAmount > 0 && <span className="text-[10px] text-muted">+{formatCurrency(p.gstAmount)} GST</span>}
+                          {p.vatAmount > 0 && <span className="text-[10px] text-muted">+{formatCurrency(p.vatAmount)} VAT</span>}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap mt-2">
                           <span className="inline-flex items-center gap-1 text-[11px] text-foreground bg-background border border-border px-1.5 py-0.5 rounded-md">
@@ -571,7 +571,7 @@ export default function PaymentsPage() {
                     <th>Customer / Notes</th>
                     <th>Method</th>
                     <th>Ref / Link</th>
-                    <th className="text-right">Amount + GST</th>
+                    <th className="text-right">Amount + VAT</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -619,8 +619,8 @@ export default function PaymentsPage() {
                             </div>
                           </td>
                           <td className={`text-right font-bold text-sm ${isOut ? 'text-red-500' : 'text-green-500'}`}>
-                            {isOut ? '-' : '+'}{formatCurrency(p.amount + (p.gstAmount || 0))}
-                            {p.gstAmount > 0 && <div className="text-[10px] text-muted">+{formatCurrency(p.gstAmount)} GST</div>}
+                            {isOut ? '-' : '+'}{formatCurrency(p.amount + (p.vatAmount || 0))}
+                            {p.vatAmount > 0 && <div className="text-[10px] text-muted">+{formatCurrency(p.vatAmount)} VAT</div>}
                           </td>
                           <td className="text-right whitespace-nowrap">
                             <div className="relative group">
@@ -770,8 +770,8 @@ export default function PaymentsPage() {
               <p className="text-xl font-bold text-foreground">{formatCurrency(totalIn - totalOut)}</p>
             </div>
             <div className="glass-card p-4 text-center">
-              <p className="text-xs text-muted mb-1">UPI Payments</p>
-              <p className="text-xl font-bold text-accent">{formatCurrency(filtered.filter(p => p.method === 'UPI' && p.type === 'IN').reduce((s, p) => s + p.amount, 0))}</p>
+              <p className="text-xs text-muted mb-1">Bank transfers</p>
+              <p className="text-xl font-bold text-accent">{formatCurrency(filtered.filter(p => p.method === 'Bank Transfer' && p.type === 'IN').reduce((s, p) => s + p.amount, 0))}</p>
             </div>
           </div>
 
@@ -1033,7 +1033,7 @@ export default function PaymentsPage() {
             <div>
               <label className="block text-xs font-medium text-muted mb-1">Amount *</label>
               <div className="relative">
-                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                 <input type="number" min="1" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
                   className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-xl text-sm focus:border-accent/50 outline-none" placeholder="0" />
               </div>
@@ -1049,22 +1049,22 @@ export default function PaymentsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted mb-1">GST Amount (Optional)</label>
+              <label className="block text-xs font-medium text-muted mb-1">VAT Amount (Optional)</label>
               <div className="relative">
-                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                <input type="number" min="0" value={form.gstAmount} onChange={e => setForm(f => ({ ...f, gstAmount: e.target.value }))}
+                <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                <input type="number" min="0" value={form.vatAmount} onChange={e => setForm(f => ({ ...f, vatAmount: e.target.value }))}
                   className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-xl text-sm focus:border-accent/50 outline-none" placeholder="0" />
               </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-muted mb-1">Reference / Txn ID</label>
               <input type="text" value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))}
-                className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:border-accent/50 outline-none" placeholder="e.g. UPI Ref, Bank Ref" />
+                className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:border-accent/50 outline-none" placeholder="e.g. bank reference or cheque number" />
             </div>
           </div>
 
           {/* Cheque-specific fields */}
-          {form.method === 'Cheque' && (
+          {(form.method === 'Cheque' || form.method === 'PDC') && (
             <div className="grid grid-cols-2 gap-4 p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
               <div>
                 <label className="block text-xs font-medium text-muted mb-1">Cheque Number *</label>

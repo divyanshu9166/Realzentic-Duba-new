@@ -4,7 +4,7 @@
  * Project detail client (Req 1.7, 1.8, 2.8).
  *
  * Renders:
- *   - Project header (name, city, RERA, status, type)
+ *   - Project header (name, city, DLD Registration, status, type)
  *   - Tower tabs — one tab per tower (Req 1.7)
  *   - Color-coded floor grid — each unit cell shows unit number and is
  *     colored by status (Req 1.7)
@@ -58,8 +58,8 @@ export interface ProjectDetail {
     name: string;
     location: string;
     city: string;
-    state: string;
-    reraNumber: string | null;
+    emirate: string;
+    dldProjectRegNo: string | null;
     reraExpiry: string | null;
     type: string;
     status: string;
@@ -89,15 +89,15 @@ const STATUS_BG: Record<string, string> = {
     Mortgaged: 'bg-purple-100 border-purple-300 text-purple-800',
 };
 
-const UNIT_TYPES = ['BHK1', 'BHK2', 'BHK3', 'BHK4', 'Shop', 'Office', 'Plot'];
+const UNIT_TYPES = ['Studio', 'Apartment1', 'Apartment2', 'Apartment3', 'Apartment4Plus', 'Penthouse', 'Villa', 'Townhouse', 'Duplex', 'Retail', 'Office', 'Warehouse', 'LandPlot'];
 const UNIT_STATUSES = ['Available', 'Blocked', 'Booked', 'Sold', 'Mortgaged'];
 const FACINGS = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW'];
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
 
-function formatINR(n: number | null | undefined): string {
+function formatAed(n: number | null | undefined): string {
     if (n == null) return '—';
-    return `₹${Intl.NumberFormat('en-IN', {
+    return `AED ${Intl.NumberFormat('en-AE', {
         notation: 'compact',
         maximumFractionDigits: 1,
     }).format(n)}`;
@@ -106,15 +106,15 @@ function formatINR(n: number | null | undefined): string {
 function formatDate(iso: string | null | undefined): string {
     if (!iso) return '—';
     try {
-        return new Date(iso).toLocaleDateString('en-IN', {
+        return new Date(iso).toLocaleDateString('en-AE', {
             day: '2-digit', month: 'short', year: 'numeric',
         });
     } catch { return '—'; }
 }
 
 function displayType(type: string): string {
-    if (type.startsWith('BHK')) return type.replace('BHK', '') + ' BHK';
-    return type;
+    const labels: Record<string, string> = { Studio: 'Studio', Apartment1: '1 Bedroom Apartment', Apartment2: '2 Bedroom Apartment', Apartment3: '3 Bedroom Apartment', Apartment4Plus: '4+ Bedroom Apartment', Penthouse: 'Penthouse', Villa: 'Villa', Townhouse: 'Townhouse', Duplex: 'Duplex', Retail: 'Commercial Retail', Office: 'Office Space', Warehouse: 'Warehouse / Industrial', LandPlot: 'Land Plot' };
+    return labels[type] ?? 'Property';
 }
 
 function Badge({ label, tint }: { label: string; tint: string }) {
@@ -238,12 +238,12 @@ function FilterPanel({
                         </div>
                         {/* Min Price */}
                         <div>
-                            <label className="block text-[11px] font-medium text-muted mb-1">Min Price (₹)</label>
+                            <label className="block text-[11px] font-medium text-muted mb-1">Min Price (AED )</label>
                             <input type="number" min={0} value={filters.minPrice} onChange={(e) => set('minPrice', e.target.value)} placeholder="e.g. 5000000" className="w-full text-xs" />
                         </div>
                         {/* Max Price */}
                         <div>
-                            <label className="block text-[11px] font-medium text-muted mb-1">Max Price (₹)</label>
+                            <label className="block text-[11px] font-medium text-muted mb-1">Max Price (AED )</label>
                             <input type="number" min={0} value={filters.maxPrice} onChange={(e) => set('maxPrice', e.target.value)} placeholder="e.g. 10000000" className="w-full text-xs" />
                         </div>
                         {/* Min Area */}
@@ -292,7 +292,7 @@ function UnitCell({ unit }: { unit: UnitRow }) {
                         <p>Floor: <span className="text-foreground">{unit.floorNumber}</span></p>
                         <p>Status: <span className="text-foreground">{unit.status}</span></p>
                         <p>Area: <span className="text-foreground">{unit.superBuiltUpArea} sq ft</span></p>
-                        <p>Price: <span className="text-foreground">{formatINR(unit.totalPrice)}</span></p>
+                        <p>Price: <span className="text-foreground">{formatAed(unit.totalPrice)}</span></p>
                         <p>Facing: <span className="text-foreground">{unit.facing}</span></p>
                     </div>
                 </div>
@@ -434,8 +434,8 @@ function ProjectAnalytics({ projectId }: { projectId: number }) {
 
     const items = [
         { label: '% Sold', value: `${analytics.percentSold}%`, tint: 'text-emerald-700 bg-emerald-500/10' },
-        { label: 'Revenue Potential', value: formatINR(analytics.revenuePotential), tint: 'text-accent bg-accent/10' },
-        { label: 'Available Stock Value', value: formatINR(analytics.availableStockValue), tint: 'text-info bg-info-light' },
+        { label: 'Revenue Potential', value: formatAed(analytics.revenuePotential), tint: 'text-accent bg-accent/10' },
+        { label: 'Available Stock Value', value: formatAed(analytics.availableStockValue), tint: 'text-info bg-info-light' },
     ];
 
     return (
@@ -516,12 +516,12 @@ export default function ProjectDetailClient({ project }: { project: ProjectDetai
                         </div>
                         <div className="flex items-center gap-1 text-xs text-muted">
                             <MapPin className="w-3 h-3 flex-shrink-0" />
-                            {project.location}, {project.city}, {project.state}
+                            {project.location}, {project.city}, {project.emirate}
                         </div>
                         <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
-                            {project.reraNumber && (
+                            {project.dldProjectRegNo && (
                                 <span className="inline-flex items-center gap-1 text-accent font-medium">
-                                    <ShieldCheck className="w-3 h-3" /> {project.reraNumber}
+                                    <ShieldCheck className="w-3 h-3" /> {project.dldProjectRegNo}
                                 </span>
                             )}
                             {project.builderName && <span>By {project.builderName}</span>}

@@ -26,8 +26,8 @@ export default function NewProjectButton() {
     const [photoUrls, setPhotoUrls] = useState<string[]>([])
     const [brochureUrl, setBrochureUrl] = useState('')
     const [form, setForm] = useState({
-        name: '', location: '', city: '', state: '', type: 'Residential', status: 'UnderConstruction',
-        reraNumber: '', builderName: '', possessionDate: '',
+        name: '', location: '', city: '', emirate: '', type: 'Residential', status: 'UnderConstruction',
+        dldProjectRegNo: '', dldProjectRegExpiry: '', escrowAccountNo: '', trakheesiPermitNo: '', saleType: 'Off-Plan (Primary)', isFreeholdZone: false, builderName: '', possessionDate: '',
     })
 
     async function uploadFiles(files: FileList, folder: string): Promise<string[]> {
@@ -72,8 +72,8 @@ export default function NewProjectButton() {
     }
 
     async function handleCreate() {
-        if (!form.name.trim() || !form.location.trim() || !form.city.trim() || !form.state.trim()) {
-            toast.error('Name, location, city and state are required')
+        if (!form.name.trim() || !form.location.trim() || !form.city.trim() || !form.emirate.trim()) {
+            toast.error('Name, location, city and emirate are required')
             return
         }
         setSaving(true)
@@ -82,10 +82,15 @@ export default function NewProjectButton() {
                 name: form.name.trim(),
                 location: form.location.trim(),
                 city: form.city.trim(),
-                state: form.state.trim(),
+                emirate: form.emirate.trim(),
                 type: form.type,
                 status: form.status,
-                reraNumber: form.reraNumber.trim() || undefined,
+                dldProjectRegNo: form.dldProjectRegNo.trim() || undefined,
+                dldProjectRegExpiry: form.dldProjectRegExpiry || undefined,
+                escrowAccountNo: form.escrowAccountNo.trim() || undefined,
+                trakheesiPermitNo: form.trakheesiPermitNo.trim() || undefined,
+                saleType: form.saleType,
+                isFreeholdZone: form.isFreeholdZone,
                 builderName: form.builderName.trim() || undefined,
                 possessionDate: form.possessionDate || undefined,
                 photoUrls,
@@ -94,7 +99,7 @@ export default function NewProjectButton() {
             if (!res.success) { toast.error(res.error); return }
             toast.success('Project created')
             setOpen(false)
-            setForm({ name: '', location: '', city: '', state: '', type: 'Residential', status: 'UnderConstruction', reraNumber: '', builderName: '', possessionDate: '' })
+            setForm({ name: '', location: '', city: '', emirate: '', type: 'Residential', status: 'UnderConstruction', dldProjectRegNo: '', dldProjectRegExpiry: '', escrowAccountNo: '', trakheesiPermitNo: '', saleType: 'Off-Plan (Primary)', isFreeholdZone: false, builderName: '', possessionDate: '' })
             setPhotoUrls([])
             setBrochureUrl('')
             router.refresh()
@@ -128,8 +133,8 @@ export default function NewProjectButton() {
                                     <input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-muted mb-1">State *</label>
-                                    <input value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                                    <label className="block text-xs text-muted mb-1">Emirate *</label>
+                                    <input value={form.emirate} onChange={(e) => setForm((f) => ({ ...f, emirate: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
@@ -148,8 +153,27 @@ export default function NewProjectButton() {
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs text-muted mb-1">RERA Number</label>
-                                    <input value={form.reraNumber} onChange={(e) => setForm((f) => ({ ...f, reraNumber: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                                    <label className="block text-xs text-muted mb-1">Escrow Account Number</label>
+                                    <input value={form.escrowAccountNo} onChange={(e) => setForm((f) => ({ ...f, escrowAccountNo: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-muted mb-1">Trakheesi Permit Number</label>
+                                    <input value={form.trakheesiPermitNo} onChange={(e) => setForm((f) => ({ ...f, trakheesiPermitNo: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-muted mb-1">Sale Type</label>
+                                    <select value={form.saleType} onChange={(e) => setForm((f) => ({ ...f, saleType: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
+                                        <option>Off-Plan (Primary)</option><option>Secondary / Resale</option><option>Rental</option>
+                                    </select>
+                                </div>
+                                <label className="flex items-end gap-2 pb-2 text-sm text-muted"><input type="checkbox" checked={form.isFreeholdZone} onChange={(e) => setForm((f) => ({ ...f, isFreeholdZone: e.target.checked }))} /> Freehold zone</label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-muted mb-1">DLD Registration Number</label>
+                                    <input value={form.dldProjectRegNo} onChange={(e) => setForm((f) => ({ ...f, dldProjectRegNo: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label className="block text-xs text-muted mb-1">Builder Name</label>

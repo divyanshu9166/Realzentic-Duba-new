@@ -26,7 +26,7 @@ export const moneyAmount = z
 
 /**
  * A percentage in the inclusive range `0 … 100`. Used for commission rates,
- * GST rates, discounts expressed as a percentage, etc.
+ * VAT rates, discounts expressed as a percentage, etc.
  */
 export const percentage = z
     .number({ message: 'Percentage must be a number' })
@@ -54,7 +54,7 @@ export const projectTypeEnum = z.enum(['Residential', 'Commercial', 'Mixed'])
 
 export const projectStatusEnum = z.enum(['Upcoming', 'UnderConstruction', 'ReadyToMove'])
 
-export const unitTypeEnum = z.enum(['BHK1', 'BHK2', 'BHK3', 'BHK4', 'Shop', 'Office', 'Plot'])
+export const unitTypeEnum = z.enum(['Studio', 'Apartment1', 'Apartment2', 'Apartment3', 'Apartment4Plus', 'Penthouse', 'Villa', 'Townhouse', 'Duplex', 'Retail', 'Office', 'Warehouse', 'LandPlot', 'BHK1', 'BHK2', 'BHK3', 'BHK4', 'Shop', 'Plot'])
 
 export const unitFacingEnum = z.enum(['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW'])
 

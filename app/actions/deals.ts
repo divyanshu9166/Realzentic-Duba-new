@@ -44,7 +44,7 @@ import { notifyManagers } from '@/lib/notify'
 import { sendEmail } from '@/lib/email'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { isValidE164, normalizePhoneForMetaIndia } from '@/lib/whatsapp/phone-utils'
+import { isValidE164, normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-utils'
 
 const DEALS_PATH = '/deals'
 
@@ -1027,19 +1027,19 @@ export async function sendDemandLetter(
 
     const messageText =
         `Dear ${contact.name}, this is a payment reminder for the milestone ` +
-        `"${milestone.name}" of ₹${formatMoney(amountDue)} due on ${dueDateStr}. ` +
+        `"${milestone.name}" of AED ${formatMoney(amountDue)} due on ${dueDateStr}. ` +
         `Please arrange payment at the earliest.`
     const emailSubject = `Payment reminder: ${milestone.name} due ${dueDateStr}`
     const emailHtml =
         `<p>Dear ${contact.name},</p>` +
         `<p>This is a payment reminder for the milestone <strong>${milestone.name}</strong> ` +
-        `of <strong>₹${formatMoney(amountDue)}</strong> due on <strong>${dueDateStr}</strong>.</p>` +
+        `of <strong>AED ${formatMoney(amountDue)}</strong> due on <strong>${dueDateStr}</strong>.</p>` +
         `<p>Please arrange payment at the earliest.</p>`
 
     // ── WhatsApp channel ─────────────────────────────────
     let whatsappStatus = DEMAND_STATUS_FAILED
     let whatsappError = 'Buyer has no valid phone number'
-    const phoneE164 = normalizePhoneForMetaIndia(contact.phone)
+    const phoneE164 = normalizePhoneForMetaUae(contact.phone)
     if (isValidE164(phoneE164)) {
         const result = await sendWithRetry(() => sendWhatsApp(phoneE164, messageText))
         whatsappStatus = result.ok ? DEMAND_STATUS_SENT : DEMAND_STATUS_FAILED

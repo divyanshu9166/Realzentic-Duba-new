@@ -16,15 +16,14 @@ import fc from 'fast-check'
 import {
     computeNetPayable,
     validateDiscount,
-    computeStampDuty,
-    stampDutyRateForState,
-    gstRateForProject,
+    computeDldFee,
+    vatRateForProperty,
     splitMilestones,
-    STAMP_DUTY_RATES,
-    MAHARASHTRA_STAMP_DUTY_RATE,
-    GST_RATE_UNDER_CONSTRUCTION,
-    GST_RATE_READY_TO_MOVE,
-    GST_RATE_DEFAULT,
+    DLD_TRANSFER_FEE_RATE,
+    DLD_ADMIN_FEE_COMPANY,
+    DLD_ADMIN_FEE_INDIVIDUAL,
+    VAT_RATE_RESIDENTIAL,
+    VAT_RATE_STANDARD,
     type PaymentPlanInput,
 } from '@/lib/cost-sheet'
 import { roundMoney, MONEY_MAX } from '@/lib/money'
@@ -112,71 +111,48 @@ describe('Property 13: Discount never makes net payable negative', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Property 14: Stamp duty uses state rate with Maharashtra default (Req 3.5, 10.3)
+// Property 14: DLD transfer fee is a flat Dubai fee (Req 3.5, 10.3)
 // ---------------------------------------------------------------------------
 
-const knownStateKeys = Object.keys(STAMP_DUTY_RATES)
-
-/**
- * State names exercising configured keys (with casing/whitespace variants to
- * confirm case-insensitive matching) and arbitrary strings (fallback path).
- */
-const stateArb: fc.Arbitrary<string> = fc.oneof(
-    fc.constantFrom(...knownStateKeys),
-    fc.constantFrom(...knownStateKeys).map((s) => s.toUpperCase()),
-    fc.constantFrom(...knownStateKeys).map((s) => `  ${s}  `),
-    fc.string()
-)
-
-describe('Property 14: Stamp duty uses state rate with Maharashtra default', () => {
-    // Feature: real-estate-crm, Property 14: For any project state and base amount, computed stamp duty equals `base × rate`, where `rate` is the configured rate for that state when present and the Maharashtra default rate otherwise.
-    it('stamp duty equals base × (configured-or-Maharashtra-default) rate', () => {
+describe('Property 14: DLD transfer fee is flat', () => {
+    // Feature: real-estate-crm, Property 14: For any property value, DLD transfer fee is 4% plus the buyer-type admin fee.
+    it('uses a 4% transfer fee and the correct buyer-type admin fee', () => {
         fcAssert(
-            fc.property(stateArb, moneyArb, (state, base) => {
-                // Independently resolve the expected rate from the seed table.
-                const key = state.trim().toLowerCase()
-                const expectedRate = Object.prototype.hasOwnProperty.call(STAMP_DUTY_RATES, key)
-                    ? STAMP_DUTY_RATES[key]
-                    : MAHARASHTRA_STAMP_DUTY_RATE
-                const expected = roundMoney(base * expectedRate)
-
-                expect(computeStampDuty(state, base)).toBe(expected)
-                // The resolved rate must match what stampDutyRateForState reports.
-                expect(stampDutyRateForState(state)).toBe(expectedRate)
+            fc.property(moneyArb, fc.constantFrom<'Individual' | 'Company'>('Individual', 'Company'), (value, buyerType) => {
+                const fee = computeDldFee(value, buyerType)
+                const expectedAdmin = buyerType === 'Company' ? DLD_ADMIN_FEE_COMPANY : DLD_ADMIN_FEE_INDIVIDUAL
+                expect(fee.transferFee).toBe(roundMoney(value * DLD_TRANSFER_FEE_RATE))
+                expect(fee.adminFee).toBe(expectedAdmin)
+                expect(fee.total).toBe(roundMoney(fee.transferFee + expectedAdmin))
             })
         )
     })
 })
 
 // ---------------------------------------------------------------------------
-// Property 15: GST rate is total over project status (Req 3.6, 3.7, 3.8)
+// Property 15: VAT rate is determined by property use
 // ---------------------------------------------------------------------------
 
-const statusArb: fc.Arbitrary<string> = fc.oneof(
-    fc.constantFrom('Upcoming', 'UnderConstruction', 'ReadyToMove'),
+const propertyUseArb: fc.Arbitrary<string> = fc.oneof(
+    fc.constantFrom('Residential', 'Commercial', 'Mixed'),
     fc.string()
 )
 
-describe('Property 15: GST rate is total over project status', () => {
-    // Feature: real-estate-crm, Property 15: For any project status, the GST rate is determinate and equals 5% when Under Construction, 0% when Ready to Move, and 5% for any other status.
-    it('GST rate is determinate: 5% UnderConstruction, 0% ReadyToMove, 5% otherwise', () => {
+describe('Property 15: VAT rate is determined by property use', () => {
+    // Feature: real-estate-crm, Property 15: Commercial property is standard-rated and other property uses are modeled as residential 0%.
+    it('returns 5% for commercial and 0% for residential/other uses', () => {
         fcAssert(
-            fc.property(statusArb, (status) => {
-                const rate = gstRateForProject(status)
+            fc.property(propertyUseArb, (propertyUse) => {
+                const rate = vatRateForProperty(propertyUse)
 
                 // Total function: always returns a finite, determinate number.
                 expect(typeof rate).toBe('number')
                 expect(Number.isFinite(rate)).toBe(true)
 
-                if (status === 'UnderConstruction') {
-                    expect(rate).toBe(GST_RATE_UNDER_CONSTRUCTION)
-                    expect(rate).toBe(0.05)
-                } else if (status === 'ReadyToMove') {
-                    expect(rate).toBe(GST_RATE_READY_TO_MOVE)
-                    expect(rate).toBe(0)
+                if (propertyUse === 'Commercial') {
+                    expect(rate).toBe(VAT_RATE_STANDARD)
                 } else {
-                    expect(rate).toBe(GST_RATE_DEFAULT)
-                    expect(rate).toBe(0.05)
+                    expect(rate).toBe(VAT_RATE_RESIDENTIAL)
                 }
             })
         )

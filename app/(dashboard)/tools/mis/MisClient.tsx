@@ -86,12 +86,12 @@ const COL_LABELS: Record<string, string> = {
     tower: 'Tower',
     unit: 'Unit',
     unitType: 'Type',
-    dealValue: 'Value (₹)',
+    dealValue: 'Value (AED )',
     wonDate: 'Won Date',
-    agreementValue: 'Agreement (₹)',
-    demanded: 'Demanded (₹)',
-    collected: 'Collected (₹)',
-    outstanding: 'Outstanding (₹)',
+    agreementValue: 'Agreement (AED )',
+    demanded: 'Demanded (AED )',
+    collected: 'Collected (AED )',
+    outstanding: 'Outstanding (AED )',
     bookingDate: 'Booking Date',
     source: 'Source',
     totalLeads: 'Total Leads',
@@ -101,12 +101,12 @@ const COL_LABELS: Record<string, string> = {
     conversionRate: 'Conversion',
     bookingId: 'Booking #',
     buyerPhone: 'Phone',
-    outstandingAmount: 'Outstanding (₹)',
+    outstandingAmount: 'Outstanding (AED )',
     nextMilestoneName: 'Next Milestone',
     nextMilestoneDue: 'Due Date',
     projectName: 'Project',
-    tokenAmount: 'Token (₹)',
-    amountCollected: 'Collected (₹)',
+    tokenAmount: 'Token (AED )',
+    amountCollected: 'Collected (AED )',
     cancellationReason: 'Reason',
     cancellationDate: 'Cancelled On',
 }
@@ -117,7 +117,7 @@ function colLabel(key: string): string {
 
 // ─── Currency formatter ───────────────────────────────────────────────────────
 
-const INR = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 })
+const AED = new Intl.NumberFormat('en-AE', { maximumFractionDigits: 0 })
 
 function fmtCell(key: string, value: unknown): string {
     if (value == null || value === '') return '—'
@@ -126,7 +126,7 @@ function fmtCell(key: string, value: unknown): string {
         typeof value === 'number' &&
         /value|amount|demanded|collected|outstanding/i.test(key)
     ) {
-        return `₹${INR.format(value)}`
+        return `AED ${AED.format(value)}`
     }
     return String(value)
 }

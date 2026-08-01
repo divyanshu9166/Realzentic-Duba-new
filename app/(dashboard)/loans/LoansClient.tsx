@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * Home-loan desk — track buyer loan applications through the bank pipeline.
+ * Mortgage desk — track buyer mortgage applications through the UAE bank pipeline.
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -21,11 +21,11 @@ const STATUS_CLS: Record<string, string> = {
     Rejected: 'bg-red-500/10 text-red-700 border-red-500/20',
 }
 
-function formatINR(amount: number | null): string {
+function formatAed(amount: number | null): string {
     if (amount == null || !Number.isFinite(amount) || amount === 0) return '—'
-    if (amount >= 1e7) return `₹${(amount / 1e7).toFixed(2)} Cr`
-    if (amount >= 1e5) return `₹${(amount / 1e5).toFixed(1)} L`
-    return `₹${Math.round(amount).toLocaleString('en-IN')}`
+    if (amount >= 1e7) return `AED ${(amount / 1e7).toFixed(2)} Cr`
+    if (amount >= 1e5) return `AED ${(amount / 1e5).toFixed(1)} L`
+    return `AED ${Math.round(amount).toLocaleString('en-AE')}`
 }
 
 export default function LoansClient() {
@@ -72,7 +72,7 @@ export default function LoansClient() {
                 notes: form.notes.trim() || undefined,
             })
             if (!res.success) { toast.error(res.error); return }
-            toast.success('Loan application added')
+            toast.success('Mortgage application added')
             setShowModal(false)
             setForm({ contactId: '', bankName: '', loanAmount: '', interestRate: '', tenureYears: '', status: 'Enquiry', applicationNo: '', assignedToId: '', notes: '' })
             await load()
@@ -95,7 +95,7 @@ export default function LoansClient() {
                 <div className="flex items-center gap-3">
                     <div className="flex size-9 items-center justify-center rounded-lg bg-accent/10"><Landmark className="size-5 text-accent" /></div>
                     <div>
-                        <h1 className="text-xl font-bold text-foreground">Home-Loan Desk</h1>
+                        <h1 className="text-xl font-bold text-foreground">Mortgage Desk</h1>
                         <p className="text-sm text-muted">{loans.length} applications · {sanctioned} sanctioned/disbursed</p>
                     </div>
                 </div>
@@ -114,7 +114,7 @@ export default function LoansClient() {
                 {loading ? (
                     <div className="flex items-center justify-center py-12"><Loader2 className="size-6 animate-spin text-accent" /></div>
                 ) : loans.length === 0 ? (
-                    <div className="py-12 text-center text-sm text-muted">No loan applications</div>
+                    <div className="py-12 text-center text-sm text-muted">No mortgage applications</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="crm-table">
@@ -122,7 +122,7 @@ export default function LoansClient() {
                                 <tr>
                                     <th>Applicant</th>
                                     <th>Bank</th>
-                                    <th>Loan Amount</th>
+                                    <th>Mortgage Amount</th>
                                     <th>Rate / Tenure</th>
                                     <th>Sanctioned</th>
                                     <th>Status</th>
@@ -136,9 +136,9 @@ export default function LoansClient() {
                                             {l.contactPhone && <p className="text-xs text-muted flex items-center gap-1"><Phone className="size-3" />{l.contactPhone}</p>}
                                         </td>
                                         <td className="text-foreground">{l.bankName}{l.applicationNo && <span className="block text-xs text-muted">#{l.applicationNo}</span>}</td>
-                                        <td className="text-foreground">{formatINR(l.loanAmount)}</td>
+                                        <td className="text-foreground">{formatAed(l.loanAmount)}</td>
                                         <td className="text-muted text-xs">{l.interestRate ? `${l.interestRate}%` : '—'}{l.tenureYears ? ` · ${l.tenureYears}y` : ''}</td>
-                                        <td className="text-emerald-600 font-medium">{formatINR(l.sanctionedAmount)}</td>
+                                        <td className="text-emerald-600 font-medium">{formatAed(l.sanctionedAmount)}</td>
                                         <td>
                                             <select
                                                 value={l.status}
@@ -159,7 +159,7 @@ export default function LoansClient() {
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowModal(false)}>
                     <div className="glass-card w-full max-w-lg p-5 space-y-4 bg-background" onClick={(e) => e.stopPropagation()}>
-                        <h2 className="text-lg font-semibold text-foreground">New Loan Application</h2>
+                        <h2 className="text-lg font-semibold text-foreground">New Mortgage Application</h2>
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
@@ -176,7 +176,7 @@ export default function LoansClient() {
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                                 <div>
-                                    <label className="block text-xs text-muted mb-1">Loan Amount (₹)</label>
+                                    <label className="block text-xs text-muted mb-1">Mortgage Amount (AED)</label>
                                     <input type="number" min="0" value={form.loanAmount} onChange={(e) => setForm((f) => ({ ...f, loanAmount: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                 </div>
                                 <div>

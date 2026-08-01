@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { sendEmail } from '@/lib/email'
+import { normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-utils'
 
 // ─── TYPES ──────────────────────────────────────────
 
@@ -98,9 +99,9 @@ export async function notifyManagers(options: NotifyManagersOptions) {
       if (config.phoneNumberId && config.apiToken) {
         for (const mgr of managers) {
           if (mgr.phone) {
-            // Normalize phone: strip leading 0, ensure country code
-            const phone = mgr.phone.replace(/\D/g, '').replace(/^0+/, '')
-            const fullPhone = phone.startsWith('91') ? phone : `91${phone}`
+            // Normalize UAE mobile numbers to Meta's canonical digits-only form.
+            const fullPhone = normalizePhoneForMetaUae(mgr.phone)
+            if (!fullPhone) continue
             sendWhatsApp(config.phoneNumberId, config.apiToken, fullPhone, whatsappText).catch(err =>
               console.error(`[notify] WhatsApp to ${mgr.phone} failed:`, err)
             )

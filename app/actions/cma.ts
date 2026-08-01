@@ -9,7 +9,7 @@
  * price-per-sqft band and a suggested price range. Helps agents price units
  * and justify the number to buyers.
  *
- * Read-only over the Unit/Project tables; carpet-area-based ₹/sqft (the RERA
+ * Read-only over the Unit/Project tables; carpet-area-based AED /sqft (the RERA
  * convention used across the rest of the app).
  */
 

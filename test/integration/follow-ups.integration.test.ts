@@ -31,11 +31,11 @@ function tomorrowISO(): string {
 
 describe('createFollowUp', () => {
     it('creates a pending follow-up and find-or-creates the contact', async () => {
-        const phone = `+9197${Math.floor(1000000 + Math.random() * 8999999)}`
+        const phone = `+9715${Math.floor(1000000 + Math.random() * 8999999)}`
         const res = await createFollowUp({
             name: `FU Buyer ${uid()}`,
             phone,
-            interest: '2 BHK in Wakad',
+            interest: '2 Bedroom Apartment in Dubai Marina',
             followUpDate: tomorrowISO(),
             reason: 'Buying after 2 months',
             priority: 'High',
@@ -49,7 +49,7 @@ describe('createFollowUp', () => {
         const row = await prisma.followUpEntry.findUnique({ where: { id } })
         expect(row?.status).toBe('PENDING')
         expect(row?.priority).toBe('High')
-        expect(row?.interest).toBe('2 BHK in Wakad')
+        expect(row?.interest).toBe('2 Bedroom Apartment in Dubai Marina')
     })
 })
 
@@ -57,7 +57,7 @@ describe('convertLeadToFollowUp', () => {
     it('converts a lead, links it, bumps a NEW lead to CONTACTED, and dedupes', async () => {
         const contact = await makeContact(cleanup)
         const lead = await prisma.lead.create({
-            data: { contactId: contact.id, interest: '3 BHK', status: 'NEW', source: 'WhatsApp', budget: '₹50-75L' },
+            data: { contactId: contact.id, interest: '3 Bedroom Apartment', status: 'NEW', source: 'WhatsApp', budget: '500K-750K AED' },
         })
         cleanup.add(() => prisma.lead.deleteMany({ where: { id: lead.id } }))
 
@@ -73,7 +73,7 @@ describe('convertLeadToFollowUp', () => {
         const fu = await prisma.followUpEntry.findFirst({ where: { leadId: lead.id } })
         expect(fu).toBeTruthy()
         expect(fu?.contactId).toBe(contact.id)
-        expect(fu?.interest).toBe('3 BHK')
+        expect(fu?.interest).toBe('3 Bedroom Apartment')
         expect(fu?.status).toBe('PENDING')
 
         // NEW lead is bumped to CONTACTED.

@@ -48,9 +48,9 @@ const initials = (name) =>
 
 const formatValue = (value, metric) => {
     if (metric === 'revenue') {
-        return `₹${Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0)}`;
+        return `AED ${Intl.NumberFormat('en-AE', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0)}`;
     }
-    return Intl.NumberFormat('en-IN', { maximumFractionDigits: 1 }).format(value || 0);
+    return Intl.NumberFormat('en-AE', { maximumFractionDigits: 1 }).format(value || 0);
 };
 
 export default function LeaderboardPage() {

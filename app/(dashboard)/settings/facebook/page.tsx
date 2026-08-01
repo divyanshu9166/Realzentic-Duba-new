@@ -1,7 +1,7 @@
 import { FacebookConfig } from '@/components/social/facebook-config'
 
 export const metadata = {
-  title: 'Facebook Settings | Kosmic CRM',
+  title: 'Facebook Settings | Realzentic Dubai',
   description: 'Configure Facebook Page messaging and AI chatbot',
 }
 

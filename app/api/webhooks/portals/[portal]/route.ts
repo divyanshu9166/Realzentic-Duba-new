@@ -6,8 +6,8 @@ import { ingestPortalLead } from '@/app/actions/portal-integration'
  *
  * POST /api/webhooks/portals/[portal]
  *
- * Receives an inbound lead webhook from a property portal (99acres,
- * MagicBricks, Housing, NoBroker, …). The `[portal]` slug identifies the
+ * Receives an inbound lead webhook from a property portal (Bayut, Property
+ * Finder, or Dubizzle). The `[portal]` slug identifies the
  * source portal and is forwarded to `ingestPortalLead`, which resolves the
  * PortalConfig, validates the payload, deduplicates, and persists records.
  *

@@ -290,7 +290,7 @@ export function InstagramConfig() {
 
               <div className="space-y-1.5">
                 <Label className="text-foreground text-xs sm:text-sm">Webhook Verify Token</Label>
-                <Input placeholder="e.g. kosmic_ig_2024" value={verifyToken}
+                <Input placeholder="e.g. realzentic_ig_2026" value={verifyToken}
                   onChange={(e) => { setVerifyToken(e.target.value); isDirtyRef.current = true }} />
               </div>
             </div>

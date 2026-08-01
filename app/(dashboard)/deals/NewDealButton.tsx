@@ -124,7 +124,7 @@ export default function NewDealButton() {
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs text-muted mb-1">Deal Value (₹) *</label>
+                                            <label className="block text-xs text-muted mb-1">Deal Value (AED ) *</label>
                                             <input type="number" min="0" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                         </div>
                                         <div>

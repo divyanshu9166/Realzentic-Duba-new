@@ -125,7 +125,7 @@ export default function LiveTrackingClient() {
         loadLeaflet()
             .then((L) => {
                 if (cancelled || !mapElRef.current || mapRef.current) return;
-                const map = L.map(mapElRef.current, { zoomControl: true }).setView([20.5937, 78.9629], 5); // India
+                const map = L.map(mapElRef.current, { zoomControl: true }).setView([25.2048, 55.2708], 11); // Dubai
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; OpenStreetMap contributors',
                     maxZoom: 19,

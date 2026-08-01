@@ -35,10 +35,12 @@ const statusConfig = {
 
 const normalizePhoneNumber = (value) => {
   const digits = String(value || '').replace(/\D/g, '');
-  const trimmed = digits.replace(/^0+/, '');
-  if (!trimmed) return '';
-  if (trimmed.length === 10) return `91${trimmed}`;
-  return trimmed;
+  if (!digits) return '';
+  if (digits.startsWith('00971')) return digits.slice(2);
+  if (digits.startsWith('971')) return digits;
+  if (digits.length === 10 && digits.startsWith('05')) return `971${digits.slice(1)}`;
+  if (digits.length === 9 && digits.startsWith('5')) return `971${digits}`;
+  return digits;
 };
 
 const buildWhatsAppUrl = (phone, message) => {
@@ -402,7 +404,7 @@ export default function WalkinsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted mb-1.5">Phone Number *</label>
-              <input type="tel" name="customer-phone" autoComplete="tel" placeholder="+91 XXXXX XXXXX" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent/50" />
+              <input type="tel" name="customer-phone" autoComplete="tel" placeholder="+971 XXXXX XXXXX" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent/50" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">

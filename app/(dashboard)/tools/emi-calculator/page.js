@@ -38,7 +38,7 @@ const BANK_RATES = [
     { bank: 'PNB', rate: 8.6 },
 ]
 
-const fmt = (v) => `₹${(Number(v) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+const fmt = (v) => `AED ${(Number(v) || 0).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`
 
 // Shared Tailwind class strings (the app has no shared btn/input utilities;
 // these mirror the inline styles used across the other dashboard pages).
@@ -250,7 +250,7 @@ function EmiCalculatorContent() {
                 <div className="glass-card p-5 space-y-4">
                     <h2 className="text-sm font-bold text-muted uppercase tracking-wider">Inputs</h2>
 
-                    <Field label="Property Value (₹)">
+                    <Field label="Property Value (AED )">
                         <input
                             type="number" min="0" value={propertyValue}
                             onChange={(e) => setPropertyValue(e.target.value)}
@@ -258,7 +258,7 @@ function EmiCalculatorContent() {
                         />
                     </Field>
 
-                    <Field label="Down Payment (₹)">
+                    <Field label="Down Payment (AED )">
                         <input
                             type="number" min="0" value={downPayment}
                             onChange={(e) => setDownPayment(e.target.value)}

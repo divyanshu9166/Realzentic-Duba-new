@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         durationSec: 0,
         agent: 'AI Agent - Anushka',
         date: now,
-        time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }),
+        time: now.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Dubai' }),
         purpose: `Callback requested: ${reason || 'General'}`,
         outcome: 'Callback Scheduled',
         notes: `Customer requested callback at ${preferredTime}. Reason: ${reason}`,

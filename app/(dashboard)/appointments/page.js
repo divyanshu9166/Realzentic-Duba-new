@@ -323,7 +323,7 @@ export default function AppointmentsPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-muted mb-1.5">Phone</label>
-            <input type="tel" name="phone" required placeholder="+91..." className="w-full" />
+            <input type="tel" name="phone" required placeholder="+971..." className="w-full" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

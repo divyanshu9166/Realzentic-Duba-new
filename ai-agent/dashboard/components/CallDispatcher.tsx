@@ -60,7 +60,7 @@ export default function CallDispatcher() {
                         </label>
                         <input
                             type="tel"
-                            placeholder="+919876543210"
+                            placeholder="+971501234567"
                             required
                             value={phoneNumber}
                             onChange={(e) => setPhoneNumber(e.target.value)}
@@ -73,7 +73,7 @@ export default function CallDispatcher() {
                             <MessageSquare className="w-4 h-4" /> Context / Prompt
                         </label>
                         <textarea
-                            placeholder="e.g. You are calling regarding a coffee order..."
+                            placeholder="e.g. You are calling regarding a Dubai property enquiry..."
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300 h-28 resize-none"
@@ -102,8 +102,8 @@ export default function CallDispatcher() {
                                 <option value="alloy">Alloy (US)</option>
                                 <option value="echo">Echo (US)</option>
                                 <option value="shimmer">Shimmer (US)</option>
-                                <option value="anushka">Anushka (Indian - Sarvam)</option>
-                                <option value="aravind">Aravind (Indian - Sarvam)</option>
+                                <option value="anushka">English voice (Sarvam)</option>
+                                <option value="aravind">English voice (Sarvam)</option>
                             </select>
                         </div>
                     </div>

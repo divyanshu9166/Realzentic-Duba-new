@@ -10,9 +10,9 @@
  * The customer's own first message opens the window, so this reply is always valid.
  *
  * Buttons:
- *   1. 📦 Product Details   → id: "INFO_PRODUCTS"
- *   2. 📍 Company Address   → id: "INFO_ADDRESS"
- *   3. 📅 Schedule Visit    → id: "SCHEDULE_APPOINTMENT"
+ *   1. 🏙️ Property Details  → id: "INFO_PROPERTIES"
+ *   2. 📍 Contact Details   → id: "INFO_ADDRESS"
+ *   3. 📅 Schedule Viewing  → id: "SCHEDULE_APPOINTMENT"
  */
 
 import { prisma } from '@/lib/db'
@@ -44,13 +44,12 @@ export async function sendInquiryWelcomeMessage(opts: InquirySendOptions): Promi
     const accessToken = decrypt(waConfig.access_token)
     const phoneNumberId = waConfig.phone_number_id
 
-    const firstName = contactName?.split(' ')[0] || 'Aap'
+    const firstName = contactName?.split(' ')[0] || 'there'
 
     const bodyText =
-      `Namaste *${firstName}* ji! 🙏\n\n` +
-      `Kosmic Furniture mein aapka swagat hai! Hum institutional furniture ke specialist hain — ` +
-      `office, school, hospital aur custom furniture.\n\n` +
-      `Aap kya jaanna chahenge?`
+      `Hello *${firstName}*! 👋\n\n` +
+      `Welcome to *Realzentic Dubai*. We can help with Dubai property sales, rentals, off-plan opportunities, and viewings.\n\n` +
+      `How may we assist you today?`
 
     let metaMessageId: string | undefined
 
@@ -60,13 +59,13 @@ export async function sendInquiryWelcomeMessage(opts: InquirySendOptions): Promi
         phoneNumberId,
         accessToken,
         to: contactPhone,
-        headerText: '🪑 Kosmic Furniture',
+        headerText: '🏙️ Realzentic Dubai',
         bodyText,
-        footerText: 'Mon–Sat | 10 AM – 6 PM | Nalanda, Bihar',
+        footerText: 'Dubai real-estate enquiries and property viewings',
         buttons: [
-          { id: 'INFO_PRODUCTS', title: '📦 Product Details' },
-          { id: 'INFO_ADDRESS', title: '📍 Company Address' },
-          { id: 'SCHEDULE_APPOINTMENT', title: '📅 Schedule Visit' },
+          { id: 'INFO_PROPERTIES', title: '🏙️ Property Details' },
+          { id: 'INFO_ADDRESS', title: '📍 Contact Details' },
+          { id: 'SCHEDULE_APPOINTMENT', title: '📅 Schedule Viewing' },
         ],
       })
       metaMessageId = result.messageId
@@ -74,11 +73,11 @@ export async function sendInquiryWelcomeMessage(opts: InquirySendOptions): Promi
       console.warn('[inquiry-message] Interactive message failed, falling back to text:', interactiveErr)
       // Fallback to plain text if interactive fails
       const fallbackText =
-        `Namaste *${firstName}* ji! 🙏 Kosmic Furniture mein aapka swagat hai!\n\n` +
-        `Aap yeh likh ke jaankari le sakte hain:\n` +
-        `• *products* — hamare furniture ke baare mein\n` +
-        `• *address* — showroom ka pata\n` +
-        `• *appointment* — showroom visit schedule karna`
+        `Hello *${firstName}*! Welcome to *Realzentic Dubai*.\n\n` +
+        `Reply with:\n` +
+        `• *properties* — property types and services\n` +
+        `• *contact* — our contact details\n` +
+        `• *viewing* — schedule a property viewing`
       const result = await sendTextMessage({
         phoneNumberId,
         accessToken,
@@ -118,9 +117,9 @@ export async function sendInquiryWelcomeMessage(opts: InquirySendOptions): Promi
 }
 
 /**
- * Handle "INFO_PRODUCTS" button click — send product details text.
+ * Handle "INFO_PROPERTIES" button click — send property details text.
  */
-export async function sendProductInfoMessage(
+export async function sendPropertyInfoMessage(
   userId: string,
   contactPhone: string,
   conversationId: string,
@@ -131,17 +130,15 @@ export async function sendProductInfoMessage(
 
     const accessToken = decrypt(waConfig.access_token)
     const text =
-      `🪑 *Kosmic Furniture — Products*\n\n` +
-      `Hum in products ke specialist hain:\n\n` +
-      `🏢 *Office Furniture*\n` +
-      `  • Office chairs, workstations, conference tables\n\n` +
-      `🏫 *School Furniture*\n` +
-      `  • Desks, benches, lab furniture\n\n` +
-      `🏥 *Hospital Furniture*\n` +
-      `  • Beds, trolleys, waiting chairs\n\n` +
-      `🏗️ *Custom Institutional*\n` +
-      `  • Bulk orders, custom design, pan-India delivery\n\n` +
-      `Quote ya details ke liye humse baat karein:\n📞 +91 7004642914`
+      `🏙️ *Realzentic Dubai — Property Services*\n\n` +
+      `We can assist with:\n\n` +
+      `🏠 *Residential*\n` +
+      `  • Apartments, penthouses, villas, townhouses, and off-plan homes\n\n` +
+      `🏢 *Commercial*\n` +
+      `  • Retail, offices, warehouses, and investment opportunities\n\n` +
+      `📅 *Property Viewings*\n` +
+      `  • We will arrange a viewing once a consultant confirms availability.\n\n` +
+      `Please share the location, property type, and your AED budget.`
 
     const result = await sendTextMessage({
       phoneNumberId: waConfig.phone_number_id,
@@ -165,7 +162,7 @@ export async function sendProductInfoMessage(
       data: { last_message_text: text, last_message_at: new Date() },
     })
   } catch (err) {
-    console.error('[inquiry-message] sendProductInfoMessage failed:', err)
+    console.error('[inquiry-message] sendPropertyInfoMessage failed:', err)
   }
 }
 
@@ -182,15 +179,14 @@ export async function sendAddressMessage(
     if (!waConfig) return
 
     const accessToken = decrypt(waConfig.access_token)
+    const settings = await prisma.storeSettings.findFirst({ where: { id: 1 } })
     const text =
-      `📍 *Kosmic Furniture — Showroom Address*\n\n` +
-      `Kosmic Furniture\n` +
-      `Nalanda, Bihar\n\n` +
-      `📞 *Phone:* +91 7004642914 | +91 9199987067\n` +
-      `📧 *Email:* info@kosmicfurniture.com\n` +
-      `🌐 *Website:* kosmicfurniture.com\n\n` +
-      `⏰ *Timings:* Monday – Saturday | 10 AM – 6 PM\n\n` +
-      `Showroom visit schedule karne ke liye *appointment* likhein!`
+      `📍 *Realzentic Dubai — Contact Details*\n\n` +
+      `${settings?.storeName || 'Realzentic Dubai'}\n` +
+      `${settings?.address || 'Dubai, United Arab Emirates'}\n\n` +
+      `${settings?.phone ? `📞 *Phone:* ${settings.phone}\n` : ''}` +
+      `${settings?.email ? `📧 *Email:* ${settings.email}\n` : ''}` +
+      `\nReply *viewing* to request a property viewing. Our team will confirm the location and time.`
 
     const result = await sendTextMessage({
       phoneNumberId: waConfig.phone_number_id,

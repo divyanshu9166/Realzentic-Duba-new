@@ -63,7 +63,7 @@ afterAll(async () => {
 })
 
 const unitTemplate = {
-    type: 'BHK2',
+    type: 'Apartment2',
     carpetArea: 800,
     superBuiltUpArea: 1000,
     facing: 'N',
@@ -118,7 +118,7 @@ describe('Inventory service — DB integration', () => {
         const res = await createProject({
             name: '', // required → invalid
             location: 'X',
-            city: 'Pune',
+            city: 'Dubai',
             state: 'Maharashtra',
             type: 'Residential',
             status: 'UnderConstruction',
@@ -136,7 +136,7 @@ describe('Inventory service — DB integration', () => {
             towerId: tower.id,
             floorNumber: 1,
             unitNumber: uid('U'),
-            type: 'BHK2',
+            type: 'Apartment2',
             carpetArea: -5, // invalid
             superBuiltUpArea: 1000,
             facing: 'N',

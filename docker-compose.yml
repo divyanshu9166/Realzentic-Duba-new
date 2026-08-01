@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-furniturecrm}
+      POSTGRES_DB: ${POSTGRES_DB:-realzentic_dubai}
     command: >
       postgres
         -c shared_buffers=256MB
@@ -49,7 +49,7 @@ services:
     command: >
       sh -c "npx prisma migrate deploy --schema ./prisma/schema.prisma"
     environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-furniturecrm}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-realzentic_dubai}"
     depends_on:
       db:
         condition: service_healthy
@@ -60,7 +60,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-furniturecrm}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-realzentic_dubai}"
       NEXTAUTH_SECRET: "${NEXTAUTH_SECRET}"
       NEXTAUTH_URL: "${NEXTAUTH_URL}"
       SESSION_SECRET: "${SESSION_SECRET}"
@@ -84,10 +84,10 @@ services:
       GROQ_API_KEY: "${GROQ_API_KEY}"
       GROQ_MODEL: "${GROQ_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}"
       LLM_PROVIDER: "${LLM_PROVIDER:-groq}"
-      AI_AGENT_NAME: "${AI_AGENT_NAME:-anushka}"
+      AI_AGENT_NAME: "${AI_AGENT_NAME:-realzentic-dubai-agent}"
       SARVAM_API_KEY: "${SARVAM_API_KEY}"
       TTS_PROVIDER: "${TTS_PROVIDER:-sarvam}"
-      SARVAM_TTS_LANGUAGE: "${SARVAM_TTS_LANGUAGE:-hi-IN}"
+      SARVAM_TTS_LANGUAGE: "${SARVAM_TTS_LANGUAGE:-en}"
       SARVAM_TTS_MODEL: "${SARVAM_TTS_MODEL:-bulbul:v3}"
       SARVAM_TTS_SPEAKER: "${SARVAM_TTS_SPEAKER:-pooja}"
       SARVAM_TTS_TRANSPORT: "${SARVAM_TTS_TRANSPORT:-streaming}"

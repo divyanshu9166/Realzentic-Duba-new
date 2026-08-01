@@ -667,7 +667,7 @@ function FeedbackStep({
                                         ))}
                                     </select>
                                 </Field>
-                                <Field label="Deal value (₹)">
+                                <Field label="Deal value (AED )">
                                     <input type="number" min={0} value={dealValue} onChange={(e) => setDealValue(e.target.value)} className="feedback-input" />
                                 </Field>
                                 <Field label="Assigned agent">

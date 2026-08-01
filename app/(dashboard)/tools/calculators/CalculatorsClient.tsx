@@ -1,48 +1,34 @@
 'use client'
 
 /**
- * India finance calculators hub — bundles the calculators buyers usually
- * Google mid-funnel, inside the CRM:
- *   1. Stamp Duty + Registration (state-wise)
- *   2. Home Loan EMI + Eligibility (+ bank-rate comparison)
+ * Dubai property finance calculators:
+ *   1. DLD transfer + mortgage registration fees
+ *   2. Mortgage EMI + eligibility (DBR and LTV)
  *   3. Rental Yield + Appreciation (investor metrics)
- *   4. GST on under-construction purchase
+ *   4. VAT by property use
  *
  * All math reuses the tested pure helpers in lib/* (no server round-trip).
  */
 
 import { useMemo, useState } from 'react'
 import { Landmark, Home, TrendingUp, Receipt, Percent } from 'lucide-react'
-import { stampDutyRateForState, STAMP_DUTY_RATES, gstRateForProject } from '@/lib/cost-sheet'
-import { computeEmi, totalInterest, validateDownPayment, estimateStampDutyAndRegistration } from '@/lib/emi'
-import { loanEligibility, rentalYield, appreciationProjection, gstAmount } from '@/lib/finance-calculators'
+import { vatRateForProperty } from '@/lib/cost-sheet'
+import { computeEmi, totalInterest, validateDownPayment, estimateDldFeeAndRegistration } from '@/lib/emi'
+import { mortgageEligibility, rentalYield, appreciationProjection, vatAmount } from '@/lib/finance-calculators'
+import { formatCurrency } from '@/lib/currency'
 
 const TABS = [
-    { id: 'stamp', label: 'Stamp Duty', Icon: Landmark },
-    { id: 'loan', label: 'Home Loan', Icon: Home },
+    { id: 'dld', label: 'DLD Fees', Icon: Landmark },
+    { id: 'mortgage', label: 'Mortgage', Icon: Home },
     { id: 'invest', label: 'Yield & Growth', Icon: TrendingUp },
-    { id: 'gst', label: 'GST', Icon: Receipt },
+    { id: 'vat', label: 'VAT', Icon: Receipt },
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
-const STATE_LABELS: Record<string, string> = {
-    maharashtra: 'Maharashtra', karnataka: 'Karnataka', delhi: 'Delhi', gujarat: 'Gujarat',
-    'tamil nadu': 'Tamil Nadu', telangana: 'Telangana', 'uttar pradesh': 'Uttar Pradesh',
-    'west bengal': 'West Bengal', rajasthan: 'Rajasthan', haryana: 'Haryana',
-}
-
-// Indicative published home-loan rates (editable in UI; live rates require a paid feed).
+// Illustrative rates only — lender offers must be verified before advising a buyer.
 const BANK_RATES: Array<{ bank: string; rate: number }> = [
-    { bank: 'SBI', rate: 8.5 }, { bank: 'HDFC', rate: 8.7 }, { bank: 'ICICI', rate: 8.75 },
-    { bank: 'Axis', rate: 8.85 }, { bank: 'Kotak', rate: 8.7 }, { bank: 'PNB', rate: 8.6 },
+    { bank: 'Scenario A', rate: 4.5 }, { bank: 'Scenario B', rate: 5 }, { bank: 'Scenario C', rate: 5.5 },
 ]
-
-function formatINR(amount: number): string {
-    if (!Number.isFinite(amount) || amount === 0) return '₹0'
-    if (amount >= 1e7) return `₹${(amount / 1e7).toFixed(2)} Cr`
-    if (amount >= 1e5) return `₹${(amount / 1e5).toFixed(2)} L`
-    return `₹${Math.round(amount).toLocaleString('en-IN')}`
-}
 
 function Field({ label, value, onChange, type = 'number', placeholder }: {
     label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string
@@ -66,21 +52,21 @@ function Stat({ label, value, tint }: { label: string; value: string; tint?: str
 }
 
 export default function CalculatorsClient() {
-    const [tab, setTab] = useState<TabId>('stamp')
+    const [tab, setTab] = useState<TabId>('dld')
 
-    // 1. Stamp duty
-    const [sdState, setSdState] = useState('maharashtra')
+    // 1. Dubai Land Department fees
     const [sdValue, setSdValue] = useState('5000000')
-    const stamp = useMemo(() => {
+    const [buyerType, setBuyerType] = useState<'Individual' | 'Company'>('Individual')
+    const [mortgageForDld, setMortgageForDld] = useState('0')
+    const dld = useMemo(() => {
         const base = Number(sdValue)
         if (!base || base <= 0 || base > 999_999_999) return null
         try {
-            const r = estimateStampDutyAndRegistration(sdState, base)
-            return { ...r, ratePct: (stampDutyRateForState(sdState) * 100).toFixed(2) }
+            return estimateDldFeeAndRegistration(base, buyerType, Number(mortgageForDld))
         } catch { return null }
-    }, [sdState, sdValue])
+    }, [sdValue, buyerType, mortgageForDld])
 
-    // 2. Home loan
+    // 2. Mortgage
     const [pValue, setPValue] = useState('5000000')
     const [down, setDown] = useState('1000000')
     const [rate, setRate] = useState('8.5')
@@ -109,10 +95,13 @@ export default function CalculatorsClient() {
     // Eligibility
     const [income, setIncome] = useState('100000')
     const [obligations, setObligations] = useState('0')
-    const elig = useMemo(() => loanEligibility({
+    const [applicantType, setApplicantType] = useState<'UAE_NATIONAL' | 'EXPATRIATE'>('EXPATRIATE')
+    const [purchaseType, setPurchaseType] = useState<'FIRST_HOME' | 'SECONDARY_OR_INVESTMENT' | 'OFF_PLAN'>('FIRST_HOME')
+    const elig = useMemo(() => mortgageEligibility({
         monthlyIncome: Number(income), monthlyObligations: Number(obligations),
         annualRatePct: Number(rate) || 8.5, tenureMonths: (Number(years) || 20) * 12,
-    }), [income, obligations, rate, years])
+        propertyValue: Number(pValue), applicantType, purchaseType,
+    }), [income, obligations, rate, years, pValue, applicantType, purchaseType])
 
     // 3. Yield & appreciation
     const [ryValue, setRyValue] = useState('8000000')
@@ -123,14 +112,14 @@ export default function CalculatorsClient() {
     const [appYears, setAppYears] = useState('5')
     const app = useMemo(() => appreciationProjection({ currentValue: Number(ryValue), annualGrowthPct: Number(growth), years: Number(appYears) }), [ryValue, growth, appYears])
 
-    // 4. GST
-    const [gstBase, setGstBase] = useState('5000000')
-    const [gstStatus, setGstStatus] = useState('UnderConstruction')
-    const gst = useMemo(() => {
-        const base = Number(gstBase)
-        const r = gstRateForProject(gstStatus)
-        return { rate: r, amount: gstAmount(base, r), total: base + gstAmount(base, r) }
-    }, [gstBase, gstStatus])
+    // 4. VAT
+    const [vatBase, setVatBase] = useState('5000000')
+    const [propertyUse, setPropertyUse] = useState<'Residential' | 'Commercial'>('Residential')
+    const vat = useMemo(() => {
+        const base = Number(vatBase)
+        const rate = vatRateForProperty(propertyUse)
+        return { rate, amount: vatAmount(base, rate), total: base + vatAmount(base, rate) }
+    }, [vatBase, propertyUse])
 
     return (
         <div className="space-y-5 max-w-4xl">
@@ -138,7 +127,7 @@ export default function CalculatorsClient() {
                 <div className="flex size-9 items-center justify-center rounded-lg bg-accent/10"><Percent className="size-5 text-accent" /></div>
                 <div>
                     <h1 className="text-xl font-bold text-foreground">Property Finance Calculators</h1>
-                    <p className="text-sm text-muted">Stamp duty, home loan, rental yield, appreciation and GST — all in one place.</p>
+                    <p className="text-sm text-muted">DLD fees, mortgage eligibility, rental yield, appreciation, and VAT — all in one place.</p>
                 </div>
             </div>
 
@@ -150,54 +139,56 @@ export default function CalculatorsClient() {
                 ))}
             </div>
 
-            {/* 1. Stamp duty */}
-            {tab === 'stamp' && (
+            {/* 1. DLD fees */}
+            {tab === 'dld' && (
                 <div className="space-y-4">
-                    <div className="glass-card p-5 grid gap-3 sm:grid-cols-2">
+                    <div className="glass-card p-5 grid gap-3 sm:grid-cols-3">
                         <div>
-                            <label className="block text-xs text-muted mb-1">State</label>
-                            <select value={sdState} onChange={(e) => setSdState(e.target.value)} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
-                                {Object.keys(STAMP_DUTY_RATES).map((k) => <option key={k} value={k}>{STATE_LABELS[k] ?? k}</option>)}
+                            <label className="block text-xs text-muted mb-1">Buyer Type</label>
+                            <select value={buyerType} onChange={(e) => setBuyerType(e.target.value as 'Individual' | 'Company')} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
+                                <option value="Individual">Individual</option>
+                                <option value="Company">Company</option>
                             </select>
                         </div>
-                        <Field label="Property / Agreement Value (₹)" value={sdValue} onChange={setSdValue} />
+                        <Field label="Property Value (AED)" value={sdValue} onChange={setSdValue} />
+                        <Field label="Mortgage Amount (AED, optional)" value={mortgageForDld} onChange={setMortgageForDld} />
                     </div>
-                    {stamp && (
+                    {dld && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            <Stat label={`Stamp Duty (${stamp.ratePct}%)`} value={formatINR(stamp.stampDuty)} tint="text-accent" />
-                            <Stat label="Registration (1%)" value={formatINR(stamp.registration)} />
-                            <Stat label="Total Charges" value={formatINR(stamp.total)} tint="text-emerald-600" />
-                            <Stat label="All-in Cost" value={formatINR(Number(sdValue) + stamp.total)} />
+                            <Stat label="DLD Transfer Fee (4%)" value={formatCurrency(dld.dldTransferFee)} tint="text-accent" />
+                            <Stat label="DLD Admin Fee" value={formatCurrency(dld.dldAdminFee)} />
+                            <Stat label="Mortgage Registration" value={formatCurrency(dld.mortgageRegistrationFee + dld.mortgageAdminFee)} />
+                            <Stat label="Total Charges" value={formatCurrency(dld.total)} tint="text-emerald-600" />
                         </div>
                     )}
                 </div>
             )}
 
-            {/* 2. Home loan */}
-            {tab === 'loan' && (
+            {/* 2. Mortgage */}
+            {tab === 'mortgage' && (
                 <div className="space-y-4">
                     <div className="glass-card p-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <Field label="Property Value (₹)" value={pValue} onChange={setPValue} />
-                        <Field label="Down Payment (₹)" value={down} onChange={setDown} />
+                        <Field label="Property Value (AED)" value={pValue} onChange={setPValue} />
+                        <Field label="Down Payment (AED)" value={down} onChange={setDown} />
                         <Field label="Interest Rate (%)" value={rate} onChange={setRate} />
                         <Field label="Tenure (years)" value={years} onChange={setYears} />
                     </div>
                     {loan ? (
                         <>
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                                <Stat label="Loan Amount" value={formatINR(loan.principal)} />
-                                <Stat label="Monthly EMI" value={formatINR(loan.emi)} tint="text-accent" />
-                                <Stat label="Total Interest" value={formatINR(loan.interest)} tint="text-amber-600" />
-                                <Stat label="Total Payment" value={formatINR(loan.total)} />
+                                <Stat label="Mortgage Amount" value={formatCurrency(loan.principal)} />
+                                <Stat label="Monthly Installment" value={formatCurrency(loan.emi)} tint="text-accent" />
+                                <Stat label="Total Interest" value={formatCurrency(loan.interest)} tint="text-amber-600" />
+                                <Stat label="Total Payment" value={formatCurrency(loan.total)} />
                             </div>
                             <div className="glass-card overflow-hidden">
-                                <div className="px-4 py-2 text-xs font-semibold text-muted border-b border-border">Bank Rate Comparison (indicative) — EMI on {formatINR(loan.principal)} over {years} yrs</div>
+                                <div className="px-4 py-2 text-xs font-semibold text-muted border-b border-border">Illustrative rate comparison — monthly installment on {formatCurrency(loan.principal)} over {years} yrs</div>
                                 <div className="overflow-x-auto">
                                     <table className="crm-table">
                                         <thead><tr><th>Bank</th><th>Rate</th><th>Monthly EMI</th></tr></thead>
                                         <tbody>
                                             {bankEmis.map((b) => (
-                                                <tr key={b.bank}><td className="text-foreground">{b.bank}</td><td className="text-muted">{b.rate}%</td><td className="text-accent font-medium">{formatINR(b.emi)}</td></tr>
+                                                <tr key={b.bank}><td className="text-foreground">{b.bank}</td><td className="text-muted">{b.rate}%</td><td className="text-accent font-medium">{formatCurrency(b.emi)}</td></tr>
                                             ))}
                                         </tbody>
                                     </table>
@@ -210,14 +201,17 @@ export default function CalculatorsClient() {
                     )}
 
                     <div className="glass-card p-5 space-y-3">
-                        <h2 className="text-sm font-semibold text-foreground">Loan Eligibility (FOIR 50%)</h2>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <Field label="Monthly Income (₹)" value={income} onChange={setIncome} />
-                            <Field label="Existing EMIs / Obligations (₹)" value={obligations} onChange={setObligations} />
+                        <h2 className="text-sm font-semibold text-foreground">Mortgage Eligibility (DBR + LTV)</h2>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <Field label="Monthly Income (AED)" value={income} onChange={setIncome} />
+                            <Field label="Existing Obligations (AED)" value={obligations} onChange={setObligations} />
+                            <select value={applicantType} onChange={(e) => setApplicantType(e.target.value as 'UAE_NATIONAL' | 'EXPATRIATE')} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm"><option value="EXPATRIATE">Expatriate</option><option value="UAE_NATIONAL">UAE National</option></select>
+                            <select value={purchaseType} onChange={(e) => setPurchaseType(e.target.value as 'FIRST_HOME' | 'SECONDARY_OR_INVESTMENT' | 'OFF_PLAN')} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm"><option value="FIRST_HOME">First Home</option><option value="SECONDARY_OR_INVESTMENT">Secondary / Investment</option><option value="OFF_PLAN">Off-Plan</option></select>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <Stat label="Max Affordable EMI" value={formatINR(elig.maxEmi)} />
-                            <Stat label="Eligible Loan" value={formatINR(elig.eligibleLoan)} tint="text-emerald-600" />
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                            <Stat label="Max Affordable Installment" value={formatCurrency(elig.maxEmi)} />
+                            <Stat label="Eligible Mortgage" value={formatCurrency(elig.eligibleLoan)} tint="text-emerald-600" />
+                            <Stat label="Applicable LTV Cap" value={`${(elig.ltvCap * 100).toFixed(0)}%`} />
                         </div>
                         <p className="text-[11px] text-muted">Eligible loan at {rate || 8.5}% for {years || 20} years.</p>
                     </div>
@@ -230,12 +224,12 @@ export default function CalculatorsClient() {
                     <div className="glass-card p-5 space-y-3">
                         <h2 className="text-sm font-semibold text-foreground">Rental Yield</h2>
                         <div className="grid gap-3 sm:grid-cols-3">
-                            <Field label="Property Value (₹)" value={ryValue} onChange={setRyValue} />
-                            <Field label="Monthly Rent (₹)" value={rent} onChange={setRent} />
-                            <Field label="Annual Expenses (₹)" value={expenses} onChange={setExpenses} />
+                            <Field label="Property Value (AED)" value={ryValue} onChange={setRyValue} />
+                            <Field label="Monthly Rent (AED)" value={rent} onChange={setRent} />
+                            <Field label="Annual Expenses (AED)" value={expenses} onChange={setExpenses} />
                         </div>
                         <div className="grid grid-cols-3 gap-3">
-                            <Stat label="Annual Rent" value={formatINR(ry.annualRent)} />
+                            <Stat label="Annual Rent" value={formatCurrency(ry.annualRent)} />
                             <Stat label="Gross Yield" value={`${ry.grossYieldPct}%`} tint="text-accent" />
                             <Stat label="Net Yield" value={`${ry.netYieldPct}%`} tint="text-emerald-600" />
                         </div>
@@ -244,18 +238,18 @@ export default function CalculatorsClient() {
                     <div className="glass-card p-5 space-y-3">
                         <h2 className="text-sm font-semibold text-foreground">Appreciation Projection</h2>
                         <div className="grid gap-3 sm:grid-cols-3">
-                            <Field label="Current Value (₹)" value={ryValue} onChange={setRyValue} />
+                            <Field label="Current Value (AED)" value={ryValue} onChange={setRyValue} />
                             <Field label="Annual Growth (%)" value={growth} onChange={setGrowth} />
                             <Field label="Years" value={appYears} onChange={setAppYears} />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            <Stat label={`Value after ${appYears || 0} yrs`} value={formatINR(app.futureValue)} tint="text-accent" />
-                            <Stat label="Total Gain" value={formatINR(app.totalGain)} tint="text-emerald-600" />
+                            <Stat label={`Value after ${appYears || 0} yrs`} value={formatCurrency(app.futureValue)} tint="text-accent" />
+                            <Stat label="Total Gain" value={formatCurrency(app.totalGain)} tint="text-emerald-600" />
                         </div>
                         {app.schedule.length > 0 && (
                             <div className="flex flex-wrap gap-2 pt-1">
                                 {app.schedule.map((s) => (
-                                    <span key={s.year} className="px-2 py-0.5 rounded-full text-xs bg-surface border border-border text-muted">Y{s.year}: <span className="text-foreground font-medium">{formatINR(s.value)}</span></span>
+                                    <span key={s.year} className="px-2 py-0.5 rounded-full text-xs bg-surface border border-border text-muted">Y{s.year}: <span className="text-foreground font-medium">{formatCurrency(s.value)}</span></span>
                                 ))}
                             </div>
                         )}
@@ -263,25 +257,25 @@ export default function CalculatorsClient() {
                 </div>
             )}
 
-            {/* 4. GST */}
-            {tab === 'gst' && (
+            {/* 4. VAT */}
+            {tab === 'vat' && (
                 <div className="space-y-4">
                     <div className="glass-card p-5 grid gap-3 sm:grid-cols-2">
-                        <Field label="Base Value (₹)" value={gstBase} onChange={setGstBase} />
+                        <Field label="Base Value (AED)" value={vatBase} onChange={setVatBase} />
                         <div>
-                            <label className="block text-xs text-muted mb-1">Project Status</label>
-                            <select value={gstStatus} onChange={(e) => setGstStatus(e.target.value)} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
-                                <option value="UnderConstruction">Under Construction (5% GST)</option>
-                                <option value="ReadyToMove">Ready to Move (0% GST)</option>
+                            <label className="block text-xs text-muted mb-1">Property Use</label>
+                            <select value={propertyUse} onChange={(e) => setPropertyUse(e.target.value as 'Residential' | 'Commercial')} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
+                                <option value="Residential">Residential (0%)</option>
+                                <option value="Commercial">Commercial (5%)</option>
                             </select>
                         </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
-                        <Stat label="GST Rate" value={`${(gst.rate * 100).toFixed(0)}%`} />
-                        <Stat label="GST Amount" value={formatINR(gst.amount)} tint="text-accent" />
-                        <Stat label="Total with GST" value={formatINR(gst.total)} tint="text-emerald-600" />
+                        <Stat label="VAT Rate" value={`${(vat.rate * 100).toFixed(0)}%`} />
+                        <Stat label="VAT Amount" value={formatCurrency(vat.amount)} tint="text-accent" />
+                        <Stat label="Total with VAT" value={formatCurrency(vat.total)} tint="text-emerald-600" />
                     </div>
-                    <p className="text-[11px] text-muted">Under-construction residential attracts 5% GST (no input tax credit); ready-to-move (with completion certificate) is GST-exempt.</p>
+                    <p className="text-[11px] text-muted">Residential transactions need zero-rated versus exempt accounting review; commercial property is modeled at the 5% standard VAT rate.</p>
                 </div>
             )}
         </div>

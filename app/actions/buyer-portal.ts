@@ -25,7 +25,7 @@ import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
     normalizePhone,
-    normalizePhoneForMetaIndia,
+    normalizePhoneForMetaUae,
     isValidE164,
 } from '@/lib/whatsapp/phone-utils'
 
@@ -149,7 +149,7 @@ function minutesFromMs(ms: number): number {
  *
  * `Contact.phone` may be stored in any human format, so we match on the last
  * ten significant digits (the national subscriber number) which is stable
- * across `+91`, `0`, and spaced variants.
+ * across `+971`, `0`, and spaced variants.
  */
 async function findBuyerContact(phone: string): Promise<{ id: number; phone: string } | null> {
     const last10 = normalizePhone(phone).slice(-10)
@@ -185,7 +185,7 @@ export async function requestBuyerOtp(
         return { success: false, error: 'A phone number is required' }
     }
 
-    const phoneE164 = normalizePhoneForMetaIndia(phone)
+    const phoneE164 = normalizePhoneForMetaUae(phone)
     if (!isValidE164(phoneE164)) {
         return { success: false, error: 'Enter a valid phone number' }
     }
@@ -267,7 +267,7 @@ export async function verifyBuyerOtp(
         return { success: false, error: 'A phone number is required' }
     }
 
-    const phoneE164 = normalizePhoneForMetaIndia(phone)
+    const phoneE164 = normalizePhoneForMetaUae(phone)
     if (!isValidE164(phoneE164)) {
         return { success: false, error: 'Enter a valid phone number' }
     }
@@ -803,7 +803,7 @@ export async function signOffPossession(
 /**
  * Whether the optional online payment gateway is enabled (assumption A5).
  *
- * The default deployment captures payments manually via UPI/bank, with the
+ * The default deployment captures payments manually via bank transfer, with the
  * online gateway deferred behind this configurable feature flag. When the flag
  * is off, the buyer portal shows manual instructions instead of a "Pay Now"
  * action.
@@ -812,13 +812,12 @@ function isOnlinePaymentEnabled(): boolean {
     return process.env.BUYER_PORTAL_ONLINE_PAYMENT === 'true'
 }
 
-/** Manual UPI/bank transfer instructions, sourced from StoreSettings. */
+/** Manual bank-transfer instructions, sourced from StoreSettings. */
 export interface ManualPaymentInstructions {
     bankName: string | null
     accountName: string | null
     accountNumber: string | null
-    ifsc: string | null
-    upiId: string | null
+    iban: string | null
     qrUrl: string | null
 }
 
@@ -838,7 +837,7 @@ export interface PaymentOptions {
  * Resolve how the authenticated buyer should pay (Req 18.11, A5).
  *
  * WHERE online payment is enabled, exposes a "Pay Now" action; otherwise it
- * returns the manual UPI/bank instructions from StoreSettings. When a
+ * returns the manual bank-transfer instructions from StoreSettings. When a
  * `bookingId` is supplied it must belong to the buyer (Req 18.6) and the
  * outstanding milestone balance is computed for display.
  */
@@ -875,8 +874,7 @@ export async function getPaymentOptions(
             bankName: true,
             bankAccountName: true,
             bankAccountNumber: true,
-            bankIfsc: true,
-            bankUpiId: true,
+            bankIban: true,
             paymentQr: true,
         },
     })
@@ -891,8 +889,7 @@ export async function getPaymentOptions(
                 bankName: settings?.bankName ?? null,
                 accountName: settings?.bankAccountName ?? null,
                 accountNumber: settings?.bankAccountNumber ?? null,
-                ifsc: settings?.bankIfsc ?? null,
-                upiId: settings?.bankUpiId ?? null,
+                iban: settings?.bankIban ?? null,
                 qrUrl: settings?.paymentQr ?? null,
             },
         },

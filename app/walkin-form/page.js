@@ -31,7 +31,7 @@ export default function WalkinFormPage() {
     setError('');
 
     if (!form.name.trim()) { setError('Please enter your name'); return; }
-    if (!form.phone.trim() || form.phone.replace(/\D/g, '').length < 10) { setError('Please enter a valid 10-digit phone number'); return; }
+    if (!/^5\d{8}$/.test(form.phone.replace(/\D/g, ''))) { setError('Please enter a valid UAE mobile number'); return; }
     if (!form.requirement) { setError('Please select what you are looking for'); return; }
 
     setSubmitting(true);
@@ -41,7 +41,7 @@ export default function WalkinFormPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name.trim(),
-          phone: form.phone.replace(/\D/g, '').slice(-10),
+          phone: `971${form.phone.replace(/\D/g, '')}`,
           requirement: form.requirement,
           budget: form.budget || undefined,
         }),
@@ -119,10 +119,10 @@ export default function WalkinFormPage() {
           <div style={S.field}>
             <label style={S.label}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <span style={S.prefix}>+91</span>
+              <span style={S.prefix}>+971</span>
               <input
-                type="tel" placeholder="10-digit number" inputMode="numeric" maxLength={10}
-                value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                type="tel" placeholder="5X XXX XXXX" inputMode="numeric" maxLength={9}
+                value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 9) }))}
                 style={{ ...S.input, flex: 1 }}
               />
             </div>

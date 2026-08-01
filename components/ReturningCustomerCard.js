@@ -31,7 +31,7 @@ export default function ReturningCustomerCard({ profile, onApplyDiscount, loadin
   const isFirstVisit = totalPurchases === 0;
 
   const lastVisitLabel = profile.lastPurchaseDate
-    ? `Last: ${new Date(profile.lastPurchaseDate).toLocaleDateString('en-IN', {
+    ? `Last: ${new Date(profile.lastPurchaseDate).toLocaleDateString('en-AE', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
@@ -110,7 +110,7 @@ export default function ReturningCustomerCard({ profile, onApplyDiscount, loadin
             <div className="flex-1 flex items-center gap-1.5 px-3 py-2">
               <span className="text-[10px] text-muted">Lifetime</span>
               <span className={`text-xs font-bold ${tier.color}`}>
-                ₹{profile.lifetimeValue >= 100000
+                AED {profile.lifetimeValue >= 100000
                   ? (profile.lifetimeValue / 100000).toFixed(1) + 'L'
                   : profile.lifetimeValue.toLocaleString()}
               </span>
@@ -129,19 +129,19 @@ export default function ReturningCustomerCard({ profile, onApplyDiscount, loadin
               {profile.invoiceCount > 0 && (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted">Invoices total</span>
-                  <span className="text-foreground font-medium">₹{profile.totalInvoiceValue.toLocaleString()}</span>
+                  <span className="text-foreground font-medium">AED {profile.totalInvoiceValue.toLocaleString()}</span>
                 </div>
               )}
               {profile.orderCount > 0 && (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted">Orders total</span>
-                  <span className="text-foreground font-medium">₹{profile.totalOrderValue.toLocaleString()}</span>
+                  <span className="text-foreground font-medium">AED {profile.totalOrderValue.toLocaleString()}</span>
                 </div>
               )}
               {profile.customOrderCount > 0 && (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted">Custom orders total</span>
-                  <span className="text-foreground font-medium">₹{profile.totalCustomValue.toLocaleString()}</span>
+                  <span className="text-foreground font-medium">AED {profile.totalCustomValue.toLocaleString()}</span>
                 </div>
               )}
             </>
@@ -173,7 +173,7 @@ export default function ReturningCustomerCard({ profile, onApplyDiscount, loadin
             onChange={e => setDiscountType(e.target.value)}
             className="px-2 py-1 rounded-lg text-xs bg-background border border-border focus:outline-none text-foreground flex-shrink-0"
           >
-            <option value="flat">₹ Flat</option>
+            <option value="flat">AED  Flat</option>
             <option value="percent">% Off</option>
           </select>
           <button

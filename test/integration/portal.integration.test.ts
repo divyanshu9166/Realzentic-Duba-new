@@ -43,12 +43,12 @@ afterAll(async () => {
 })
 
 describe('Portal integration — DB integration (20.6)', () => {
-    it('ingests a valid 99acres webhook end-to-end: Contact + Lead + PortalLead + assignee notification', async () => {
+    it('ingests a valid Bayut webhook end-to-end: Contact + Lead + PortalLead + assignee notification', async () => {
         const staff = await makeStaff(cleanup)
 
         const config = await prisma.portalConfig.create({
             data: {
-                portalName: '99acres',
+                portalName: 'Bayut',
                 enabled: true,
                 autoAssignStaffId: staff.id,
             },
@@ -59,11 +59,11 @@ describe('Portal integration — DB integration (20.6)', () => {
         const payload = {
             portalLeadId: uid('PL'),
             name: `Portal Buyer ${uid()}`,
-            phone: `+9197${Math.floor(10000000 + Math.random() * 89999999)}`,
+            phone: `+9715${Math.floor(10000000 + Math.random() * 89999999)}`,
             email: `${uid('portbuyer').toLowerCase()}@test.local`,
         }
 
-        const res = await ingestPortalLead('99acres', payload)
+        const res = await ingestPortalLead('Bayut', payload)
 
         expect(res.success).toBe(true)
         if (!res.success) return
@@ -82,12 +82,12 @@ describe('Portal integration — DB integration (20.6)', () => {
         const contact = await prisma.contact.findUnique({ where: { id: contactId } })
         expect(contact).not.toBeNull()
         expect(contact?.name).toBe(payload.name)
-        expect(contact?.source).toBe('99acres')
+        expect(contact?.source).toBe('Bayut')
 
         // A Lead was created: source attribution recorded, auto-assigned to staff.
         const lead = await prisma.lead.findUnique({ where: { id: leadId } })
         expect(lead).not.toBeNull()
-        expect(lead?.source).toBe('99acres')
+        expect(lead?.source).toBe('Bayut')
         expect(lead?.assignedToId).toBe(staff.id)
         expect(assignedToId).toBe(staff.id)
 

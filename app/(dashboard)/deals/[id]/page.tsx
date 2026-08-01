@@ -14,7 +14,7 @@ import {
     ArrowLeft,
     Activity,
     FileText,
-    ReceiptIndianRupee,
+    ReceiptText,
     Flame,
     AlertTriangle,
     CheckCircle2,
@@ -34,8 +34,8 @@ function num(value: unknown): number {
     return value == null ? 0 : Number(value);
 }
 
-function formatINR(value: unknown): string {
-    return `₹${num(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+function formatAed(value: unknown): string {
+    return `AED ${num(value).toLocaleString('en-AE', { maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(value: Date | string | null | undefined): string {
@@ -43,7 +43,7 @@ function formatDate(value: Date | string | null | undefined): string {
     const d = new Date(value);
     return Number.isNaN(d.getTime())
         ? '—'
-        : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        : d.toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function formatDateTime(value: Date | string | null | undefined): string {
@@ -51,7 +51,7 @@ function formatDateTime(value: Date | string | null | undefined): string {
     const d = new Date(value);
     return Number.isNaN(d.getTime())
         ? '—'
-        : d.toLocaleString('en-IN', {
+        : d.toLocaleString('en-AE', {
             day: 'numeric',
             month: 'short',
             year: 'numeric',
@@ -179,7 +179,7 @@ export default async function DealDetailPage({
                         </div>
                     </div>
                     <div className="text-right">
-                        <p className="text-2xl font-bold text-foreground">{formatINR(deal.value)}</p>
+                        <p className="text-2xl font-bold text-foreground">{formatAed(deal.value)}</p>
                         {typeof deal.aiScore === 'number' && (
                             <p className="mt-1 text-xs text-muted">AI score: {deal.aiScore}</p>
                         )}
@@ -294,7 +294,7 @@ export default async function DealDetailPage({
             {/* Cost-sheet viewer */}
             <div className="glass-card p-5">
                 <div className="mb-4 flex items-center gap-2">
-                    <ReceiptIndianRupee className="h-4 w-4 text-accent" />
+                    <ReceiptText className="h-4 w-4 text-accent" />
                     <h2 className="text-base font-semibold text-foreground">Cost Sheet</h2>
                 </div>
                 {!costSheet ? (
@@ -311,8 +311,8 @@ export default async function DealDetailPage({
                                 ['Parking charges', costSheet.parkingCharges],
                                 ['Clubhouse charges', costSheet.clubhouseCharges],
                                 ['Legal charges', costSheet.legalCharges],
-                                ['Stamp duty', costSheet.stampDuty],
-                                ['GST', costSheet.gst],
+                                ['DLD transfer fee', costSheet.dldTransferFee],
+                                ['VAT', costSheet.vatAmount],
                                 ['Registration charges', costSheet.registrationCharges],
                                 ['Discount', costSheet.discount],
                             ].map(([label, value]) => (
@@ -321,7 +321,7 @@ export default async function DealDetailPage({
                                     className="flex items-center justify-between border-b border-border/60 py-1.5"
                                 >
                                     <dt className="text-sm text-muted">{label as string}</dt>
-                                    <dd className="text-sm font-medium text-foreground">{formatINR(value)}</dd>
+                                    <dd className="text-sm font-medium text-foreground">{formatAed(value)}</dd>
                                 </div>
                             ))}
                         </dl>
@@ -329,12 +329,12 @@ export default async function DealDetailPage({
                             <div className="flex items-center justify-between gap-6">
                                 <span className="text-sm text-muted">Total</span>
                                 <span className="text-base font-semibold text-foreground">
-                                    {formatINR(costSheet.total)}
+                                    {formatAed(costSheet.total)}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between gap-6">
                                 <span className="text-sm text-muted">Net payable</span>
-                                <span className="text-lg font-bold text-accent">{formatINR(costSheet.netPayable)}</span>
+                                <span className="text-lg font-bold text-accent">{formatAed(costSheet.netPayable)}</span>
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted">

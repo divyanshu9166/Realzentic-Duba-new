@@ -8,14 +8,12 @@ export const LEAD_SOURCE_OPTIONS = [
   'Website',
   'Walk-in',
   'Site Visit',
-  'Showroom Visit',
+  'Property Viewing',
   'Referral',
   'Channel Partner',
-  'IndiaMART',
-  '99acres',
-  'MagicBricks',
-  'Housing',
-  'NoBroker',
+  'Bayut',
+  'Property Finder',
+  'Dubizzle',
 ] as const
 
 export type LeadSource = (typeof LEAD_SOURCE_OPTIONS)[number]

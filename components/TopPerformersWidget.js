@@ -29,7 +29,7 @@ const rankAccent = (rank) => {
     return 'text-muted';
 };
 
-const formatValue = (value) => Intl.NumberFormat('en-IN', { maximumFractionDigits: 1 }).format(value || 0);
+const formatValue = (value) => Intl.NumberFormat('en-AE', { maximumFractionDigits: 1 }).format(value || 0);
 
 export default function TopPerformersWidget({ metric = DEFAULT_METRIC }) {
     const [rows, setRows] = useState(null);

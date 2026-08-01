@@ -73,7 +73,7 @@ export async function makeStaff(cleanup: Cleanup, overrides: Record<string, unkn
         data: {
             name: `Test Agent ${uid()}`,
             role: 'Sales Executive',
-            phone: `+9199${Math.floor(1000000 + Math.random() * 8999999)}`,
+            phone: `+9715${Math.floor(1000000 + Math.random() * 8999999)}`,
             email: `${uid('agent').toLowerCase()}@test.local`,
             status: 'Active',
             joinDate: new Date(),
@@ -89,7 +89,7 @@ export async function makeContact(cleanup: Cleanup, overrides: Record<string, un
     const contact = await prisma.contact.create({
         data: {
             name: `Test Buyer ${uid()}`,
-            phone: `+9198${Math.floor(1000000 + Math.random() * 8999999)}`,
+            phone: `+9715${Math.floor(1000000 + Math.random() * 8999999)}`,
             email: `${uid('buyer').toLowerCase()}@test.local`,
             ...overrides,
         },
@@ -104,8 +104,8 @@ export async function makeProject(cleanup: Cleanup, overrides: Record<string, un
         data: {
             name: `Test Project ${uid()}`,
             location: 'Test Location',
-            city: 'Pune',
-            state: 'Maharashtra',
+            city: 'Dubai',
+            emirate: 'Dubai',
             type: 'Residential',
             status: 'UnderConstruction',
             ...overrides,
@@ -143,7 +143,7 @@ export async function makeUnit(
             towerId,
             floorNumber: 1,
             unitNumber: uid('U'),
-            type: 'BHK2',
+            type: 'Apartment2',
             carpetArea: 800,
             superBuiltUpArea: 1000,
             facing: 'N',

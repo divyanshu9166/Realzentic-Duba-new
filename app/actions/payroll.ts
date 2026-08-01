@@ -175,15 +175,14 @@ export async function getPayrollReadiness(period?: string) {
         id: true,
         name: true,
         basicSalary: true,
-        bankAccount: true,
+        emiratesId: true,
+        laborCardNo: true,
+        mohreNo: true,
+        iban: true,
         bankName: true,
-        ifscCode: true,
-        pfEnrolled: true,
-        uanNumber: true,
-        esiEnrolled: true,
-        esiNumber: true,
-        panNumber: true,
-        tdsMonthly: true,
+        visaStatus: true,
+        eosbAccrued: true,
+        wpsRegistered: true,
       },
       orderBy: { name: 'asc' },
     }),
@@ -197,16 +196,13 @@ export async function getPayrollReadiness(period?: string) {
 
   const missingBasic = staffList.filter(s => !s.basicSalary).map(s => s.name)
   const missingBankDetails = staffList
-    .filter(s => !s.bankAccount || !s.bankName || !s.ifscCode)
+    .filter(s => !s.iban || !s.bankName)
     .map(s => s.name)
-  const missingPFCompliance = staffList
-    .filter(s => s.pfEnrolled && !s.uanNumber)
+  const missingEmploymentIdentity = staffList
+    .filter(s => !s.emiratesId || !s.laborCardNo || !s.mohreNo)
     .map(s => s.name)
-  const missingESICompliance = staffList
-    .filter(s => s.esiEnrolled && !s.esiNumber)
-    .map(s => s.name)
-  const missingPanForTds = staffList
-    .filter(s => (s.tdsMonthly || 0) > 0 && !s.panNumber)
+  const missingWpsRegistration = staffList
+    .filter(s => !s.wpsRegistered)
     .map(s => s.name)
   const noAttendanceConfigured = staffList
     .filter(s => !staffWithAttendance.has(s.id))
@@ -217,10 +213,9 @@ export async function getPayrollReadiness(period?: string) {
 
   if (staffList.length === 0) blockers.push('No active staff found.')
   if (missingBasic.length > 0) blockers.push(`${missingBasic.length} staff are missing basic salary.`)
-  if (missingBankDetails.length > 0) warnings.push(`${missingBankDetails.length} staff are missing bank details (A/C, bank name, or IFSC).`)
-  if (missingPFCompliance.length > 0) warnings.push(`${missingPFCompliance.length} PF-enrolled staff are missing UAN.`)
-  if (missingESICompliance.length > 0) warnings.push(`${missingESICompliance.length} ESI-enrolled staff are missing ESI number.`)
-  if (missingPanForTds.length > 0) warnings.push(`${missingPanForTds.length} staff have TDS set but PAN is missing.`)
+  if (missingBankDetails.length > 0) warnings.push(`${missingBankDetails.length} staff are missing IBAN or bank details.`)
+  if (missingEmploymentIdentity.length > 0) warnings.push(`${missingEmploymentIdentity.length} staff are missing Emirates ID, labour card, or MOHRE number.`)
+  if (missingWpsRegistration.length > 0) warnings.push(`${missingWpsRegistration.length} staff are not marked as WPS registered.`)
   if (noAttendanceConfigured.length > 0) warnings.push(`${noAttendanceConfigured.length} staff have no attendance in this period; full working days will be assumed.`)
 
   return {
@@ -233,9 +228,8 @@ export async function getPayrollReadiness(period?: string) {
       details: {
         missingBasic,
         missingBankDetails,
-        missingPFCompliance,
-        missingESICompliance,
-        missingPanForTds,
+        missingEmploymentIdentity,
+        missingWpsRegistration,
         noAttendanceConfigured,
       },
     },
@@ -251,10 +245,8 @@ export async function getStaffForPayroll() {
     where: { status: 'Active' },
     select: {
       id: true, name: true, role: true, designation: true,
-      basicSalary: true, panNumber: true, bankAccount: true,
-      bankName: true, ifscCode: true, pfEnrolled: true, esiEnrolled: true,
-      uanNumber: true, pfNumber: true, esiNumber: true,
-      professionalTaxState: true, tdsMonthly: true,
+      basicSalary: true, emiratesId: true, laborCardNo: true, mohreNo: true,
+      iban: true, bankName: true, visaStatus: true, eosbAccrued: true, wpsRegistered: true,
       loans: { where: { status: 'Active' }, select: { id: true, purpose: true, remainingAmount: true, monthlyInstallment: true } },
     },
     orderBy: { name: 'asc' },
@@ -410,28 +402,29 @@ export async function generatePayroll(data: unknown) {
     const dailyRate = workingDays > 0 ? basic / workingDays : 0
     const effectiveBasic = Math.round(dailyRate * payableDays)
 
-    // Earnings
-    const hra = Math.round(effectiveBasic * 0.40)           // 40%
-    const da = Math.round(effectiveBasic * 0.10)            // 10%
+    // Earnings. The configured basic salary is the contractual wage. Legacy
+    // HRA/DA fields remain only for historical payslip compatibility and are
+    // deliberately zero for UAE payroll runs.
+    const hra = 0
+    const da = 0
     const hourlyRate = effectiveBasic > 0 ? Math.round(effectiveBasic / (workingDays * 8)) : 0
     const otPay = Math.round(hourlyRate * otHours * 2)      // OT at double rate
 
-    // Statutory Bonus: 8.33% of basic (payable monthly as provision)
-    const bonus = staff.pfEnrolled ? Math.round(effectiveBasic * 0.0833) : 0
+    // EOSB is accrued on the staff record using UAE service-length rules; it
+    // is not a monthly employee deduction.
+    const bonus = 0
 
-    const grossSalary = effectiveBasic + hra + da + otPay   // bonus kept separate (employer expense)
+    const grossSalary = effectiveBasic + otPay
 
-    // Deductions
-    const pfEmployee = staff.pfEnrolled ? Math.round(effectiveBasic * 0.12) : 0
-    const pfEmployer = staff.pfEnrolled ? Math.round(effectiveBasic * 0.12) : 0
-    const esiEmployee = (staff.esiEnrolled && grossSalary <= 21000) ? Math.round(grossSalary * 0.0075) : 0
-    const esiEmployer = (staff.esiEnrolled && grossSalary <= 21000) ? Math.round(grossSalary * 0.0325) : 0
-
-    // Professional Tax (state-wise slab on gross)
-    const professionalTax = calcProfessionalTax(staff.professionalTaxState || 'None', grossSalary, period)
-
-    // TDS (fixed monthly amount configured per staff)
-    const tds = staff.tdsMonthly || 0
+    // Statutory deductions are not inferred by this CRM. The legacy payslip
+    // columns remain zero-value audit fields until payroll is split into a
+    // dedicated UAE payroll model validated by the employer's adviser.
+    const pfEmployee = 0
+    const pfEmployer = 0
+    const esiEmployee = 0
+    const esiEmployer = 0
+    const professionalTax = 0
+    const tds = 0
 
     // Loan deductions — only loans that have started by this payroll period
     let requestedLoanDeduction = 0
@@ -504,8 +497,8 @@ export async function generatePayroll(data: unknown) {
             staff: {
               select: {
                 name: true, role: true, designation: true,
-                bankAccount: true, bankName: true, ifscCode: true,
-                panNumber: true, uanNumber: true, pfNumber: true, esiNumber: true,
+                emiratesId: true, laborCardNo: true, mohreNo: true,
+                iban: true, bankName: true, visaStatus: true, wpsRegistered: true,
               },
             },
           },
@@ -545,8 +538,8 @@ export async function getPayrollRun(id: number) {
             select: {
               name: true, role: true, designation: true,
               phone: true, email: true,
-              bankAccount: true, bankName: true, ifscCode: true,
-              panNumber: true, uanNumber: true, pfNumber: true, esiNumber: true,
+              emiratesId: true, laborCardNo: true, mohreNo: true,
+              iban: true, bankName: true, visaStatus: true, wpsRegistered: true,
             },
           },
         },
@@ -571,9 +564,8 @@ export async function getAllPayslips(period?: string) {
           designation: true,
           phone: true,
           email: true,
-          panNumber: true,
-          uanNumber: true,
-          bankAccount: true,
+          emiratesId: true,
+          iban: true,
           bankName: true,
         },
       },

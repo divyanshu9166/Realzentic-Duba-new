@@ -60,7 +60,7 @@ export default function BulkDialer() {
                             <Users className="w-4 h-4" /> Phone Numbers (CSV or Newline)
                         </label>
                         <textarea
-                            placeholder="+919876543210&#10;+919988776655&#10;+12125551234"
+                            placeholder="+971501234567&#10;+971501234568&#10;+12125551234"
                             required
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -75,7 +75,7 @@ export default function BulkDialer() {
                         </label>
                         <input
                             type="text"
-                            placeholder="e.g. Survey about recent purchase..."
+                            placeholder="e.g. Follow up on a Dubai property enquiry..."
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300"

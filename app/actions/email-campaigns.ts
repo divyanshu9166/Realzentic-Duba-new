@@ -303,7 +303,7 @@ export async function sendEmailCampaign(campaignId: number) {
   // Prepare common template variables
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const commonVars: Record<string, string> = {
-    storeName: storeSettings?.storeName || 'Furniture Store',
+    storeName: storeSettings?.storeName || 'Realzentic Dubai',
     storePhone: storeSettings?.phone || '',
     storeEmail: storeSettings?.email || '',
     storeAddress: storeSettings?.address || '',

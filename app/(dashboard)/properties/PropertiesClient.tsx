@@ -4,7 +4,7 @@
  * Properties & Inventory client (Req 1.6, 2.8).
  *
  * Renders:
- *   - Project card grid (photo, name, location, RERA badge, unit count, % sold)
+ *   - Project card grid (photo, name, location, DLD Registration badge, unit count, % sold)
  *   - Analytics tab with inventory KPIs per project (Req 2.8)
  *   - Links to per-project detail pages (tower tabs + floor grid, Req 1.7)
  *
@@ -32,8 +32,8 @@ export interface ProjectCardRow {
     name: string;
     location: string;
     city: string;
-    state: string;
-    reraNumber: string | null;
+    emirate: string;
+    dldProjectRegNo: string | null;
     photoUrl: string | null;
     unitCount: number;
     percentSold: number;
@@ -51,8 +51,8 @@ const tabs = [
 
 type Tab = (typeof tabs)[number]['id'];
 
-function formatINR(n: number): string {
-    return `₹${Intl.NumberFormat('en-IN', {
+function formatAed(n: number): string {
+    return `AED ${Intl.NumberFormat('en-AE', {
         notation: 'compact',
         maximumFractionDigits: 1,
     }).format(n)}`;
@@ -110,9 +110,9 @@ function ProjectCard({ project }: { project: ProjectCardRow }) {
                 </div>
 
                 <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
-                    {project.reraNumber && (
+                    {project.dldProjectRegNo && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">
-                            <ShieldCheck className="w-3 h-3" /> RERA
+                            <ShieldCheck className="w-3 h-3" /> DLD Registration
                         </span>
                     )}
                     <span className="text-[11px] text-muted flex items-center gap-1">
@@ -139,7 +139,7 @@ function ProjectCard({ project }: { project: ProjectCardRow }) {
     );
 }
 
-function EmptyState({ search }: { search: string }) {
+function EmptyEmirate({ search }: { search: string }) {
     return (
         <div className="glass-card py-20 text-center text-muted col-span-full">
             <Building2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -177,13 +177,13 @@ function AnalyticsCard({ row }: { row: AnalyticsRow }) {
                 <div>
                     <p className="text-[10px] text-muted uppercase tracking-wide">Revenue Potential</p>
                     <p className="text-base font-bold text-foreground mt-0.5">
-                        {formatINR(row.revenuePotential)}
+                        {formatAed(row.revenuePotential)}
                     </p>
                 </div>
                 <div>
                     <p className="text-[10px] text-muted uppercase tracking-wide">Available Stock Value</p>
                     <p className="text-base font-bold text-foreground mt-0.5">
-                        {formatINR(row.availableStockValue)}
+                        {formatAed(row.availableStockValue)}
                     </p>
                 </div>
             </div>
@@ -280,8 +280,8 @@ function AnalyticsPanel({ projects }: { projects: ProjectCardRow[] }) {
             {/* Summary row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
-                    { label: 'Total Revenue Potential', value: formatINR(totalRevenue), tint: 'text-accent bg-accent/10', Icon: BarChart3 },
-                    { label: 'Available Stock Value', value: formatINR(totalAvailable), tint: 'text-info bg-info-light', Icon: TrendingUp },
+                    { label: 'Total Revenue Potential', value: formatAed(totalRevenue), tint: 'text-accent bg-accent/10', Icon: BarChart3 },
+                    { label: 'Available Stock Value', value: formatAed(totalAvailable), tint: 'text-info bg-info-light', Icon: TrendingUp },
                     { label: 'Avg % Sold', value: `${avgSold}%`, tint: 'text-success bg-success-light', Icon: Building2 },
                 ].map(({ label, value, tint, Icon }) => (
                     <div key={label} className="glass-card p-4">
@@ -317,7 +317,7 @@ export default function PropertiesClient({ projects }: { projects: ProjectCardRo
             p.name.toLowerCase().includes(search.toLowerCase()) ||
             p.city.toLowerCase().includes(search.toLowerCase()) ||
             p.location.toLowerCase().includes(search.toLowerCase()) ||
-            (p.reraNumber ?? '').toLowerCase().includes(search.toLowerCase()),
+            (p.dldProjectRegNo ?? '').toLowerCase().includes(search.toLowerCase()),
     );
 
     return (
@@ -364,7 +364,7 @@ export default function PropertiesClient({ projects }: { projects: ProjectCardRo
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                     {filtered.length > 0
                         ? filtered.map((p) => <ProjectCard key={p.id} project={p} />)
-                        : <EmptyState search={search} />}
+                        : <EmptyEmirate search={search} />}
                 </div>
             )}
 

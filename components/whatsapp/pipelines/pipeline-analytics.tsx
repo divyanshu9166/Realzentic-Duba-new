@@ -24,9 +24,9 @@ interface PipelineAnalyticsProps {
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-IN", {
+  return new Intl.NumberFormat("en-AE", {
     style: "currency",
-    currency: "INR",
+    currency: "AED",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
@@ -110,7 +110,7 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
           icon={<DollarSign className="h-4 w-4 text-accent" />}
           label="Pipeline Value"
           value={formatCurrency(stats.totalValue)}
-          tooltip="Sum of the dollar values of all deals in this pipeline, excluding deals marked as Lost."
+          tooltip="Sum of the AED values of all deals in this pipeline, excluding deals marked as Lost."
         />
         <Metric
           icon={<Target className="h-4 w-4 text-blue-400" />}

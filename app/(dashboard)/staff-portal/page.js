@@ -6,7 +6,7 @@ import {
   LogIn, LogOut, Clock, Phone, Users,
   MapPin, MapPinned, Camera, Ruler, Target, Star,
   DollarSign, TrendingUp, CheckCircle2, Plus, X, Calendar,
-  UserCheck, Activity, Percent, IndianRupee,
+  UserCheck, Activity, Percent, Banknote,
   Megaphone, AlertTriangle, Search,
   Timer, Home,
   Lock, User, Trash2,
@@ -33,7 +33,13 @@ const attendanceColors = {
   'Off Duty': 'bg-orange-500/10 text-orange-700',
 };
 
-// stockActionColors removed — stock update module not in Real Estate CRM
+const formatAed = (value) => new Intl.NumberFormat('en-AE', {
+  style: 'currency', currency: 'AED', maximumFractionDigits: 0,
+}).format(Number(value || 0))
+
+const dubaiDateKey = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date())
 
 export default function StaffPortalPage() {
   const router = useRouter();
@@ -73,7 +79,7 @@ export default function StaffPortalPage() {
   const applyStaffLogin = (found) => {
     setLoggedInStaff(found);
     setLoginError('');
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = dubaiDateKey();
     const today = found.attendance.find(a => a.date === todayStr);
     if (today?.clockIn) {
       setIsClockedIn(true);
@@ -130,13 +136,9 @@ export default function StaffPortalPage() {
   }, [tab, loggedInStaff]);
 
 
-  // Production tab removed â€” manufacturing module not in Real Estate CRM
-
-
   // Modals
   const [showLogActivity, setShowLogActivity] = useState(false);
   const [showLogVisit, setShowLogVisit] = useState(false);
-  // Stock modal removed â€” inventory module not in Real Estate CRM
 
   // Activity form
   const [activityType, setActivityType] = useState('call');
@@ -163,8 +165,6 @@ export default function StaffPortalPage() {
   // Self visits from DB
   const [selfVisits, setSelfVisits] = useState([]);
   const [deletingVisitId, setDeletingVisitId] = useState(null);
-
-  // Production orders removed â€” manufacturing module not in Real Estate CRM
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -281,7 +281,6 @@ export default function StaffPortalPage() {
     setShowLogActivity(false);
   };
 
-  // Stock update removed â€” inventory module not available in Real Estate CRM
 
   const handlePhotoSelect = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -532,17 +531,15 @@ export default function StaffPortalPage() {
   const commission = me.commission || {};
   const recentSales = me.recentSales || [];
   const targetPct = target.monthly > 0 ? Math.round(((target.achieved || 0) / target.monthly) * 100) : 0;
-  const todayActivities = me.activities.filter(a => a.date === new Date().toISOString().split('T')[0]);
+  const todayActivities = me.activities.filter(a => a.date === dubaiDateKey());
   const upcomingVisits = me.fieldVisits.filter(v => v.status === 'Scheduled' || v.status === 'In Progress');
 
   const portalTabs = [
     { key: 'dashboard', label: 'Staff Portal', icon: Home },
-    { key: 'production', label: 'Dashboard', icon: Package },
-    { key: 'stock', label: 'Stock Updates', icon: Warehouse },
     { key: 'assigned', label: 'Assigned Visits', icon: MapPin },
     { key: 'self', label: 'Self Visits', icon: MapPinned },
     { key: 'attendance', label: 'My Attendance', icon: Calendar },
-    { key: 'sales', label: 'My Sales', icon: ShoppingBag },
+    { key: 'sales', label: 'My Property Sales', icon: ShoppingBag },
   ];
 
   return (
@@ -556,7 +553,7 @@ export default function StaffPortalPage() {
               Welcome, {me.name.split(' ')[0]}
               <span className="text-xs font-normal text-muted bg-surface px-2 py-0.5 rounded-full">{me.role}</span>
             </h1>
-            <p className="text-sm text-muted mt-0.5">Staff Portal â€” Shift: 9:00 AM â€“ 8:00 PM</p>
+            <p className="text-sm text-muted mt-0.5">Dubai staff portal · Shift: 9:00 AM – 6:00 PM</p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -612,11 +609,11 @@ export default function StaffPortalPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-card p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-success-light"><DollarSign className="w-5 h-5 text-success" /></div>
-              <div><p className="text-xs text-muted">Total Revenue</p><p className="text-lg font-bold text-success">â‚¹{(stats.revenue / 100000).toFixed(1)}L</p></div>
+              <div><p className="text-xs text-muted">Total Revenue</p><p className="text-lg font-bold text-success">{formatAed(stats.revenue)}</p></div>
             </div>
             <div className="glass-card p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-purple-light"><ShoppingBag className="w-5 h-5 text-purple" /></div>
-              <div><p className="text-xs text-muted">Today&apos;s Revenue</p><p className="text-lg font-bold text-foreground">â‚¹{stats.todayRevenue.toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted">Today&apos;s Revenue</p><p className="text-lg font-bold text-foreground">{formatAed(stats.todayRevenue)}</p></div>
             </div>
             <div className="glass-card p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-info-light"><Target className="w-5 h-5 text-info" /></div>
@@ -641,30 +638,30 @@ export default function StaffPortalPage() {
                   <div className={`h-full rounded-full transition-all ${targetPct >= 80 ? 'bg-emerald-600' : targetPct >= 50 ? 'bg-amber-600' : 'bg-red-600'}`} style={{ width: `${Math.min(100, targetPct)}%` }} />
                 </div>
                 <div className="flex justify-between text-xs text-muted">
-                  <span>Achieved: <span className="font-semibold text-foreground">â‚¹{(target.achieved / 1000).toFixed(0)}K</span></span>
-                  <span>Target: <span className="font-semibold text-foreground">â‚¹{(target.monthly / 1000).toFixed(0)}K</span></span>
+                  <span>Achieved: <span className="font-semibold text-foreground">{formatAed(target.achieved)}</span></span>
+                  <span>Target: <span className="font-semibold text-foreground">{formatAed(target.monthly)}</span></span>
                 </div>
                 <div className="mt-2 p-2 rounded-lg bg-surface text-xs text-muted text-center">
                   {target.monthly - target.achieved > 0
-                    ? `â‚¹${((target.monthly - target.achieved) / 1000).toFixed(0)}K more to hit target`
+                    ? `${formatAed(target.monthly - target.achieved)} more to hit target`
                     : 'Target achieved! Great work!'}
                 </div>
               </div>
 
               {/* Commission Card */}
               <div className="glass-card p-5">
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4"><IndianRupee className="w-4 h-4 text-accent" /> My Commission</h3>
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4"><Banknote className="w-4 h-4 text-accent" /> My Commission</h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-surface rounded-xl p-3 text-center">
                     <p className="text-lg font-bold text-foreground">{commission.rate}%</p>
                     <p className="text-[10px] text-muted">Rate</p>
                   </div>
                   <div className="bg-surface rounded-xl p-3 text-center">
-                    <p className="text-lg font-bold text-emerald-700">â‚¹{commission.earned.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-emerald-700">{formatAed(commission.earned)}</p>
                     <p className="text-[10px] text-muted">Earned</p>
                   </div>
                   <div className="bg-surface rounded-xl p-3 text-center">
-                    <p className="text-lg font-bold text-amber-700">â‚¹{commission.pending.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-amber-700">{formatAed(commission.pending)}</p>
                     <p className="text-[10px] text-muted">Pending</p>
                   </div>
                 </div>
@@ -774,7 +771,6 @@ export default function StaffPortalPage() {
 
 
 
-      {/* Production orders and stock updates tabs removed â€” manufacturing/inventory not in Real Estate CRM */}
 
 
 
@@ -823,50 +819,20 @@ export default function StaffPortalPage() {
                   </div>
                   {visit.notes && <p className="text-xs text-muted mb-2">{visit.notes}</p>}
 
-                  {/* â”€â”€ Order Details Section â”€â”€ */}
+                  {/* Linked property / deal context */}
                   {visit.customOrderId && (
                     <div className="bg-surface rounded-xl p-3 mb-3 space-y-2.5">
-                      <p className="text-[10px] font-semibold text-muted uppercase tracking-wide">Order Details</p>
-
-                      {/* Info row: materials, color, delivery, price */}
+                      <p className="text-[10px] font-semibold text-muted uppercase tracking-wide">Property Viewing Details</p>
                       <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-                        {visit.materials && (
-                          <span className="text-xs text-foreground"><span className="text-muted">Material:</span> {visit.materials}</span>
-                        )}
-                        {visit.color && (
-                          <span className="text-xs text-foreground"><span className="text-muted">Color:</span> {visit.color}</span>
-                        )}
-                        {visit.estimatedDelivery && (
-                          <span className="text-xs text-foreground"><span className="text-muted">Est. Delivery:</span> {visit.estimatedDelivery}</span>
-                        )}
                         {visit.quotedPrice != null && (
-                          <span className="text-xs text-foreground"><span className="text-muted">Price:</span> â‚¹{visit.quotedPrice.toLocaleString()}</span>
+                          <span className="text-xs text-foreground"><span className="text-muted">Price:</span> {formatAed(visit.quotedPrice)}</span>
                         )}
                         {visit.advancePaid > 0 && (
-                          <span className="text-xs text-foreground"><span className="text-muted">Advance:</span> â‚¹{visit.advancePaid.toLocaleString()}</span>
+                          <span className="text-xs text-foreground"><span className="text-muted">Booking amount:</span> {formatAed(visit.advancePaid)}</span>
                         )}
                       </div>
 
-                      {/* Production notes */}
-                      {visit.productionNotes && (
-                        <p className="text-xs text-muted"><span className="text-foreground font-medium">Notes:</span> {visit.productionNotes}</p>
-                      )}
-
-                      {/* Reference Product */}
-                      {visit.referenceProduct && (
-                        <div className="flex items-center gap-3 bg-white/50 rounded-lg p-2 border border-border">
-                          {visit.referenceProduct.image && (
-                            <img src={visit.referenceProduct.image} alt="" className="w-10 h-10 rounded-lg object-cover border border-border" />
-                          )}
-                          <div>
-                            <p className="text-xs font-medium text-foreground">{visit.referenceProduct.name}</p>
-                            <p className="text-[10px] text-muted">SKU: {visit.referenceProduct.sku} Â· â‚¹{visit.referenceProduct.price?.toLocaleString()}</p>
-                          </div>
-                          <span className="ml-auto text-[10px] text-muted bg-surface-hover px-2 py-0.5 rounded">Reference</span>
-                        </div>
-                      )}
-
-                      {/* Reference Images */}
+                      {/* Property reference images */}
                       {visit.referenceImages && visit.referenceImages.length > 0 && (
                         <div>
                           <p className="text-[10px] text-muted mb-1.5">Reference Images</p>
@@ -1033,7 +999,7 @@ export default function StaffPortalPage() {
         const todayStr = today.toISOString().split('T')[0];
         const daysInMonth = new Date(year, month, 0).getDate();
         const firstWeekday = new Date(year, month - 1, 1).getDay(); // 0=Sun
-        const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+        const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-AE', { month: 'long', year: 'numeric' });
         const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
 
         const recordMap = {};
@@ -1214,8 +1180,8 @@ export default function StaffPortalPage() {
                 <div className="divide-y divide-border">
                   {dayList.map(({ d, ds, dateObj, isSunday, rec }) => {
                     const isToday = ds === todayStr;
-                    const weekday = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
-                    const dateLabel = dateObj.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+                    const weekday = dateObj.toLocaleDateString('en-AE', { weekday: 'short' });
+                    const dateLabel = dateObj.toLocaleDateString('en-AE', { month: 'short', day: 'numeric' });
 
                     // Determine status display
                     let statusLabel, statusClass, dotClass;
@@ -1303,7 +1269,7 @@ export default function StaffPortalPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="glass-card p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-success-light"><DollarSign className="w-5 h-5 text-success" /></div>
-              <div><p className="text-xs text-muted">Total Revenue</p><p className="text-lg font-bold text-success">â‚¹{(stats.revenue / 100000).toFixed(1)}L</p></div>
+              <div><p className="text-xs text-muted">Total Revenue</p><p className="text-lg font-bold text-success">{formatAed(stats.revenue)}</p></div>
             </div>
             <div className="glass-card p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-accent-light"><TrendingUp className="w-5 h-5 text-accent" /></div>
@@ -1311,7 +1277,7 @@ export default function StaffPortalPage() {
             </div>
             <div className="glass-card p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-purple-light"><ShoppingBag className="w-5 h-5 text-purple" /></div>
-              <div><p className="text-xs text-muted">Today</p><p className="text-lg font-bold text-foreground">{stats.todaySales} sales â€” â‚¹{stats.todayRevenue.toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted">Today</p><p className="text-lg font-bold text-foreground">{stats.todaySales} property sales — {formatAed(stats.todayRevenue)}</p></div>
             </div>
           </div>
 
@@ -1322,21 +1288,21 @@ export default function StaffPortalPage() {
             <div className="overflow-x-auto">
               <table className="crm-table min-w-[600px] sm:min-w-max whitespace-nowrap">
                 <thead>
-                  <tr><th>Product</th><th>Customer</th><th>Date</th><th>Amount</th></tr>
+                  <tr><th>Property</th><th>Buyer</th><th>Date</th><th>Amount</th></tr>
                 </thead>
                 <tbody>
                   {recentSales.map((sale, i) => (
                     <tr key={i}>
-                      <td className="font-medium text-foreground">{sale.product}</td>
+                      <td className="font-medium text-foreground">{sale.property || sale.title || 'Property deal'}</td>
                       <td className="text-muted">{sale.customer}</td>
                       <td className="text-muted text-xs">{sale.date}</td>
-                      <td className="font-semibold text-success">â‚¹{sale.amount.toLocaleString()}</td>
+                      <td className="font-semibold text-success">{formatAed(sale.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {recentSales.length === 0 && <p className="text-sm text-muted text-center py-8">No sales recorded</p>}
+            {recentSales.length === 0 && <p className="text-sm text-muted text-center py-8">No property sales recorded</p>}
           </div>
         </div>
       )}

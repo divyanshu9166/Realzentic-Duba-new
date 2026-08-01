@@ -52,7 +52,7 @@ export function DealForm({
 }: DealFormProps) {
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState("AED");
   const [contactId, setContactId] = useState("");
   const [stageId, setStageId] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
@@ -90,7 +90,7 @@ export function DealForm({
     if (deal) {
       setTitle(deal.title);
       setValue(String(deal.value ?? ""));
-      setCurrency(deal.currency || "INR");
+      setCurrency(deal.currency || "AED");
       // contact_id is nullable when the contact has been deleted
       // (migration 004: ON DELETE SET NULL). "" means "no selection".
       setContactId(deal.contact_id ?? "");
@@ -102,7 +102,7 @@ export function DealForm({
     } else {
       setTitle("");
       setValue("");
-      setCurrency("INR");
+      setCurrency("AED");
       setContactId("");
       setStageId(defaultStageId || stages[0]?.id || "");
       setAssignedTo("");
@@ -338,7 +338,7 @@ export function DealForm({
                   onChange={(e) => setCurrency(e.target.value)}
                   className="h-9 w-full rounded-lg border border-border bg-surface-light px-2.5 text-sm text-foreground outline-none focus:border-accent"
                 >
-                  <option value="INR">INR</option>
+                  <option value="AED">AED</option>
                   <option value="EUR">EUR</option>
                   <option value="GBP">GBP</option>
                 </select>

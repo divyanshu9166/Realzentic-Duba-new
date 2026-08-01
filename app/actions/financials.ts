@@ -20,8 +20,8 @@ const DEFAULT_ACCOUNTS = [
   { groupName: 'Current Liabilities', type: 'LIABILITY', code: '2001', name: 'Advance from Clients' },
   { groupName: 'Current Liabilities', type: 'LIABILITY', code: '2100', name: 'Security Deposit (Received)' },
   { groupName: 'Current Liabilities', type: 'LIABILITY', code: '2200', name: 'Salary Payable' },
-  { groupName: 'Current Liabilities', type: 'LIABILITY', code: '2300', name: 'PF / ESI Payable' },
-  { groupName: 'Current Liabilities', type: 'LIABILITY', code: '2400', name: 'TDS Payable' },
+  { groupName: 'Current Liabilities', type: 'LIABILITY', code: '2300', name: 'End-of-Service Benefit Provision' },
+  { groupName: 'Current Liabilities', type: 'LIABILITY', code: '2400', name: 'VAT Payable' },
   { groupName: 'Long Term Liabilities', type: 'LIABILITY', code: '2900', name: 'Bank Loan' },
   // Equity
   { groupName: 'Equity', type: 'EQUITY', code: '3001', name: "Owner's Capital" },
@@ -34,8 +34,7 @@ const DEFAULT_ACCOUNTS = [
   { groupName: 'Revenue', type: 'INCOME', code: '4200', name: 'Other Income' },
   // Expenses
   { groupName: 'Operating Expenses', type: 'EXPENSE', code: '5100', name: 'Salary Expense' },
-  { groupName: 'Operating Expenses', type: 'EXPENSE', code: '5110', name: 'Employer PF Contribution' },
-  { groupName: 'Operating Expenses', type: 'EXPENSE', code: '5120', name: 'Employer ESI Contribution' },
+  { groupName: 'Operating Expenses', type: 'EXPENSE', code: '5110', name: 'Employee Benefits / EOSB Provision' },
   { groupName: 'Operating Expenses', type: 'EXPENSE', code: '5200', name: 'Rent Expense' },
   { groupName: 'Operating Expenses', type: 'EXPENSE', code: '5300', name: 'Electricity & Utilities' },
   { groupName: 'Operating Expenses', type: 'EXPENSE', code: '5400', name: 'Marketing & Advertising' },
@@ -124,13 +123,13 @@ export async function getProfitAndLoss(fromDate: string, toDate: string, compare
       // Revenue: payments received (type=IN)
       prisma.dailyPayment.aggregate({
         where: { type: 'IN', isReversal: false, date: { gte: from, lte: to } },
-        _sum: { amount: true },
+        _sum: { amount: true, vatAmount: true },
         _count: { id: true },
       }),
       // Outflows: payments made (type=OUT)
       prisma.dailyPayment.aggregate({
         where: { type: 'OUT', isReversal: false, date: { gte: from, lte: to } },
-        _sum: { amount: true },
+        _sum: { amount: true, vatAmount: true },
         _count: { id: true },
       }),
       // Payroll cost
@@ -147,19 +146,24 @@ export async function getProfitAndLoss(fromDate: string, toDate: string, compare
     const revenue = inflow._sum.amount || 0
     const directOutflows = outflow._sum.amount || 0
     const salaryExpense = payrollAgg._sum.totalGross || 0
-    const employerPFESI = employerPayroll._sum.employerContributions || 0
-    const totalOpEx = salaryExpense + employerPFESI + directOutflows
+    const employerBenefits = employerPayroll._sum.employerContributions || 0
+    const totalOpEx = salaryExpense + employerBenefits + directOutflows
     const netProfit = revenue - totalOpEx
     const netMarginPct = revenue > 0 ? (netProfit / revenue) * 100 : 0
 
     return {
       period: { from: fd, to: td },
       paymentCount: (inflow._count.id || 0) + (outflow._count.id || 0),
-      revenue: { total: revenue, note: 'Sum of IN payments (DailyPayment type=IN)' },
+      revenue: {
+        total: revenue,
+        vat: inflow._sum.vatAmount || 0,
+        note: 'Sum of IN payments (DailyPayment type=IN; VAT reported separately)',
+      },
       expenses: {
         directOutflows,
+        vat: outflow._sum.vatAmount || 0,
         salary: salaryExpense,
-        employerPFESI,
+        employerBenefits,
         total: totalOpEx,
       },
       netProfit,
@@ -191,11 +195,11 @@ export async function getBalanceSheet(asOfDate: string) {
   const [totalInflow, totalOutflow, payrollPaid, payrollPayable, staffLoans, loanRecoveries] = await Promise.all([
     prisma.dailyPayment.aggregate({
       where: { type: 'IN', isReversal: false, date: { lte: asOf } },
-      _sum: { amount: true },
+      _sum: { amount: true, vatAmount: true },
     }),
     prisma.dailyPayment.aggregate({
       where: { type: 'OUT', isReversal: false, date: { lte: asOf } },
-      _sum: { amount: true },
+      _sum: { amount: true, vatAmount: true },
     }),
     prisma.payrollRun.aggregate({ where: { status: 'PAID', paidAt: { lte: asOf } }, _sum: { totalNet: true } }),
     prisma.payrollRun.aggregate({ where: { status: 'APPROVED' }, _sum: { totalNet: true } }),
@@ -205,6 +209,8 @@ export async function getBalanceSheet(asOfDate: string) {
 
   const inflow = totalInflow._sum.amount || 0
   const outflow = totalOutflow._sum.amount || 0
+  const vatOutput = totalInflow._sum.vatAmount || 0
+  const vatInput = totalOutflow._sum.vatAmount || 0
   const salaryPaid = payrollPaid._sum.totalNet || 0
   const loanInflow = loanRecoveries._sum.loanDeduction || 0
   const cashAndBank = inflow + loanInflow - outflow - salaryPaid
@@ -214,7 +220,8 @@ export async function getBalanceSheet(asOfDate: string) {
   const totalAssets = totalCurrentAssets
 
   const salaryPayable = payrollPayable._sum.totalNet || 0
-  const totalLiabilities = salaryPayable
+  const netVatPayable = Math.max(0, vatOutput - vatInput)
+  const totalLiabilities = salaryPayable + netVatPayable
 
   const equity = totalAssets - totalLiabilities
 
@@ -234,9 +241,9 @@ export async function getBalanceSheet(asOfDate: string) {
       currentLiabilities: {
         salaryPayable,
         accountsPayable: 0,
-        netGSTPayable: 0,
-        gstOutput: 0,
-        gstInput: 0,
+        netVatPayable,
+        vatOutput,
+        vatInput,
         total: totalLiabilities,
       },
       equity: {
@@ -419,7 +426,7 @@ export async function getTrialBalance(asOfDate: string) {
     { code: '2200', name: 'Salary Payable', type: 'LIABILITY', debit: 0, credit: salaryPayable },
     { code: '4001', name: 'Collection Revenue', type: 'INCOME', debit: 0, credit: totalInflow },
     { code: '5100', name: 'Salary Expense', type: 'EXPENSE', debit: salaryEx, credit: 0 },
-    { code: '5110', name: 'Employer PF/ESI', type: 'EXPENSE', debit: employerEx, credit: 0 },
+    { code: '5110', name: 'Employee Benefits / EOSB', type: 'EXPENSE', debit: employerEx, credit: 0 },
     { code: '5800', name: 'Other Outflows', type: 'EXPENSE', debit: totalOutflow, credit: 0 },
   ]
 

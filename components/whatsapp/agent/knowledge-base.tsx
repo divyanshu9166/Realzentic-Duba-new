@@ -57,7 +57,7 @@ function DocRow({
           <p className="text-sm font-medium text-foreground truncate">{doc.title}</p>
           <p className="text-[11px] text-muted mt-0.5">
             {doc.char_count.toLocaleString()} chars · {doc.chunk_count} chunks ·{' '}
-            {new Date(doc.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            {new Date(doc.created_at).toLocaleDateString('en-AE', { day: '2-digit', month: 'short', year: 'numeric' })}
           </p>
         </div>
 
@@ -98,19 +98,19 @@ function DocRow({
 }
 
 const TEMPLATE = `COMPANY: [Your Brand Name]
-LOCATION: [City] | Pan India Delivery
-CONTACT: +91-XXXXXXXXXX | email@domain.com
+LOCATION: [Dubai community / emirate]
+CONTACT: +971-XXXXXXXXXX | email@domain.com
 
 ABOUT US:
 [2-3 sentences about your company, what you sell, and what makes you unique.]
 
 PRODUCTS & PRICING:
-- [Category 1]: ₹X,XXX – ₹XX,XXX
-- [Category 2]: ₹X,XXX – ₹XX,XXX
+- [Category 1]: AED X,XXX – AED XX,XXX
+- [Category 2]: AED X,XXX – AED XX,XXX
 
 DELIVERY:
 - Standard: X–Y business days
-- Free shipping above: ₹XX,XXX
+- Free shipping above: AED XX,XXX
 
 PAYMENT TERMS:
 - [e.g. 50% advance, balance on delivery]

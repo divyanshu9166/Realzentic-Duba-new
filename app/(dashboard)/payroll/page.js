@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Wallet, Users, Calendar, CheckCircle, Eye, CreditCard,
-  AlertCircle, IndianRupee, Printer, Edit2, Save, X,
+  AlertCircle, Banknote, Printer, Edit2, Save, X,
   FileText, ShieldCheck, BadgeCheck, PiggyBank, Plus, Landmark, Mail, MessageSquare,
   CalendarCheck, ChevronDown, ChevronUp, RefreshCw
 } from 'lucide-react'
@@ -22,14 +22,16 @@ const statusColors = {
 }
 
 
-const fmt = (v) => `₹${(v || 0).toLocaleString('en-IN')}`
+const fmt = (v) => `AED ${(v || 0).toLocaleString('en-AE')}`
 
 const normalizePhoneNumber = (value) => {
   const digits = String(value || '').replace(/\D/g, '')
-  const trimmed = digits.replace(/^0+/, '')
-  if (!trimmed) return ''
-  if (trimmed.length === 10) return `91${trimmed}`
-  return trimmed
+  if (!digits) return ''
+  if (digits.startsWith('00971')) return digits.slice(2)
+  if (digits.startsWith('971')) return digits
+  if (digits.length === 10 && digits.startsWith('05')) return `971${digits.slice(1)}`
+  if (digits.length === 9 && digits.startsWith('5')) return `971${digits}`
+  return digits
 }
 
 const buildWhatsAppUrl = (phone, message) => {
@@ -166,17 +168,14 @@ export default function PayrollPage() {
       staffId: s.id,
       basicSalary: s.basicSalary || 0,
       designation: s.designation || '',
-      panNumber: s.panNumber || '',
-      bankAccount: s.bankAccount || '',
+      emiratesId: s.emiratesId || '',
+      laborCardNo: s.laborCardNo || '',
+      mohreNo: s.mohreNo || '',
+      iban: s.iban || '',
       bankName: s.bankName || '',
-      ifscCode: s.ifscCode || '',
-      pfEnrolled: s.pfEnrolled || false,
-      esiEnrolled: s.esiEnrolled || false,
-      uanNumber: s.uanNumber || '',
-      pfNumber: s.pfNumber || '',
-      esiNumber: s.esiNumber || '',
-      professionalTaxState: s.professionalTaxState || 'None',
-      tdsMonthly: s.tdsMonthly || 0,
+      visaStatus: s.visaStatus || '',
+      eosbAccrued: Number(s.eosbAccrued || 0),
+      wpsRegistered: Boolean(s.wpsRegistered),
     })
   }
 
@@ -185,7 +184,7 @@ export default function PayrollPage() {
     const res = await updateStaffPayrollInfo({
       ...staffForm,
       basicSalary: Number(staffForm.basicSalary),
-      tdsMonthly: Number(staffForm.tdsMonthly),
+      eosbAccrued: Number(staffForm.eosbAccrued),
     })
     if (res.success) { setEditingStaff(null); loadAll() }
     else alert(res.error)
@@ -226,7 +225,7 @@ export default function PayrollPage() {
     }
 
     const unconfigured = staffList.filter(s => !s.basicSalary)
-    if (unconfigured.length > 0 && !confirm(`${unconfigured.length} staff have ₹0 basic salary. Continue?`)) return
+    if (unconfigured.length > 0 && !confirm(`${unconfigured.length} staff have AED 0 basic salary. Continue?`)) return
 
     setGenerating(true)
     setGeneratedRun(null)
@@ -354,7 +353,7 @@ export default function PayrollPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Staff Payroll</h1>
         <p className="text-muted text-sm mt-1">
-          Tally-parity payroll — PF (12%), ESI (0.75%/3.25%), Professional Tax, TDS, OT, Loans, Statutory Bonus, Bank Advice
+          UAE payroll — WPS-ready IBAN records, Emirates ID, MOHRE details, visa status, staff advances and end-of-service benefit tracking
         </p>
       </div>
 
@@ -365,7 +364,7 @@ export default function PayrollPage() {
           { label: 'Payroll Runs', value: history.length, sub: `${pendingApproval} pending`, icon: Calendar, color: 'text-purple-400' },
           { label: 'Pending Approval', value: pendingApproval, sub: 'awaiting sign-off', icon: AlertCircle, color: 'text-amber-400' },
           { label: 'Active Loans', value: activeLoans, sub: 'staff advances', icon: PiggyBank, color: 'text-orange-400' },
-          { label: 'Total Paid (YTD)', value: fmt(totalPaidAmount), sub: 'net disbursed', icon: IndianRupee, color: 'text-emerald-400' },
+          { label: 'Total Paid (YTD)', value: fmt(totalPaidAmount), sub: 'net disbursed', icon: Banknote, color: 'text-emerald-400' },
         ].map((s, i) => (
           <div key={i} className="glass-card p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -398,15 +397,15 @@ export default function PayrollPage() {
       {tab === 'setup' && (
         <div className="space-y-4">
           <div className="glass-card p-4 bg-amber-500/5 border border-amber-500/20">
-            <p className="text-sm text-amber-400 font-medium">Configure salary, statutory details & bank info per staff member before generating payroll.</p>
-            <p className="text-xs text-muted mt-1">Fields used: Basic Salary → HRA (40%) + DA (10%) auto-computed. PT deducted per state slab. TDS is fixed monthly amount.</p>
+            <p className="text-sm text-amber-400 font-medium">Configure UAE employment and WPS payment details for each employee before generating payroll.</p>
+            <p className="text-xs text-muted mt-1">Basic salary, Emirates ID, labour/MOHRE references, IBAN, visa status and WPS registration are reviewed before each run.</p>
           </div>
 
           <div className="glass-card overflow-x-auto">
-            <table className="w-full text-sm min-w-[1200px]">
+            <table className="w-full text-sm min-w-[1350px]">
               <thead>
                 <tr className="border-b border-border bg-surface-hover">
-                  {['Staff', 'Role', 'Designation', 'Basic (₹)', 'PF', 'UAN', 'ESI', 'ESI No.', 'PT State', 'TDS/mo', 'Bank', 'PAN', ''].map(h => (
+                  {['Staff', 'Role', 'Designation', 'Basic (AED)', 'Emirates ID', 'Labour Card', 'MOHRE No.', 'IBAN', 'Bank', 'Visa Status', 'WPS', 'EOSB Accrued', ''].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-medium text-muted whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -420,31 +419,14 @@ export default function PayrollPage() {
                         <td className="px-3 py-2 text-muted text-xs">{s.role}</td>
                         <td className="px-3 py-2"><input value={staffForm.designation} onChange={e => setStaffForm(p => ({ ...p, designation: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="Designation" /></td>
                         <td className="px-3 py-2"><input type="number" min="0" value={staffForm.basicSalary} onChange={e => setStaffForm(p => ({ ...p, basicSalary: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" /></td>
-                        <td className="px-3 py-2">
-                          <label className="flex items-center gap-1 cursor-pointer">
-                            <input type="checkbox" checked={staffForm.pfEnrolled} onChange={e => setStaffForm(p => ({ ...p, pfEnrolled: e.target.checked }))} />
-                            <span className="text-xs text-muted">12%</span>
-                          </label>
-                        </td>
-                        <td className="px-3 py-2"><input value={staffForm.uanNumber} onChange={e => setStaffForm(p => ({ ...p, uanNumber: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="UAN" /></td>
-                        <td className="px-3 py-2">
-                          <label className="flex items-center gap-1 cursor-pointer">
-                            <input type="checkbox" checked={staffForm.esiEnrolled} onChange={e => setStaffForm(p => ({ ...p, esiEnrolled: e.target.checked }))} />
-                            <span className="text-xs text-muted">0.75%</span>
-                          </label>
-                        </td>
-                        <td className="px-3 py-2"><input value={staffForm.esiNumber} onChange={e => setStaffForm(p => ({ ...p, esiNumber: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="ESI No." /></td>
-                        <td className="px-3 py-2">
-                          <input
-                            value={staffForm.professionalTaxState === 'None' ? '' : (staffForm.professionalTaxState || '')}
-                            onChange={e => setStaffForm(p => ({ ...p, professionalTaxState: e.target.value || 'None' }))}
-                            className="w-28 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground placeholder:text-muted"
-                            placeholder="e.g. Rajasthan"
-                          />
-                        </td>
-                        <td className="px-3 py-2"><input type="number" min="0" value={staffForm.tdsMonthly} onChange={e => setStaffForm(p => ({ ...p, tdsMonthly: e.target.value }))} className="w-20 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" /></td>
-                        <td className="px-3 py-2"><input value={staffForm.bankAccount} onChange={e => setStaffForm(p => ({ ...p, bankAccount: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="Acct No." /></td>
-                        <td className="px-3 py-2"><input value={staffForm.panNumber} onChange={e => setStaffForm(p => ({ ...p, panNumber: e.target.value }))} className="w-20 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="PAN" /></td>
+                        <td className="px-3 py-2"><input value={staffForm.emiratesId} onChange={e => setStaffForm(p => ({ ...p, emiratesId: e.target.value }))} className="w-28 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="784-XXXX" /></td>
+                        <td className="px-3 py-2"><input value={staffForm.laborCardNo} onChange={e => setStaffForm(p => ({ ...p, laborCardNo: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="Labour card" /></td>
+                        <td className="px-3 py-2"><input value={staffForm.mohreNo} onChange={e => setStaffForm(p => ({ ...p, mohreNo: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="MOHRE no." /></td>
+                        <td className="px-3 py-2"><input value={staffForm.iban} onChange={e => setStaffForm(p => ({ ...p, iban: e.target.value.toUpperCase() }))} className="w-32 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="AE..." /></td>
+                        <td className="px-3 py-2"><input value={staffForm.bankName} onChange={e => setStaffForm(p => ({ ...p, bankName: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="Bank" /></td>
+                        <td className="px-3 py-2"><input value={staffForm.visaStatus} onChange={e => setStaffForm(p => ({ ...p, visaStatus: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" placeholder="Valid" /></td>
+                        <td className="px-3 py-2"><label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={staffForm.wpsRegistered} onChange={e => setStaffForm(p => ({ ...p, wpsRegistered: e.target.checked }))} /><span className="text-xs text-muted">Registered</span></label></td>
+                        <td className="px-3 py-2"><input type="number" min="0" value={staffForm.eosbAccrued} onChange={e => setStaffForm(p => ({ ...p, eosbAccrued: e.target.value }))} className="w-24 px-2 py-1 bg-surface border border-border rounded text-xs text-foreground" /></td>
                         <td className="px-3 py-2">
                           <div className="flex gap-1">
                             <button onClick={handleSaveStaff} disabled={savingStaff} className="p-1.5 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"><Save className="w-3.5 h-3.5" /></button>
@@ -458,14 +440,14 @@ export default function PayrollPage() {
                         <td className="px-3 py-3 text-muted text-xs">{s.role}</td>
                         <td className="px-3 py-3 text-muted text-xs">{s.designation || '—'}</td>
                         <td className="px-3 py-3"><span className={!s.basicSalary ? 'text-amber-400 text-xs' : 'text-foreground font-medium'}>{s.basicSalary ? fmt(s.basicSalary) : 'Not set'}</span></td>
-                        <td className="px-3 py-3"><span className={`text-xs flex items-center gap-1 ${s.pfEnrolled ? 'text-emerald-400' : 'text-muted'}`}>{s.pfEnrolled ? <><BadgeCheck className="w-3 h-3" />Yes</> : 'No'}</span></td>
-                        <td className="px-3 py-3 text-muted text-xs">{s.uanNumber || '—'}</td>
-                        <td className="px-3 py-3"><span className={`text-xs flex items-center gap-1 ${s.esiEnrolled ? 'text-emerald-400' : 'text-muted'}`}>{s.esiEnrolled ? <><BadgeCheck className="w-3 h-3" />Yes</> : 'No'}</span></td>
-                        <td className="px-3 py-3 text-muted text-xs">{s.esiNumber || '—'}</td>
-                        <td className="px-3 py-3 text-muted text-xs">{(s.professionalTaxState && s.professionalTaxState !== 'None') ? s.professionalTaxState : '—'}</td>
-                        <td className="px-3 py-3 text-muted text-xs">{s.tdsMonthly ? fmt(s.tdsMonthly) : '—'}</td>
-                        <td className="px-3 py-3 text-muted text-xs">{s.bankAccount ? `****${s.bankAccount.slice(-4)}` : '—'}</td>
-                        <td className="px-3 py-3 text-muted text-xs">{s.panNumber || '—'}</td>
+                        <td className="px-3 py-3 text-muted text-xs">{s.emiratesId || '—'}</td>
+                        <td className="px-3 py-3 text-muted text-xs">{s.laborCardNo || '—'}</td>
+                        <td className="px-3 py-3 text-muted text-xs">{s.mohreNo || '—'}</td>
+                        <td className="px-3 py-3 text-muted text-xs">{s.iban ? `****${s.iban.slice(-4)}` : '—'}</td>
+                        <td className="px-3 py-3 text-muted text-xs">{s.bankName || '—'}</td>
+                        <td className="px-3 py-3 text-muted text-xs">{s.visaStatus || '—'}</td>
+                        <td className="px-3 py-3"><span className={`text-xs flex items-center gap-1 ${s.wpsRegistered ? 'text-emerald-400' : 'text-muted'}`}>{s.wpsRegistered ? <><BadgeCheck className="w-3 h-3" />Yes</> : 'No'}</span></td>
+                        <td className="px-3 py-3 text-muted text-xs">{Number(s.eosbAccrued || 0) > 0 ? fmt(Number(s.eosbAccrued)) : '—'}</td>
                         <td className="px-3 py-3">
                           <button onClick={() => startEditStaff(s)} className="p-1.5 rounded hover:bg-surface-hover text-muted hover:text-foreground"><Edit2 className="w-3.5 h-3.5" /></button>
                         </td>
@@ -538,11 +520,11 @@ export default function PayrollPage() {
             {/* Calculation legend */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-4 border-t border-border">
               {[
-                { label: 'HRA', value: '40% of Basic', color: 'text-blue-400' },
-                { label: 'DA', value: '10% of Basic', color: 'text-purple-400' },
-                { label: 'PF (Employee)', value: '12% of Basic', color: 'text-red-400' },
-                { label: 'ESI (Employee)', value: '0.75% if Gross ≤₹21k', color: 'text-orange-400' },
-                { label: 'OT Pay', value: '2× hourly rate', color: 'text-amber-400' },
+                { label: 'Basic salary', value: 'Contract amount', color: 'text-blue-400' },
+                { label: 'Attendance / LOP', value: 'Prorated by payable days', color: 'text-purple-400' },
+                { label: 'Staff advance', value: 'Optional payroll deduction', color: 'text-red-400' },
+                { label: 'EOSB', value: 'Tracked separately', color: 'text-orange-400' },
+                { label: 'WPS', value: 'IBAN required for disbursement', color: 'text-amber-400' },
               ].map((item, i) => (
                 <div key={i} className="bg-surface-hover rounded-lg p-3 text-center">
                   <p className={`text-xs font-semibold ${item.color}`}>{item.label}</p>
@@ -738,7 +720,7 @@ export default function PayrollPage() {
                   <p className="text-xl font-bold text-emerald-400">{fmt(generatedRun.totalNet)}</p>
                 </div>
                 <div className="bg-amber-500/5 border border-amber-500/20 p-4 rounded-lg text-center">
-                  <p className="text-xs text-muted">Employer CTC Add-on</p>
+                  <p className="text-xs text-muted">Employer Add-on</p>
                   <p className="text-xl font-bold text-amber-400">{fmt(generatedRun.employerContributions)}</p>
                 </div>
               </div>
@@ -748,7 +730,7 @@ export default function PayrollPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-surface-hover">
-                      {['Staff', 'Days', 'Basic', 'HRA', 'DA', 'OT', 'Bonus', 'Gross', 'PF', 'ESI', 'PT', 'TDS', 'Loan', 'Net'].map(h => (
+                      {['Staff', 'Days', 'Basic', 'Overtime', 'Gross', 'Staff Advance', 'Net'].map(h => (
                         <th key={h} className="px-2 py-2 text-left text-xs font-medium text-muted whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -759,15 +741,8 @@ export default function PayrollPage() {
                         <td className="px-2 py-2 text-foreground font-medium text-xs">{ps.staff?.name}</td>
                         <td className="px-2 py-2 text-foreground text-xs">{ps.presentDays}/{ps.workingDays}</td>
                         <td className="px-2 py-2 text-foreground text-xs">{fmt(ps.basicSalary)}</td>
-                        <td className="px-2 py-2 text-foreground text-xs">{fmt(ps.hra)}</td>
-                        <td className="px-2 py-2 text-foreground text-xs">{fmt(ps.da)}</td>
                         <td className="px-2 py-2 text-blue-400 text-xs">{ps.otHours > 0 ? `+${fmt(ps.otPay)}` : '—'}</td>
-                        <td className="px-2 py-2 text-purple-400 text-xs">{ps.bonus > 0 ? fmt(ps.bonus) : '—'}</td>
                         <td className="px-2 py-2 text-foreground font-medium text-xs">{fmt(ps.grossSalary)}</td>
-                        <td className="px-2 py-2 text-red-400 text-xs">-{fmt(ps.pfEmployee)}</td>
-                        <td className="px-2 py-2 text-red-400 text-xs">-{fmt(ps.esiEmployee)}</td>
-                        <td className="px-2 py-2 text-red-400 text-xs">-{fmt(ps.professionalTax)}</td>
-                        <td className="px-2 py-2 text-red-400 text-xs">-{fmt(ps.tds)}</td>
                         <td className="px-2 py-2 text-orange-400 text-xs">{ps.loanDeduction > 0 ? `-${fmt(ps.loanDeduction)}` : '—'}</td>
                         <td className="px-2 py-2 text-emerald-400 font-bold text-xs">{fmt(ps.netSalary)}</td>
                       </tr>
@@ -806,7 +781,7 @@ export default function PayrollPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {['Staff', 'Period', 'Basic', 'HRA', 'DA', 'OT', 'Gross', 'PF', 'ESI', 'PT', 'TDS', 'Loan', 'Net', 'Status', ''].map(h => (
+                  {['Staff', 'Period', 'Basic', 'Overtime', 'Gross', 'Staff Advance', 'Net', 'Status', ''].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-medium text-muted whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -817,14 +792,8 @@ export default function PayrollPage() {
                     <td className="px-3 py-2 font-medium text-foreground">{ps.staff?.name}</td>
                     <td className="px-3 py-2 text-muted font-mono text-xs">{ps.payrollRun?.period}</td>
                     <td className="px-3 py-2 text-foreground text-xs">{fmt(ps.basicSalary)}</td>
-                    <td className="px-3 py-2 text-foreground text-xs">{fmt(ps.hra)}</td>
-                    <td className="px-3 py-2 text-foreground text-xs">{fmt(ps.da)}</td>
                     <td className="px-3 py-2 text-blue-400 text-xs">{ps.otPay > 0 ? fmt(ps.otPay) : '—'}</td>
                     <td className="px-3 py-2 text-foreground font-medium text-xs">{fmt(ps.grossSalary)}</td>
-                    <td className="px-3 py-2 text-red-400 text-xs">-{fmt(ps.pfEmployee)}</td>
-                    <td className="px-3 py-2 text-red-400 text-xs">-{fmt(ps.esiEmployee)}</td>
-                    <td className="px-3 py-2 text-red-400 text-xs">-{fmt(ps.professionalTax)}</td>
-                    <td className="px-3 py-2 text-red-400 text-xs">-{fmt(ps.tds)}</td>
                     <td className="px-3 py-2 text-orange-400 text-xs">{ps.loanDeduction > 0 ? `-${fmt(ps.loanDeduction)}` : '—'}</td>
                     <td className="px-3 py-2 text-emerald-400 font-bold text-xs">{fmt(ps.netSalary)}</td>
                     <td className="px-3 py-2">
@@ -932,7 +901,7 @@ export default function PayrollPage() {
                   <td className="px-4 py-3 text-emerald-400 font-semibold">{fmt(h.totalNet)}</td>
                   <td className="px-4 py-3 text-amber-400">{fmt(h.employerContributions)}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[h.status] || ''}`}>{h.status}</span></td>
-                  <td className="px-4 py-3 text-muted text-xs">{h.paidAt ? new Date(h.paidAt).toLocaleDateString('en-IN') : '—'}</td>
+                  <td className="px-4 py-3 text-muted text-xs">{h.paidAt ? new Date(h.paidAt).toLocaleDateString('en-AE') : '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <button onClick={() => viewRun(h.id)} className="p-1.5 rounded hover:bg-surface-hover text-muted hover:text-foreground" title="View"><Eye className="w-4 h-4" /></button>
@@ -973,7 +942,7 @@ export default function PayrollPage() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border bg-surface-hover">
-                    {['Staff', 'Desig.', 'Days', 'Basic', 'HRA', 'DA', 'OT', 'Bonus', 'Gross', 'PF(E)', 'PF(R)', 'ESI(E)', 'ESI(R)', 'PT', 'TDS', 'Loan', 'Net', 'Bank', 'UAN'].map(h => (
+                    {['Staff', 'Desig.', 'Days', 'Basic', 'Overtime', 'Gross', 'Advance', 'Net', 'IBAN', 'WPS'].map(h => (
                       <th key={h} className="px-2 py-2 text-left font-medium text-muted whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -985,21 +954,12 @@ export default function PayrollPage() {
                       <td className="px-2 py-1.5 text-muted">{ps.staff?.designation || ps.staff?.role}</td>
                       <td className="px-2 py-1.5">{ps.presentDays}/{ps.workingDays}</td>
                       <td className="px-2 py-1.5 text-foreground">{fmt(ps.basicSalary)}</td>
-                      <td className="px-2 py-1.5 text-foreground">{fmt(ps.hra)}</td>
-                      <td className="px-2 py-1.5 text-foreground">{fmt(ps.da)}</td>
                       <td className="px-2 py-1.5 text-blue-400">{ps.otPay > 0 ? fmt(ps.otPay) : '—'}</td>
-                      <td className="px-2 py-1.5 text-purple-400">{ps.bonus > 0 ? fmt(ps.bonus) : '—'}</td>
                       <td className="px-2 py-1.5 font-medium text-foreground">{fmt(ps.grossSalary)}</td>
-                      <td className="px-2 py-1.5 text-red-400">-{fmt(ps.pfEmployee)}</td>
-                      <td className="px-2 py-1.5 text-amber-400">{fmt(ps.pfEmployer)}</td>
-                      <td className="px-2 py-1.5 text-red-400">-{fmt(ps.esiEmployee)}</td>
-                      <td className="px-2 py-1.5 text-amber-400">{fmt(ps.esiEmployer)}</td>
-                      <td className="px-2 py-1.5 text-red-400">-{fmt(ps.professionalTax)}</td>
-                      <td className="px-2 py-1.5 text-red-400">-{fmt(ps.tds)}</td>
                       <td className="px-2 py-1.5 text-orange-400">{ps.loanDeduction > 0 ? `-${fmt(ps.loanDeduction)}` : '—'}</td>
                       <td className="px-2 py-1.5 text-emerald-400 font-bold">{fmt(ps.netSalary)}</td>
-                      <td className="px-2 py-1.5 text-muted">{ps.staff?.bankAccount ? `****${ps.staff.bankAccount.slice(-4)}` : '—'}</td>
-                      <td className="px-2 py-1.5 text-muted">{ps.staff?.uanNumber || '—'}</td>
+                      <td className="px-2 py-1.5 text-muted">{ps.staff?.iban ? `****${ps.staff.iban.slice(-4)}` : '—'}</td>
+                      <td className="px-2 py-1.5 text-muted">{ps.staff?.wpsRegistered ? 'Registered' : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1033,11 +993,11 @@ export default function PayrollPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm text-muted mb-1 block">Principal Amount (₹) *</label>
+              <label className="text-sm text-muted mb-1 block">Principal Amount (AED ) *</label>
               <input type="number" min="1" value={loanForm.principalAmount} onChange={e => setLoanForm(p => ({ ...p, principalAmount: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent/50" />
             </div>
             <div>
-              <label className="text-sm text-muted mb-1 block">Monthly Installment (₹) *</label>
+              <label className="text-sm text-muted mb-1 block">Monthly Installment (AED ) *</label>
               <input type="number" min="1" value={loanForm.monthlyInstallment} onChange={e => setLoanForm(p => ({ ...p, monthlyInstallment: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent/50" />
             </div>
           </div>
@@ -1067,63 +1027,58 @@ export default function PayrollPage() {
           <div className="space-y-4">
             <div ref={printRef} className="bg-white text-black p-6 rounded text-sm">
               <div className="hdr text-center border-b-2 border-gray-800 pb-3 mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Furzentic</h2>
+                <h2 className="text-xl font-bold text-gray-900">Realzentic Dubai</h2>
                 <p className="text-gray-500 text-xs">SALARY SLIP — {printPayslip.payrollRun?.period}</p>
               </div>
               <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
                 <div className="space-y-1">
                   <p><strong>Employee Name:</strong> {printPayslip.staff?.name}</p>
                   <p><strong>Designation:</strong> {printPayslip.staff?.designation || printPayslip.staff?.role}</p>
-                  <p><strong>PAN:</strong> {printPayslip.staff?.panNumber || '—'}</p>
-                  <p><strong>UAN:</strong> {printPayslip.staff?.uanNumber || '—'}</p>
+                  <p><strong>Emirates ID:</strong> {printPayslip.staff?.emiratesId || '—'}</p>
+                  <p><strong>Visa status:</strong> {printPayslip.staff?.visaStatus || '—'}</p>
                 </div>
                 <div className="space-y-1">
                   <p><strong>Period:</strong> {printPayslip.payrollRun?.period}</p>
                   <p><strong>Working Days:</strong> {printPayslip.workingDays}</p>
                   <p><strong>Days Present:</strong> {printPayslip.presentDays}</p>
-                  <p><strong>Bank A/C:</strong> {printPayslip.staff?.bankAccount ? `****${printPayslip.staff.bankAccount.slice(-4)}` : '—'} {printPayslip.staff?.bankName ? `(${printPayslip.staff.bankName})` : ''}</p>
+                  <p><strong>IBAN:</strong> {printPayslip.staff?.iban ? `****${printPayslip.staff.iban.slice(-4)}` : '—'} {printPayslip.staff?.bankName ? `(${printPayslip.staff.bankName})` : ''}</p>
                 </div>
               </div>
               <table className="w-full border-collapse text-xs mb-4">
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="border border-gray-300 px-3 py-2 text-left">Earnings</th>
-                    <th className="border border-gray-300 px-3 py-2 text-right">Amount (₹)</th>
+                    <th className="border border-gray-300 px-3 py-2 text-right">Amount (AED )</th>
                     <th className="border border-gray-300 px-3 py-2 text-left">Deductions</th>
-                    <th className="border border-gray-300 px-3 py-2 text-right">Amount (₹)</th>
+                    <th className="border border-gray-300 px-3 py-2 text-right">Amount (AED )</th>
                   </tr>
                 </thead>
                 <tbody>
                   {[
-                    ['Basic Salary', printPayslip.basicSalary, 'PF (Employee 12%)', printPayslip.pfEmployee],
-                    ['HRA (40%)', printPayslip.hra, 'ESI (Employee 0.75%)', printPayslip.esiEmployee],
-                    ['Dearness Allowance (10%)', printPayslip.da, 'Professional Tax', printPayslip.professionalTax],
-                    ...(printPayslip.otPay > 0 ? [['Overtime Pay', printPayslip.otPay, 'TDS (Income Tax)', printPayslip.tds]] : [['', '', 'TDS (Income Tax)', printPayslip.tds]]),
+                    ['Basic Salary', printPayslip.basicSalary, '', ''],
+                    ...(printPayslip.otPay > 0 ? [['Overtime Pay', printPayslip.otPay, '', '']] : []),
                     ...(printPayslip.loanDeduction > 0 ? [['', '', 'Loan Deduction', printPayslip.loanDeduction]] : []),
                   ].map(([e, ev, d, dv], i) => (
                     <tr key={i}>
                       <td className="border border-gray-300 px-3 py-1.5">{e || ''}</td>
-                      <td className="border border-gray-300 px-3 py-1.5 text-right">{ev ? (ev).toLocaleString('en-IN') : ''}</td>
+                      <td className="border border-gray-300 px-3 py-1.5 text-right">{ev ? (ev).toLocaleString('en-AE') : ''}</td>
                       <td className="border border-gray-300 px-3 py-1.5">{d || ''}</td>
-                      <td className="border border-gray-300 px-3 py-1.5 text-right">{dv !== undefined ? (dv).toLocaleString('en-IN') : ''}</td>
+                      <td className="border border-gray-300 px-3 py-1.5 text-right">{dv !== undefined ? (dv).toLocaleString('en-AE') : ''}</td>
                     </tr>
                   ))}
                   <tr className="bg-gray-100 font-bold">
                     <td className="border border-gray-300 px-3 py-2">Gross Earnings</td>
-                    <td className="border border-gray-300 px-3 py-2 text-right">{(printPayslip.grossSalary || 0).toLocaleString('en-IN')}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-right">{(printPayslip.grossSalary || 0).toLocaleString('en-AE')}</td>
                     <td className="border border-gray-300 px-3 py-2">Total Deductions</td>
-                    <td className="border border-gray-300 px-3 py-2 text-right">{(printPayslip.totalDeductions || 0).toLocaleString('en-IN')}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-right">{(printPayslip.totalDeductions || 0).toLocaleString('en-AE')}</td>
                   </tr>
                 </tbody>
               </table>
               <div className="text-right font-bold text-base border-t-2 border-gray-800 pt-3">
-                Net Pay: ₹{(printPayslip.netSalary || 0).toLocaleString('en-IN')}
+                Net Pay: AED {(printPayslip.netSalary || 0).toLocaleString('en-AE')}
               </div>
               <div className="grid grid-cols-2 mt-8 text-xs text-gray-500 border-t border-gray-200 pt-4">
-                <div>
-                  <p>Employer PF: ₹{(printPayslip.pfEmployer || 0).toLocaleString('en-IN')}</p>
-                  <p>Employer ESI: ₹{(printPayslip.esiEmployer || 0).toLocaleString('en-IN')}</p>
-                </div>
+                <div><p>WPS status: {printPayslip.staff?.wpsRegistered ? 'Registered' : 'Not recorded'}</p></div>
                 <div className="text-right">
                   <p className="mt-6">Authorised Signatory</p>
                   <p>This is a system-generated payslip</p>
@@ -1153,12 +1108,12 @@ export default function PayrollPage() {
         <Modal isOpen={!!bankAdviceRun} onClose={() => setBankAdviceRun(null)} title="Bank Payment Advice" size="xl">
           <div className="space-y-4">
             <div ref={bankRef} className="bg-white text-black p-6 rounded text-sm">
-              <h2 className="text-center font-bold text-lg mb-1">Furzentic — Bank Payment Advice</h2>
-              <p className="text-center text-xs text-gray-500 mb-4">Period: {bankAdviceRun.period} · Total: ₹{(bankAdviceRun.totalNet || 0).toLocaleString('en-IN')}</p>
+              <h2 className="text-center font-bold text-lg mb-1">Realzentic Dubai — Bank Payment Advice</h2>
+              <p className="text-center text-xs text-gray-500 mb-4">Period: {bankAdviceRun.period} · Total: AED {(bankAdviceRun.totalNet || 0).toLocaleString('en-AE')}</p>
               <table className="w-full border-collapse text-xs">
                 <thead>
                   <tr className="bg-gray-100">
-                    {['#', 'Employee Name', 'Designation', 'Bank Name', 'Account No.', 'IFSC Code', 'Net Pay (₹)'].map(h => (
+                    {['#', 'Employee Name', 'Designation', 'Bank Name', 'IBAN', 'WPS Status', 'Net Pay (AED)'].map(h => (
                       <th key={h} className="border border-gray-300 px-3 py-2 text-left">{h}</th>
                     ))}
                   </tr>
@@ -1170,18 +1125,18 @@ export default function PayrollPage() {
                       <td className="border border-gray-300 px-3 py-1.5 font-medium">{ps.staff?.name}</td>
                       <td className="border border-gray-300 px-3 py-1.5">{ps.staff?.designation || ps.staff?.role}</td>
                       <td className="border border-gray-300 px-3 py-1.5">{ps.staff?.bankName || '—'}</td>
-                      <td className="border border-gray-300 px-3 py-1.5">{ps.staff?.bankAccount || '—'}</td>
-                      <td className="border border-gray-300 px-3 py-1.5">{ps.staff?.ifscCode || '—'}</td>
-                      <td className="border border-gray-300 px-3 py-1.5 font-bold text-right">{(ps.netSalary || 0).toLocaleString('en-IN')}</td>
+                      <td className="border border-gray-300 px-3 py-1.5">{ps.staff?.iban || '—'}</td>
+                      <td className="border border-gray-300 px-3 py-1.5">{ps.staff?.wpsRegistered ? 'Registered' : 'Not recorded'}</td>
+                      <td className="border border-gray-300 px-3 py-1.5 font-bold text-right">{(ps.netSalary || 0).toLocaleString('en-AE')}</td>
                     </tr>
                   ))}
                   <tr className="bg-gray-100 font-bold">
                     <td className="border border-gray-300 px-3 py-2" colSpan={6}>Total</td>
-                    <td className="border border-gray-300 px-3 py-2 text-right">{(bankAdviceRun.totalNet || 0).toLocaleString('en-IN')}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-right">{(bankAdviceRun.totalNet || 0).toLocaleString('en-AE')}</td>
                   </tr>
                 </tbody>
               </table>
-              <p className="text-xs text-gray-400 mt-4 text-center">Generated by Furzentic Payroll System on {new Date().toLocaleDateString('en-IN')}</p>
+              <p className="text-xs text-gray-400 mt-4 text-center">Generated by Realzentic Dubai Payroll System on {new Date().toLocaleDateString('en-AE')}</p>
             </div>
             <button onClick={handlePrintBankAdvice}
               className="w-full py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 flex items-center justify-center gap-2">

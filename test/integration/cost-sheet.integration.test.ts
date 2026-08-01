@@ -70,7 +70,7 @@ describe('Cost Sheet service — DB integration', () => {
 
         // Zero out the auto-computed charges so netPayable is deterministic:
         // netPayable = total + Σ(add-ons) − discount = 5,000,000.
-        const res = await buildCostSheet(unit.id, contact.id, { stampDuty: 0, gst: 0 }, 0)
+        const res = await buildCostSheet(unit.id, contact.id, { dldTransferFee: 0, vatAmount: 0 }, 0)
         expect(res.success).toBe(true)
         if (!res.success) throw new Error(res.error)
 
@@ -142,7 +142,7 @@ describe('Cost Sheet service — DB integration', () => {
         const contact = await makeContact(cleanup)
         cleanup.add(() => prisma.costSheet.deleteMany({ where: { unitId: unit.id } }))
 
-        const built = await buildCostSheet(unit.id, contact.id, { stampDuty: 0, gst: 0 }, 0)
+        const built = await buildCostSheet(unit.id, contact.id, { dldTransferFee: 0, vatAmount: 0 }, 0)
         expect(built.success).toBe(true)
         if (!built.success) throw new Error(built.error)
         const sheetId = (built.data as { id: number }).id

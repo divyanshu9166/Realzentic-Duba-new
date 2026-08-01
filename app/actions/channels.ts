@@ -216,7 +216,7 @@ export async function createOrUpdateConversation(data: {
 }) {
   const { channel, externalId, customerName, customerPhone, message } = data
   const now = new Date()
-  const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const time = now.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: true })
 
   // Find existing conversation by externalId + channel
   const existing = await prisma.conversation.findFirst({
@@ -302,7 +302,7 @@ export async function sendOutboundMessage(conversationId: number, text: string) 
 
   // Always save the message locally regardless of platform delivery
   const now = new Date()
-  const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const time = now.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: true })
   const messages = (conversation.messages as any[]) || []
   messages.push({ from: 'staff', text, time })
 

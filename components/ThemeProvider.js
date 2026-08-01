@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => { }, setTheme: () => { } });
 
-const STORAGE_KEY = 'furzentic-theme';
+const STORAGE_KEY = 'realzentic-dubai-theme';
 
 function applyTheme(theme) {
     const root = document.documentElement;

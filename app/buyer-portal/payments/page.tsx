@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db'
 import { requireBuyerAuth } from '@/lib/buyer-session'
 import { getPaymentOptions } from '@/app/actions/buyer-portal'
 import { BuyerNav } from '../_components/BuyerNav'
-import { card, list, muted, h2, badge, formatINR, page as pageStyle, primaryButton } from '../_components/styles'
+import { card, list, muted, h2, badge, formatAed, page as pageStyle, primaryButton } from '../_components/styles'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  * Scoped to the authenticated buyer (Req 18.6, 21.2): lists each booking with
  * its milestone schedule and outstanding balance. Payment options come from
  * `getPaymentOptions`, which exposes a "Pay Now" action when the online gateway
- * is enabled (A5) or otherwise renders manual UPI/bank instructions (Req 18.11).
+ * is enabled (A5) or otherwise renders manual bank-transfer instructions (Req 18.11).
  */
 export default async function BuyerPaymentsPage() {
     const { contactId } = await requireBuyerAuth()
@@ -31,7 +31,7 @@ export default async function BuyerPaymentsPage() {
         },
     })
 
-    // Payment mode + (when manual) bank/UPI instructions are the same across
+    // Payment mode + (when manual) bank-transfer instructions are the same across
     // bookings; resolve once. `getPaymentOptions` is itself scoped to the buyer.
     const optionsRes = await getPaymentOptions()
     const options = optionsRes.success ? optionsRes.data : null
@@ -60,7 +60,7 @@ export default async function BuyerPaymentsPage() {
                                     }}
                                 >
                                     <strong>{b.unit?.unitNumber ? `Unit ${b.unit.unitNumber}` : `Booking #${b.id}`}</strong>
-                                    <span style={muted}>Agreement {formatINR(b.agreementValue.toString())}</span>
+                                    <span style={muted}>Agreement {formatAed(b.agreementValue.toString())}</span>
                                 </div>
 
                                 {b.milestones.length === 0 ? (
@@ -81,8 +81,8 @@ export default async function BuyerPaymentsPage() {
                                                 <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                                                     <td style={cellStyle}>{m.name}</td>
                                                     <td style={cellStyle}>{new Date(m.dueDate).toLocaleDateString()}</td>
-                                                    <td style={cellStyle}>{formatINR(m.amount.toString())}</td>
-                                                    <td style={cellStyle}>{formatINR(m.paidAmount.toString())}</td>
+                                                    <td style={cellStyle}>{formatAed(m.amount.toString())}</td>
+                                                    <td style={cellStyle}>{formatAed(m.paidAmount.toString())}</td>
                                                     <td style={cellStyle}>
                                                         <span style={badge}>{m.status}</span>
                                                     </td>
@@ -103,7 +103,7 @@ export default async function BuyerPaymentsPage() {
                                     }}
                                 >
                                     <div style={{ fontWeight: 600 }}>
-                                        Outstanding: {formatINR(totalDue)}
+                                        Outstanding: {formatAed(totalDue)}
                                     </div>
                                     {options?.mode === 'online' && totalDue > 0 ? (
                                         <button type="button" style={primaryButton}>
@@ -121,15 +121,14 @@ export default async function BuyerPaymentsPage() {
                 <section style={{ ...card, marginTop: 20 }}>
                     <h2 style={h2}>How to pay</h2>
                     <p style={{ ...muted, marginBottom: 12 }}>
-                        Online payment is not enabled. Use the bank/UPI details below and your receipt will be
+                        Online payment is not enabled. Use the bank-transfer details below and your receipt will be
                         recorded against your milestones.
                     </p>
                     <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', margin: 0 }}>
                         <Detail label="Bank" value={options.manual.bankName} />
                         <Detail label="Account name" value={options.manual.accountName} />
                         <Detail label="Account number" value={options.manual.accountNumber} />
-                        <Detail label="IFSC" value={options.manual.ifsc} />
-                        <Detail label="UPI ID" value={options.manual.upiId} />
+                        <Detail label="IBAN" value={options.manual.iban} />
                     </dl>
                     {options.manual.qrUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element

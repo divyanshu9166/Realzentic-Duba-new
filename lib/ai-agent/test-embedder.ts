@@ -40,9 +40,9 @@ async function main() {
   console.log('   ✓ L2-normalised')
 
   // 3. Embed a document
-  console.log('\n2. Embedding document: "Our premium sofa set costs ₹45,000..."')
+  console.log('\n2. Embedding document: "Our premium sofa set costs AED 45,000..."')
   const t1 = Date.now()
-  const docVec = await embedDocument('Our premium sofa set costs ₹45,000. Available in leather and fabric.')
+  const docVec = await embedDocument('Our premium sofa set costs AED 45,000. Available in leather and fabric.')
   console.log(`   ✓ Done in ${Date.now() - t1}ms (cached pipeline)`)
   console.log(`   Dimension: ${docVec.length}`)
   if (docVec.length !== 384) {
@@ -74,15 +74,15 @@ async function main() {
     process.exit(1)
   }
 
-  // 7. Test Hindi
-  console.log('\n4. Hindi text test:')
-  const hindiQuery = await embedText('सोफा सेट की कीमत क्या है?')
-  const hindiSim = hindiQuery.reduce((s, v, i) => s + v * docVec[i], 0)
-  console.log(`   Cosine similarity (Hindi query ↔ English doc): ${hindiSim.toFixed(4)}`)
-  if (hindiSim > 0.3) {
+  // 7. Test Arabic
+  console.log('\n4. Arabic text test:')
+  const arabicQuery = await embedText('أريد شقة في دبي')
+  const arabicSim = arabicQuery.reduce((s, v, i) => s + v * docVec[i], 0)
+  console.log(`   Cosine similarity (Arabic query ↔ English doc): ${arabicSim.toFixed(4)}`)
+  if (arabicSim > 0.3) {
     console.log('   ✓ Cross-lingual similarity is reasonable')
   } else {
-    console.warn('   ⚠ Cross-lingual similarity is low — may affect Hindi users')
+    console.warn('   ⚠ Cross-lingual similarity is low — review Arabic support before enabling it')
   }
 
   // 8. Generate a pgvector-compatible literal

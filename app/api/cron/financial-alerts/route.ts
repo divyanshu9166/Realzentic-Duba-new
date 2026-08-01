@@ -3,8 +3,7 @@ import { prisma } from '@/lib/db'
 import { notifyManagers } from '@/lib/notify'
 
 // ─── Financial Alerts Cron (Real Estate Edition) ─────────────────────────────
-// The invoice/purchaseOrder/creditNote models from the furniture CRM have been
-// removed. This cron now monitors payment-based financial health signals that
+// Legacy retail invoice models are not used. This cron monitors payment-based financial health signals that
 // are relevant for a real estate agency.
 
 type FinancialSignal = {
@@ -14,8 +13,8 @@ type FinancialSignal = {
   severity: 'high' | 'medium'
 }
 
-function rupees(value: number) {
-  return `INR ${Math.round(value).toLocaleString('en-IN')}`
+function formatAed(value: number) {
+  return `AED ${Math.round(value).toLocaleString('en-AE')}`
 }
 
 function toStartOfDay(d: Date) {
@@ -78,7 +77,7 @@ export async function GET(req: NextRequest) {
       signals.push({
         alertKey: 'payment_inflow_drop',
         title: 'Financial Alert: Payment Inflow Drop',
-        subtitle: `Collections fell from ${rupees(prev)} to ${rupees(curr)} (${dropPct.toFixed(1)}% vs prior 30d)`,
+        subtitle: `Collections fell from ${formatAed(prev)} to ${formatAed(curr)} (${dropPct.toFixed(1)}% vs prior 30d)`,
         severity: 'high',
       })
     }

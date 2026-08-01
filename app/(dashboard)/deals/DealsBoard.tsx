@@ -67,8 +67,8 @@ export interface BoardColumn {
     deals: BoardDealCard[];
 }
 
-function formatINR(value: number): string {
-    return `₹${Intl.NumberFormat('en-IN', {
+function formatAed(value: number): string {
+    return `AED ${Intl.NumberFormat('en-AE', {
         notation: 'compact',
         maximumFractionDigits: 1,
     }).format(value || 0)}`;
@@ -79,7 +79,7 @@ function DealCardBody({ deal }: { deal: BoardDealCard }) {
         <div className="rounded-xl border border-border bg-surface p-3 shadow-sm">
             <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-semibold text-foreground truncate">{deal.contactName}</p>
-                <span className="text-xs font-bold text-accent whitespace-nowrap">{formatINR(deal.value)}</span>
+                <span className="text-xs font-bold text-accent whitespace-nowrap">{formatAed(deal.value)}</span>
             </div>
 
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
@@ -205,8 +205,8 @@ function Column({
                             : column.deals.length}
                     </span>
                 </div>
-                <span className="text-[11px] text-muted whitespace-nowrap" title={isFiltered ? `Filtered total: ${formatINR(total)} / All: ${formatINR(totalAll)}` : undefined}>
-                    {formatINR(total)}
+                <span className="text-[11px] text-muted whitespace-nowrap" title={isFiltered ? `Filtered total: ${formatAed(total)} / All: ${formatAed(totalAll)}` : undefined}>
+                    {formatAed(total)}
                 </span>
             </div>
 

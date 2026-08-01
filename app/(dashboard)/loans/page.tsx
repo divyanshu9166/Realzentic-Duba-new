@@ -1,8 +1,8 @@
 import LoansClient from './LoansClient'
 
 export const metadata = {
-    title: 'Home-Loan Desk | Realzentic',
-    description: 'Track buyer home-loan applications through the bank pipeline.',
+    title: 'Mortgage Desk | Realzentic Dubai',
+    description: 'Track buyer mortgage applications through the UAE bank pipeline.',
 }
 
 export default function LoansPage() {

@@ -5,7 +5,7 @@ import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { appendLog } from '@/lib/whatsapp/api-logger'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
-  normalizePhoneForMetaIndia,
+  normalizePhoneForMetaUae,
   isValidE164,
   phoneVariants,
   isRecipientNotAllowedError,
@@ -141,7 +141,7 @@ export async function POST(request: Request) {
     let failedCount = 0
 
     for (const recipient of recipients) {
-      const sanitized = normalizePhoneForMetaIndia(recipient.phone)
+      const sanitized = normalizePhoneForMetaUae(recipient.phone)
 
       if (!isValidE164(sanitized)) {
         results.push({

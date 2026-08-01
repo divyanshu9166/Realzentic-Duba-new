@@ -7,11 +7,11 @@
  *   IDLE
  *     → (customer clicks "Schedule Appointment" button)
  *   COLLECTING_DATE
- *     → (customer sends a date like "kal", "tomorrow", "10 june", "2026-06-10")
+ *     → (customer sends a date like "tomorrow", "10 june", "2026-06-10")
  *   COLLECTING_TIME
  *     → (customer picks a time from offered slots)
  *   CONFIRMING
- *     → (customer says "yes" / "haan" to confirm)
+ *     → (customer says "yes" to confirm)
  *   DONE  (terminal — state is cleared)
  *
  * State is stored in Redis with a 30-minute TTL. If the customer goes
@@ -31,7 +31,7 @@ import {
 
 const STATE_TTL_SECONDS = 30 * 60 // 30 minutes
 
-/** Fixed showroom time slots offered to the customer */
+/** Fixed property-viewing time slots offered to the customer. */
 const AVAILABLE_SLOTS = [
   '10:00 AM',
   '11:00 AM',
@@ -107,7 +107,7 @@ export async function clearBotState(conversationId: string): Promise<void> {
 // ── Date parsing ──────────────────────────────────────────────────────────────
 
 /**
- * Parse natural language date input (Hindi + English) into a YYYY-MM-DD string.
+ * Parse natural language English date input into a YYYY-MM-DD string.
  * Returns null if the input is unrecognizable.
  */
 function parseDate(input: string): string | null {
@@ -115,15 +115,15 @@ function parseDate(input: string): string | null {
   const now = new Date()
 
   // Relative dates
-  if (/\b(aaj|today|abhi)\b/i.test(text)) {
+  if (/\b(today|now)\b/i.test(text)) {
     return toDateStr(now)
   }
-  if (/\b(kal|tomorrow|kal ko|kl)\b/i.test(text)) {
+  if (/\b(tomorrow)\b/i.test(text)) {
     const d = new Date(now)
     d.setDate(d.getDate() + 1)
     return toDateStr(d)
   }
-  if (/\b(parso|day after tomorrow|2 din baad)\b/i.test(text)) {
+  if (/\b(day after tomorrow)\b/i.test(text)) {
     const d = new Date(now)
     d.setDate(d.getDate() + 2)
     return toDateStr(d)
@@ -182,7 +182,7 @@ function toDateStr(d: Date): string {
 /** Format YYYY-MM-DD → "Sunday, 10 June 2026" */
 function formatDateHuman(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('en-IN', {
+  return d.toLocaleDateString('en-AE', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 }
@@ -204,7 +204,7 @@ function timeToMinutes(t: string): number {
 
 /**
  * Match user input to one of the fixed slot strings.
- * Handles: "11", "11am", "11:00", "11 baje", "2 PM", "do baje", etc.
+ * Handles: "11", "11am", "11:00", "2 PM", "two o'clock", etc.
  */
 function parseTimeToSlot(input: string): string | null {
   const text = input.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -215,8 +215,8 @@ function parseTimeToSlot(input: string): string | null {
   )
   if (directMatch) return directMatch
 
-  // Numeric hour extraction: "11", "11am", "11 baje", "2pm"
-  const hourMatch = text.match(/(\d{1,2})\s*(?:am|pm|baje|o'?clock)?/)
+  // Numeric hour extraction: "11", "11am", "2pm", "2 o'clock"
+  const hourMatch = text.match(/(\d{1,2})\s*(?:am|pm|o'?clock)?/)
   if (hourMatch) {
     const hour = parseInt(hourMatch[1])
     const isPM = text.includes('pm') || (hour !== 12 && hour < 8)  // 2→2PM, 11→11AM heuristic
@@ -318,7 +318,7 @@ async function sendSlotsAsButtons(
 
   if (displaySlots.length === 0) {
     await sendBotReply(
-      'Maafi, is din koi slot available nahi hai. Kripya koi aur din choose karein.\n\nPlease share another date (e.g. kal, 15 june):',
+      'No viewing slots are available on that date. Please share another date (for example, tomorrow or 15 June).',
       state,
       waConfig,
     )
@@ -331,9 +331,9 @@ async function sendSlotsAsButtons(
       phoneNumberId: waConfig.phoneNumberId,
       accessToken: waConfig.accessToken,
       to: state.contactPhone,
-      headerText: '📅 Kosmic Furniture — Appointment',
+      headerText: '📅 Realzentic Dubai — Property Viewing',
       bodyText: introText,
-      footerText: 'Showroom: 10 AM – 5 PM, Mon–Sat',
+      footerText: 'Viewing times are subject to property availability',
       buttons: displaySlots.map((slot) => ({ id: `SLOT_${slot}`, title: slot })),
     })
 
@@ -389,7 +389,7 @@ export async function startAppointmentBot(
   }
   await setBotState(state)
 
-  const greeting = `नमस्ते ${ctx.contactName.split(' ')[0]}! 😊\n\nKosmic Furniture showroom visit schedule karne ke liye kaun si *tarikh* aapko suit karegi?\n\nPlease date share karein (e.g. kal, 15 june, 2026-06-15):`
+  const greeting = `Hello ${ctx.contactName.split(' ')[0]}! 👋\n\nWhich *date* would suit you for a Dubai property viewing?\n\nPlease share a date (for example, tomorrow, 15 June, or 2026-06-15).`
   await sendBotReply(greeting, state, waConfig)
 }
 
@@ -408,10 +408,10 @@ export async function handleAppointmentBotMessage(
   const buttonId = ctx.buttonReplyId
 
   // ── Handle cancellation at any step ─────────────────────────────────────
-  if (/\b(cancel|band karo|nahi|no|nahin|reh do)\b/i.test(text)) {
+  if (/\b(cancel|no|stop)\b/i.test(text)) {
     await clearBotState(ctx.conversationId)
     await sendBotReply(
-      'Theek hai! Appointment cancel kar diya. Jab bhi chahein, hum se baat karein. 😊',
+      'No problem — the viewing request has been cancelled. Please message us whenever you would like to arrange one.',
       state,
       waConfig,
     )
@@ -423,7 +423,7 @@ export async function handleAppointmentBotMessage(
     const parsedDate = parseDate(text)
     if (!parsedDate) {
       await sendBotReply(
-        'Kripya valid date share karein jaise:\n• *kal* (tomorrow)\n• *15 june*\n• *2026-06-15*',
+        'Please share a valid date, for example:\n• *tomorrow*\n• *15 June*\n• *2026-06-15*',
         state,
         waConfig,
       )
@@ -436,7 +436,7 @@ export async function handleAppointmentBotMessage(
     const chosen = new Date(parsedDate)
     if (chosen < today) {
       await sendBotReply(
-        'Yeh date pehle ki hai. Kripya aaj ya aane wali koi tarikh choose karein:',
+        'That date has already passed. Please choose today or a future date:',
         state,
         waConfig,
       )
@@ -451,7 +451,7 @@ export async function handleAppointmentBotMessage(
       updatedState,
       waConfig,
       AVAILABLE_SLOTS,
-      `*${humanDate}* — Aap niche diye slots mein se koi time choose karein:`,
+      `*${humanDate}* — Please choose one of the available viewing times below:`,
     )
     return true
   }
@@ -472,7 +472,7 @@ export async function handleAppointmentBotMessage(
         state,
         waConfig,
         AVAILABLE_SLOTS,
-        'Kripya niche diye buttons se time choose karein ya likhein (e.g. "11 AM", "2 baje"):',
+        'Please choose a time below or type one (for example, "11 AM" or "2 PM"):',
       )
       return true
     }
@@ -480,7 +480,7 @@ export async function handleAppointmentBotMessage(
     if (!state.date) {
       // Edge case: date was lost — restart
       await setBotState({ ...state, step: 'COLLECTING_DATE' })
-      await sendBotReply('Ek minute — date phir se share karein please:', state, waConfig)
+      await sendBotReply('One moment — please share your preferred date again:', state, waConfig)
       return true
     }
 
@@ -490,15 +490,15 @@ export async function handleAppointmentBotMessage(
     if (!available) {
       const humanDate = formatDateHuman(state.date)
       const suggestionText = suggestions.length > 0
-        ? `Yeh slots available hain ${humanDate} ko:`
-        : `Is din koi slot available nahi hai. Kripya doosra din choose karein:`
+        ? `These viewing times are available on ${humanDate}:`
+        : `No viewing times are available on that date. Please choose another day:`
 
       if (suggestions.length > 0) {
         await sendSlotsAsButtons(state, waConfig, suggestions, suggestionText)
       } else {
         await setBotState({ ...state, step: 'COLLECTING_DATE' })
         await sendBotReply(
-          `❌ *${chosenSlot}* slot already booked hai ${humanDate} ke liye.\n\n${suggestionText}`,
+          `❌ The *${chosenSlot}* time is no longer available on ${humanDate}.\n\n${suggestionText}`,
           state,
           waConfig,
         )
@@ -512,11 +512,11 @@ export async function handleAppointmentBotMessage(
 
     const humanDate = formatDateHuman(state.date)
     const confirmMsg =
-      `✅ Slot available hai!\n\n` +
+      `✅ This viewing time is available.\n\n` +
       `📅 *Date:* ${humanDate}\n` +
       `⏰ *Time:* ${chosenSlot}\n` +
       `👤 *Name:* ${state.contactName}\n\n` +
-      `Kya aap confirm karna chahenge? (*haan* / *yes* likhein ya *cancel* karein)`
+      `Would you like to confirm? Reply *yes* or *cancel*.`
 
     await sendBotReply(confirmMsg, updatedState, waConfig)
     return true
@@ -524,11 +524,11 @@ export async function handleAppointmentBotMessage(
 
   // ── Step: CONFIRMING ─────────────────────────────────────────────────────
   if (state.step === 'CONFIRMING') {
-    const isConfirmed = /\b(haan|ha|yes|yep|ok|okay|confirm|bilkul|zaroor|sure)\b/i.test(text)
+    const isConfirmed = /\b(yes|yep|ok|okay|confirm|sure)\b/i.test(text)
 
     if (!isConfirmed) {
       await sendBotReply(
-        'Appointment confirm karne ke liye *haan* ya *yes* likhein, ya *cancel* karein.',
+        'Please reply *yes* to confirm the viewing, or *cancel* to stop.',
         state,
         waConfig,
       )
@@ -538,7 +538,7 @@ export async function handleAppointmentBotMessage(
     if (!state.date || !state.time) {
       await clearBotState(ctx.conversationId)
       await sendBotReply(
-        'Kuch technical gadbad ho gayi. Kripya dobara try karein. Maafi maangte hain! 🙏',
+        'We could not complete the viewing request. Please try again shortly.',
         state,
         waConfig,
       )
@@ -566,7 +566,7 @@ export async function handleAppointmentBotMessage(
           contactId: crmContact.id,
           date: new Date(state.date),
           time: state.time,
-          purpose: 'Showroom Visit',
+          purpose: 'Property Viewing',
           notes: `Booked via WhatsApp chatbot by ${state.contactName} (${state.contactPhone})`,
           status: 'Scheduled',
         },
@@ -575,7 +575,7 @@ export async function handleAppointmentBotMessage(
       console.error('[appt-bot] appointment creation failed:', err)
       await clearBotState(ctx.conversationId)
       await sendBotReply(
-        '❌ Appointment save karne mein error aayi. Kripya hume call karein: +91 7004642914',
+        '❌ We could not save the viewing request. Please contact our Realzentic Dubai team for assistance.',
         state,
         waConfig,
       )
@@ -586,14 +586,12 @@ export async function handleAppointmentBotMessage(
 
     const humanDate = formatDateHuman(state.date)
     const confirmationMsg =
-      `🎉 *Appointment Confirmed!*\n\n` +
+      `🎉 *Property Viewing Confirmed!*\n\n` +
       `📅 *Date:* ${humanDate}\n` +
       `⏰ *Time:* ${state.time}\n` +
-      `📍 *Location:* Kosmic Furniture Showroom, Nalanda, Bihar\n` +
+      `📍 *Location:* A Realzentic consultant will confirm the property location\n` +
       `👤 *Name:* ${state.contactName}\n\n` +
-      `Hum aapka intezaar karenge! Koi sawaal ho toh call karein:\n` +
-      `📞 +91 7004642914 | +91 9199987067\n\n` +
-      `_Please ek din pehle confirm zaroor karein._`
+      `Our consultant will contact you to confirm the property, location, and any access requirements.`
 
     await sendBotReply(confirmationMsg, state, waConfig)
 

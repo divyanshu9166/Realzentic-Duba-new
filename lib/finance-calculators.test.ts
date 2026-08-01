@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
 import {
-    loanEligibility,
+    mortgageEligibility,
+    mortgageLtvCap,
     rentalYield,
     appreciationProjection,
-    gstAmount,
+    vatAmount,
 } from './finance-calculators'
 
-describe('loanEligibility', () => {
+describe('mortgageEligibility', () => {
     it('eligible loan never exceeds maxEMI × tenure (interest only reduces capacity)', () => {
         fc.assert(
             fc.property(
@@ -16,15 +17,17 @@ describe('loanEligibility', () => {
                 fc.double({ min: 0, max: 20, noNaN: true }),
                 fc.integer({ min: 1, max: 360 }),
                 (income, obligations, rate, tenure) => {
-                    const { maxEmi, eligibleLoan } = loanEligibility({
+                    const { maxEmi, eligibleLoan, maxLoanByLtv } = mortgageEligibility({
                         monthlyIncome: income,
                         monthlyObligations: obligations,
                         annualRatePct: rate,
                         tenureMonths: tenure,
+                        propertyValue: 10_000_000,
                     })
                     expect(eligibleLoan).toBeGreaterThanOrEqual(0)
                     // Reverse-amortized principal can never exceed the undiscounted sum.
                     expect(eligibleLoan).toBeLessThanOrEqual(maxEmi * tenure + 0.01)
+                    expect(eligibleLoan).toBeLessThanOrEqual(maxLoanByLtv + 0.01)
                 },
             ),
             { numRuns: 100 },
@@ -38,8 +41,8 @@ describe('loanEligibility', () => {
                 fc.double({ min: 5, max: 12, noNaN: true }),
                 fc.integer({ min: 12, max: 360 }),
                 (income, rate, tenure) => {
-                    const base = loanEligibility({ monthlyIncome: income, annualRatePct: rate, tenureMonths: tenure })
-                    const more = loanEligibility({ monthlyIncome: income * 1.5, annualRatePct: rate, tenureMonths: tenure })
+                    const base = mortgageEligibility({ monthlyIncome: income, annualRatePct: rate, tenureMonths: tenure, propertyValue: 20_000_000 })
+                    const more = mortgageEligibility({ monthlyIncome: income * 1.5, annualRatePct: rate, tenureMonths: tenure, propertyValue: 20_000_000 })
                     expect(more.eligibleLoan).toBeGreaterThanOrEqual(base.eligibleLoan)
                 },
             ),
@@ -48,8 +51,14 @@ describe('loanEligibility', () => {
     })
 
     it('zero-rate eligibility equals maxEMI × tenure', () => {
-        const { maxEmi, eligibleLoan } = loanEligibility({ monthlyIncome: 100_000, annualRatePct: 0, tenureMonths: 240 })
+        const { maxEmi, eligibleLoan } = mortgageEligibility({ monthlyIncome: 100_000, annualRatePct: 0, tenureMonths: 240, propertyValue: 100_000_000 })
         expect(eligibleLoan).toBeCloseTo(maxEmi * 240, 0)
+    })
+
+    it('applies the UAE off-plan and expatriate LTV caps', () => {
+        expect(mortgageLtvCap(4_000_000, 'EXPATRIATE', 'FIRST_HOME')).toBe(0.75)
+        expect(mortgageLtvCap(6_000_000, 'EXPATRIATE', 'FIRST_HOME')).toBe(0.65)
+        expect(mortgageLtvCap(4_000_000, 'UAE_NATIONAL', 'OFF_PLAN')).toBe(0.5)
     })
 })
 
@@ -100,9 +109,9 @@ describe('appreciationProjection', () => {
     })
 })
 
-describe('gstAmount', () => {
+describe('vatAmount', () => {
     it('equals base × rate', () => {
-        expect(gstAmount(5_000_000, 0.05)).toBe(250_000)
-        expect(gstAmount(5_000_000, 0)).toBe(0)
+        expect(vatAmount(5_000_000, 0.05)).toBe(250_000)
+        expect(vatAmount(5_000_000, 0)).toBe(0)
     })
 })

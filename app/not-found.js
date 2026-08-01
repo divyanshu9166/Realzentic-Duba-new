@@ -3,7 +3,7 @@ import { Home, Search, ArrowLeft } from 'lucide-react';
 import MagicCard from '@/components/MagicCard';
 
 export const metadata = {
-    title: 'Page not found — Furzentic',
+    title: 'Page not found — Realzentic Dubai',
 };
 
 export default function NotFound() {

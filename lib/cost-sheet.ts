@@ -10,111 +10,39 @@
  *
  * Requirements: 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.11
  * Design properties: 12 (net payable composition), 13 (discount floor),
- * 14 (stamp duty state rate), 15 (GST rate over status), 16 (milestone split).
+ * 14 (Dubai Land Department transfer fee), 15 (VAT rate by property use),
+ * 16 (milestone split).
  */
 
 import { assertMoneyRange, roundMoney } from './money'
 
-// ---------------------------------------------------------------------------
-// Project status (mirrors the Prisma `ProjectStatus` enum). Kept as a local
-// string union so this module stays free of any Prisma/runtime dependency.
-// ---------------------------------------------------------------------------
+// UAE VAT / Dubai Land Department (DLD) fees. Residential is deliberately
+// modeled at 0% here; the accounting workflow must still distinguish a
+// zero-rated first supply from an exempt subsequent supply where relevant.
+export type PropertyUse = 'Residential' | 'Commercial' | string
+export type BuyerType = 'Individual' | 'Company'
 
-export type ProjectStatus = 'Upcoming' | 'UnderConstruction' | 'ReadyToMove'
+export const VAT_RATE_STANDARD = 0.05
+export const VAT_RATE_RESIDENTIAL = 0
+export const DLD_TRANSFER_FEE_RATE = 0.04
+export const DLD_ADMIN_FEE_INDIVIDUAL = 580
+export const DLD_ADMIN_FEE_COMPANY = 4200
+export const MORTGAGE_REGISTRATION_FEE_RATE = 0.0025
+export const MORTGAGE_REGISTRATION_ADMIN_FEE = 290
 
-// ---------------------------------------------------------------------------
-// GST (Req 3.6, 3.7, 3.8 / Property 15)
-// ---------------------------------------------------------------------------
+export function vatRateForProperty(propertyUse: PropertyUse): number {
+    return propertyUse === 'Commercial' ? VAT_RATE_STANDARD : VAT_RATE_RESIDENTIAL
+}
 
-/** GST rate (as a fraction) applied while a project is Under Construction. */
-export const GST_RATE_UNDER_CONSTRUCTION = 0.05
-/** GST rate (as a fraction) applied while a project is Ready to Move. */
-export const GST_RATE_READY_TO_MOVE = 0
-/** GST rate (as a fraction) applied for any other / indeterminate status. */
-export const GST_RATE_DEFAULT = 0.05
-
-/**
- * Resolve the GST rate (as a fraction, e.g. `0.05` for 5%) for a project's
- * status. The function is TOTAL over every possible input: Under Construction
- * yields 5%, Ready to Move yields 0%, and every other value (including unknown
- * strings) yields the 5% default so the rate is always determinate.
- *
- * Requirements: 3.6, 3.7, 3.8 (Property 15).
- */
-export function gstRateForProject(projectStatus: ProjectStatus | string): number {
-    switch (projectStatus) {
-        case 'UnderConstruction':
-            return GST_RATE_UNDER_CONSTRUCTION
-        case 'ReadyToMove':
-            return GST_RATE_READY_TO_MOVE
-        default:
-            return GST_RATE_DEFAULT
+export function computeDldFee(propertyValue: number, buyerType: BuyerType = 'Individual') {
+    assertMoneyRange(propertyValue)
+    const transferFee = assertMoneyRange(roundMoney(propertyValue * DLD_TRANSFER_FEE_RATE))
+    const adminFee = buyerType === 'Company' ? DLD_ADMIN_FEE_COMPANY : DLD_ADMIN_FEE_INDIVIDUAL
+    return {
+        transferFee,
+        adminFee,
+        total: assertMoneyRange(roundMoney(transferFee + adminFee)),
     }
-}
-
-// ---------------------------------------------------------------------------
-// Stamp duty (Req 3.5 / Property 14)
-// ---------------------------------------------------------------------------
-
-/**
- * Maharashtra stamp-duty rate (as a fraction). Used as the platform default
- * whenever no rate is configured for a given state (assumption A6).
- */
-export const MAHARASHTRA_STAMP_DUTY_RATE = 0.06
-
-/**
- * Seed table of state-wise stamp-duty rates (as fractions). Maharashtra is
- * always present; other states are seeded with representative defaults and may
- * be overridden at the call site via the `rates` argument so the table stays
- * configurable per assumption A6. Keys are matched case-insensitively.
- */
-export const STAMP_DUTY_RATES: Readonly<Record<string, number>> = Object.freeze({
-    maharashtra: MAHARASHTRA_STAMP_DUTY_RATE,
-    karnataka: 0.056,
-    delhi: 0.06,
-    gujarat: 0.049,
-    'tamil nadu': 0.07,
-    telangana: 0.075,
-    'uttar pradesh': 0.07,
-    'west bengal': 0.06,
-    rajasthan: 0.06,
-    haryana: 0.07,
-})
-
-/**
- * Resolve the stamp-duty rate for a state, falling back to the Maharashtra
- * default when the state is unknown or has no configured rate.
- *
- * @param state  Project state name (matched case-insensitively, trimmed).
- * @param rates  Optional override table of state→rate (assumption A6).
- */
-export function stampDutyRateForState(
-    state: string,
-    rates: Record<string, number> = STAMP_DUTY_RATES
-): number {
-    const key = typeof state === 'string' ? state.trim().toLowerCase() : ''
-    const rate = rates[key]
-    return typeof rate === 'number' && Number.isFinite(rate) ? rate : MAHARASHTRA_STAMP_DUTY_RATE
-}
-
-/**
- * Compute stamp duty for a base amount given the project's state. Equals
- * `base × rate`, where `rate` is the configured rate for that state when
- * present and the Maharashtra default rate otherwise (Property 14). The result
- * is rounded to 2 dp and validated to the money range.
- *
- * Requirements: 3.5, 10.3.
- *
- * @throws if `baseAmount` is out of the money range or the result overflows it.
- */
-export function computeStampDuty(
-    state: string,
-    baseAmount: number,
-    rates: Record<string, number> = STAMP_DUTY_RATES
-): number {
-    assertMoneyRange(baseAmount)
-    const rate = stampDutyRateForState(state, rates)
-    return assertMoneyRange(roundMoney(baseAmount * rate))
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +62,7 @@ function sumAddons(addons: number[]): number {
 /**
  * Compute the gross amount of a cost sheet: `total + Σ(add-ons)`.
  * Add-ons are the additional charges (floor rise, view premium, parking,
- * clubhouse, legal, stamp duty, GST, registration, ...).
+ * clubhouse, legal, DLD transfer, VAT, registration, ...).
  *
  * @throws if any input or the result is out of the money range.
  */

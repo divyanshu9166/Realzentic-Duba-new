@@ -107,7 +107,7 @@ function EditModal({
             <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-xs text-muted mb-1.5">Deal value (₹)</label>
+                        <label className="block text-xs text-muted mb-1.5">Deal value (AED )</label>
                         <input type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} className="w-full px-3 py-2.5 bg-surface rounded-xl border border-border text-sm" />
                     </div>
                     <div>

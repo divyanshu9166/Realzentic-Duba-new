@@ -134,7 +134,7 @@ export async function createDailyPayment(data) {
       data: {
         displayId,
         amount,
-        gstAmount: parseInt(data.gstAmount || 0),
+        vatAmount: parseInt(data.vatAmount || 0),
         type: data.type || 'IN',
         method: data.method,
         reference: data.reference || null,
@@ -201,7 +201,7 @@ export async function reversePayment(id, reason = '') {
       data: {
         displayId,
         amount: original.amount,
-        gstAmount: original.gstAmount,
+        vatAmount: original.vatAmount,
         type: original.type === 'IN' ? 'OUT' : 'IN', // Reverse the type
         method: original.method,
         reference: `REVERSAL-${original.reference || original.id}`,

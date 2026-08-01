@@ -7,7 +7,7 @@ import {
 } from '@/lib/whatsapp/meta-api'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import {
-  normalizePhoneForMetaIndia,
+  normalizePhoneForMetaUae,
   isValidE164,
   phoneVariants,
   isRecipientNotAllowedError,
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     }
 
     // Sanitize and validate phone
-    const sanitizedPhone = normalizePhoneForMetaIndia(contact.phone)
+    const sanitizedPhone = normalizePhoneForMetaUae(contact.phone)
     if (!isValidE164(sanitizedPhone)) {
       return NextResponse.json(
         { error: 'Invalid phone number format' },

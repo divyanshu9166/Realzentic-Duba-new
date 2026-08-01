@@ -136,7 +136,7 @@ async function agentSalesReport(params?: MisParams) {
             project: d.unit?.tower?.project?.name ?? '—',
             unit: d.unit ? `${d.unit.tower?.name ?? ''} - ${d.unit.unitNumber}` : '—',
             dealValue: value,
-            wonDate: d.wonDate ? new Date(d.wonDate).toLocaleDateString('en-IN') : '—',
+            wonDate: d.wonDate ? new Date(d.wonDate).toLocaleDateString('en-AE') : '—',
         }
     })
 
@@ -218,7 +218,7 @@ async function projectCollectionReport(params?: MisParams) {
             demanded,
             collected,
             outstanding,
-            bookingDate: new Date(b.bookingDate).toLocaleDateString('en-IN'),
+            bookingDate: new Date(b.bookingDate).toLocaleDateString('en-AE'),
         }
     })
 
@@ -322,8 +322,8 @@ async function pendingBookingsReport(params?: MisParams) {
             agreementValue: toNum(b.agreementValue),
             outstandingAmount: outstanding,
             nextMilestoneName: nextMilestone?.name ?? '—',
-            nextMilestoneDue: nextMilestone ? new Date(nextMilestone.dueDate).toLocaleDateString('en-IN') : '—',
-            bookingDate: new Date(b.bookingDate).toLocaleDateString('en-IN'),
+            nextMilestoneDue: nextMilestone ? new Date(nextMilestone.dueDate).toLocaleDateString('en-AE') : '—',
+            bookingDate: new Date(b.bookingDate).toLocaleDateString('en-AE'),
         }
     })
 
@@ -380,8 +380,8 @@ async function cancellationsReport(params?: MisParams) {
             tokenAmount: toNum(b.tokenAmount),
             amountCollected,
             cancellationReason: b.cancellationReason ?? '—',
-            bookingDate: new Date(b.bookingDate).toLocaleDateString('en-IN'),
-            cancellationDate: b.cancellationDate ? new Date(b.cancellationDate).toLocaleDateString('en-IN') : '—',
+            bookingDate: new Date(b.bookingDate).toLocaleDateString('en-AE'),
+            cancellationDate: b.cancellationDate ? new Date(b.cancellationDate).toLocaleDateString('en-AE') : '—',
         }
     })
 }
