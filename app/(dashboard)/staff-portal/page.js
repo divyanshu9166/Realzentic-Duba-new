@@ -545,22 +545,22 @@ export default function StaffPortalPage() {
   return (
     <div className="space-y-6 animate-[fade-in_0.3s_ease]">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-4">
+      <div className="flex items-start sm:items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-lg font-bold text-accent">{me.avatar}</div>
           <div>
-            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <h1 className="text-xl font-bold text-foreground flex items-center gap-2 flex-wrap">
               Welcome, {me.name.split(' ')[0]}
               <span className="text-xs font-normal text-muted bg-surface px-2 py-0.5 rounded-full">{me.role}</span>
             </h1>
             <p className="text-sm text-muted mt-0.5">Dubai staff portal · Shift: 9:00 AM – 6:00 PM</p>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-3">
+        <div className="flex w-full sm:w-auto flex-col items-stretch sm:items-end gap-2">
+          <div className="flex w-full sm:w-auto flex-wrap items-center gap-2 sm:gap-3">
             {/* GPS Clock In/Out */}
             {!isClockedIn ? (
-              <button onClick={handleClockIn} disabled={gpsLoading} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-sm font-semibold transition-all">
+              <button onClick={handleClockIn} disabled={gpsLoading} className="flex flex-1 sm:flex-none items-center justify-center gap-2 min-h-11 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-sm font-semibold transition-all">
                 {gpsLoading ? (
                   <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Locating...</>
                 ) : (
@@ -568,17 +568,17 @@ export default function StaffPortalPage() {
                 )}
               </button>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-700">
+              <div className="flex flex-1 sm:flex-none flex-wrap items-center gap-2">
+                <span className="flex flex-1 sm:flex-none items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-medium text-emerald-700 whitespace-nowrap">
                   <div className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
                   Clocked in at {clockInTime}
                 </span>
-                <button onClick={handleClockOut} disabled={gpsLoading} className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-xl text-sm font-semibold transition-all">
+                <button onClick={handleClockOut} disabled={gpsLoading} className="flex flex-1 sm:flex-none items-center justify-center gap-2 min-h-11 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-xl text-sm font-semibold transition-all">
                   {gpsLoading ? 'Locating...' : <><LogOut className="w-4 h-4" /> Clock Out</>}
                 </button>
               </div>
             )}
-            <button onClick={handleLogout} className="px-3 py-2.5 border border-border rounded-xl text-sm text-muted hover:text-foreground hover:bg-surface-hover transition-all">
+            <button onClick={handleLogout} className="min-h-11 flex-1 sm:flex-none px-3 py-2.5 border border-border rounded-xl text-sm text-muted hover:text-foreground hover:bg-surface-hover transition-all">
               Logout
             </button>
           </div>
@@ -589,11 +589,11 @@ export default function StaffPortalPage() {
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-3 gap-1 sm:flex sm:flex-wrap">
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar sm:flex-wrap">
         {portalTabs.map(t => {
           const Icon = t.icon;
           return (
-            <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${tab === t.key ? 'bg-accent text-white' : 'text-muted hover:text-foreground hover:bg-surface-hover border border-border'}`}>
+            <button key={t.key} onClick={() => setTab(t.key)} className={`flex min-h-11 flex-none items-center justify-center gap-1.5 whitespace-nowrap px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${tab === t.key ? 'bg-accent text-white' : 'text-muted hover:text-foreground hover:bg-surface-hover border border-border'}`}>
               <Icon className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{t.label}</span>
             </button>
           );

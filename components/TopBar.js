@@ -144,7 +144,7 @@ export default function TopBar() {
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="md:hidden p-2 -ml-1 rounded-xl hover:bg-surface-hover transition-colors flex-shrink-0"
+          className="md:hidden touch-target p-2 -ml-1 rounded-xl hover:bg-surface-hover transition-colors flex-shrink-0"
           aria-label="Open sidebar menu"
         >
           <Menu className="w-5 h-5 text-foreground" />
@@ -170,13 +170,13 @@ export default function TopBar() {
       {/* Right section */}
       <div className="flex items-center gap-2 md:gap-3 flex-shrink-0 ml-2">
         {/* Theme toggle */}
-        <ThemeToggle />
+        <ThemeToggle className="touch-target" />
 
         {/* Notifications */}
         <div className="relative" ref={notificationsRef}>
           <button
             onClick={handleBellClick}
-            className="relative p-2 rounded-lg hover:bg-surface-hover transition-colors"
+            className="relative touch-target p-2 rounded-lg hover:bg-surface-hover transition-colors"
             aria-label="Open notifications"
           >
             <Bell className="w-[18px] h-[18px] text-muted" />
@@ -242,8 +242,8 @@ export default function TopBar() {
 
               <div className="px-4 py-2.5 border-t border-border bg-surface/50 flex items-center justify-between gap-2">
                 <a href="/calls" className="text-[11px] font-medium text-accent hover:text-accent-hover">Call Center</a>
-                <a href="/inventory" className="text-[11px] font-medium text-accent hover:text-accent-hover">Inventory</a>
-                <a href="/billing" className="text-[11px] font-medium text-accent hover:text-accent-hover">Billing</a>
+                <a href="/leads" className="text-[11px] font-medium text-accent hover:text-accent-hover">Leads</a>
+                <a href="/payments" className="text-[11px] font-medium text-accent hover:text-accent-hover">Payments</a>
               </div>
             </div>
           )}

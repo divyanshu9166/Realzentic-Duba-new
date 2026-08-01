@@ -5,10 +5,17 @@
 
 $ErrorActionPreference = "Stop"
 $env:Path = "C:\pgsql-local\pgsql\bin;C:\nodejs-new\node-v22.15.0-win-x64;" + $env:Path
-$env:DATABASE_URL = "postgresql://postgres:postgres123@localhost:5432/realzentic_dubai"
+$envFile = Join-Path (Split-Path $PSScriptRoot -Parent) ".env"
+$sourceDatabaseUrl = (Get-Content $envFile | Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } | Select-Object -First 1) -replace '^\s*DATABASE_URL\s*=\s*', ''
+if ([string]::IsNullOrWhiteSpace($sourceDatabaseUrl)) { throw "DATABASE_URL is missing from .env" }
+$sourceDatabaseUrl = $sourceDatabaseUrl.Trim().Trim('"').Trim("'")
+$testDatabaseUri = [System.UriBuilder]::new([System.Uri]$sourceDatabaseUrl)
+$testDatabaseUri.Path = "/realzentic_dubai_test"
+$env:DATABASE_URL = $testDatabaseUri.Uri.AbsoluteUri
+$env:SEED_ADMIN_PASSWORD = "TestOnly2026!"
 
 Write-Host ""
-Write-Host "Resetting database..." -ForegroundColor Yellow
+Write-Host "Resetting isolated test database..." -ForegroundColor Yellow
 npx prisma db push --force-reset
 
 Write-Host "Seeding data..." -ForegroundColor Yellow

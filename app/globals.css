@@ -200,6 +200,8 @@ body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -603,7 +605,7 @@ input[type="number"] {
 /* ── Mobile bottom safe-area clearance ─────────────────────── */
 /* Reserve space for 60px BottomNav + device safe area inset   */
 .mobile-bottom-safe {
-  padding-bottom: calc(28px + 8px + env(safe-area-inset-bottom) + 16px);
+  padding-bottom: calc(64px + env(safe-area-inset-bottom) + 24px);
 }
 
 @media (min-width: 768px) {
@@ -614,9 +616,8 @@ input[type="number"] {
 
 /* ── Mobile top safe-area clearance (TopBar) ────────────────── */
 .mobile-top-safe {
-  /* Robust fallback: guarantees at least 32px clearance for Android status bars */
-  padding-top: max(env(safe-area-inset-top), 32px);
-  height: calc(56px + max(env(safe-area-inset-top), 32px));
+  padding-top: max(env(safe-area-inset-top), 8px);
+  min-height: calc(56px + max(env(safe-area-inset-top), 8px));
 }
 
 @media (min-width: 768px) {
@@ -764,7 +765,7 @@ button {
 /* Sticky mobile action bar (e.g. primary "Add" button) */
 .m-actionbar {
   position: sticky;
-  bottom: calc(60px + env(safe-area-inset-bottom));
+  bottom: calc(72px + env(safe-area-inset-bottom));
   z-index: 30;
 }
 
@@ -784,6 +785,25 @@ button {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Phone ergonomics: avoid iOS input zoom, preserve safe horizontal bounds,
+   and make keyboard focus obvious without affecting desktop density. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .glass-card:hover {
+    box-shadow: var(--shadow-card);
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* ── MagicCard — spotlight-on-hover (Magic UI style, token-driven) ── */

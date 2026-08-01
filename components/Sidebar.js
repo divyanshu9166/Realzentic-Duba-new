@@ -149,7 +149,8 @@ export default function Sidebar() {
           {/* Mobile close button */}
           <button
             onClick={() => setSidebarOpen(false)}
-            className="md:hidden p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+            className="md:hidden min-h-11 min-w-11 p-2 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+            aria-label="Close navigation menu"
           >
             <X className="w-5 h-5" />
           </button>
@@ -166,7 +167,7 @@ export default function Sidebar() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${isActive
+                className={`flex min-h-11 items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 md:min-h-0 md:py-2 ${isActive
                   ? 'bg-white/15 text-white'
                   : 'text-white/50 hover:text-white/80 hover:bg-white/5'
                   }`}

@@ -34,9 +34,16 @@ if (-not $pgRunning) {
     Write-Host "[2/5] PostgreSQL already running" -ForegroundColor Green
 }
 
-# ─── 4. Set DATABASE_URL env var ─────────────────────────
-$env:DATABASE_URL = "postgresql://postgres:postgres123@localhost:5432/realzentic_dubai"
-Write-Host "[3/5] DATABASE_URL set" -ForegroundColor Green
+# ─── 4. Set the isolated testing DATABASE_URL ─────────────
+# Preserve the local credentials from .env, but never reuse its database name.
+$envFile = Join-Path (Get-Location) ".env"
+$sourceDatabaseUrl = (Get-Content $envFile | Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } | Select-Object -First 1) -replace '^\s*DATABASE_URL\s*=\s*', ''
+if ([string]::IsNullOrWhiteSpace($sourceDatabaseUrl)) { throw "DATABASE_URL is missing from .env" }
+$sourceDatabaseUrl = $sourceDatabaseUrl.Trim().Trim('"').Trim("'")
+$testDatabaseUri = [System.UriBuilder]::new([System.Uri]$sourceDatabaseUrl)
+$testDatabaseUri.Path = "/realzentic_dubai_test"
+$env:DATABASE_URL = $testDatabaseUri.Uri.AbsoluteUri
+Write-Host "[3/5] Testing DATABASE_URL set" -ForegroundColor Green
 
 # ─── 5. Check if node_modules exists, install if not ─────
 if (-not (Test-Path "node_modules")) {

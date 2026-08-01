@@ -239,16 +239,16 @@ export default function LiveTrackingClient() {
     return (
         <div className="space-y-5">
             {/* Header / stats */}
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-4">
+            <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                     <Stat icon={Users} label="Agents live" value={String(agents.length)} />
                     <Stat icon={Wifi} label="Online now" value={String(onlineCount)} accent="text-emerald-600" />
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted">
-                    {lastRefresh && <span>Updated {lastRefresh.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}</span>}
+                <div className="flex w-full sm:w-auto items-center justify-between gap-2 text-xs text-muted">
+                    {lastRefresh && <span className="truncate">Updated {lastRefresh.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}</span>}
                     <button
                         onClick={refresh}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-surface-hover text-foreground transition-colors"
+                        className="flex min-h-11 shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-surface-hover text-foreground transition-colors"
                     >
                         <RefreshCw className="w-3.5 h-3.5" /> Refresh
                     </button>
@@ -265,12 +265,12 @@ export default function LiveTrackingClient() {
                 {/* Map */}
                 <div className="lg:col-span-2 glass-card p-0 overflow-hidden">
                     {mapError ? (
-                        <div className="h-[480px] flex flex-col items-center justify-center text-center text-muted p-6">
+                        <div className="h-[360px] sm:h-[440px] lg:h-[480px] flex flex-col items-center justify-center text-center text-muted p-6">
                             <MapPin className="w-10 h-10 mb-3 opacity-30" />
                             <p className="text-sm">{mapError}</p>
                         </div>
                     ) : (
-                        <div ref={mapElRef} className="h-[480px] w-full" style={{ background: '#e5e7eb' }} />
+                        <div ref={mapElRef} className="h-[360px] sm:h-[440px] lg:h-[480px] w-full" style={{ background: '#e5e7eb' }} />
                     )}
                 </div>
 
@@ -294,7 +294,7 @@ export default function LiveTrackingClient() {
                             <p className="text-xs mt-1">Agents can go live from their Staff Portal or a site visit.</p>
                         </div>
                     ) : (
-                        <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                        <div className="space-y-2 max-h-[320px] sm:max-h-[420px] overflow-y-auto pr-1">
                             {agents.map((a) => {
                                 const color = PRESENCE_COLOR[a.presence] ?? PRESENCE_COLOR.offline;
                                 const selected = a.staffId === selectedId;
