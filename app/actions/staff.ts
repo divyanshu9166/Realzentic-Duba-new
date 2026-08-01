@@ -130,7 +130,8 @@ export async function getStaffMember(id: number) {
     },
   })
   if (!staff) return { success: false, error: 'Staff not found' }
-  return { success: true, data: staff }
+  // Keep Prisma Decimal and Date instances inside the server boundary.
+  return { success: true, data: mapStaffForPortal(staff) }
 }
 
 export async function createStaff(data: unknown) {
@@ -183,7 +184,10 @@ export async function createStaff(data: unknown) {
 
   revalidatePath('/staff')
   revalidatePath('/settings')
-  return { success: true, data: staff }
+  // The settings client only needs confirmation. Do not return the raw Prisma
+  // Staff record: its EOSB field is a Decimal, which cannot cross a Server
+  // Action boundary into a Client Component.
+  return { success: true, data: { id: staff.id } }
 }
 
 export async function assignStaffLogin(staffId: number, loginUsername: string, loginPassword: string) {
