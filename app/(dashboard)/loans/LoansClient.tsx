@@ -63,7 +63,10 @@ export default function LoansClient() {
         setLoading(false)
     }, [statusFilter])
 
-    useEffect(() => { load() }, [load])
+    useEffect(() => {
+        const timer = setTimeout(() => { void load() }, 0)
+        return () => clearTimeout(timer)
+    }, [load])
     useEffect(() => {
         getStaff().then((r) => { if (r.success) setStaff(r.data.map((s: { id: number; name: string }) => ({ id: s.id, name: s.name }))) })
         listContactsBrief().then((r) => { if (r.success) setContacts(r.data.map((c) => ({ id: c.id, name: c.name }))) })
@@ -234,8 +237,8 @@ export default function LoansClient() {
                                     <input type="number" min="0" step="0.01" value={form.interestRate} onChange={(e) => setForm((f) => ({ ...f, interestRate: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-muted mb-1">Tenure (yrs)</label>
-                                    <input type="number" min="1" max="40" value={form.tenureYears} onChange={(e) => setForm((f) => ({ ...f, tenureYears: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                                    <label className="block text-xs text-muted mb-1">Tenure (yrs, max 25)</label>
+                                    <input type="number" min="1" max="25" value={form.tenureYears} onChange={(e) => setForm((f) => ({ ...f, tenureYears: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">

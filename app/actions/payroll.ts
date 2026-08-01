@@ -191,7 +191,21 @@ export async function getStaffForPayroll() {
     },
     orderBy: { name: 'asc' },
   })
-  return { success: true, data: staff }
+  // Prisma Decimal values cannot cross a Server Action boundary. Convert all
+  // money fields before returning the records to the payroll client.
+  return {
+    success: true,
+    data: staff.map((member) => ({
+      ...member,
+      basicSalary: Number(member.basicSalary ?? 0),
+      eosbAccrued: Number(member.eosbAccrued ?? 0),
+      loans: member.loans.map((loan) => ({
+        ...loan,
+        remainingAmount: Number(loan.remainingAmount ?? 0),
+        monthlyInstallment: Number(loan.monthlyInstallment ?? 0),
+      })),
+    })),
+  }
 }
 
 export async function updateStaffPayrollInfo(data: unknown) {
@@ -227,7 +241,16 @@ export async function getStaffLoans(staffId?: number) {
     include: { staff: { select: { name: true, role: true } } },
     orderBy: { createdAt: 'desc' },
   })
-  return { success: true, data: loans }
+  return {
+    success: true,
+    data: loans.map((loan) => ({
+      ...loan,
+      principalAmount: Number(loan.principalAmount ?? 0),
+      remainingAmount: Number(loan.remainingAmount ?? 0),
+      monthlyInstallment: Number(loan.monthlyInstallment ?? 0),
+      createdAt: loan.createdAt.toISOString(),
+    })),
+  }
 }
 
 export async function createStaffLoan(data: unknown) {
@@ -247,7 +270,16 @@ export async function createStaffLoan(data: unknown) {
     },
   })
   revalidatePath('/payroll')
-  return { success: true, data: loan }
+  return {
+    success: true,
+    data: {
+      ...loan,
+      principalAmount: Number(loan.principalAmount),
+      remainingAmount: Number(loan.remainingAmount),
+      monthlyInstallment: Number(loan.monthlyInstallment),
+      createdAt: loan.createdAt.toISOString(),
+    },
+  }
 }
 
 export async function closeStaffLoan(id: number) {

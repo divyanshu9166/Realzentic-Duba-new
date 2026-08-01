@@ -15,6 +15,7 @@ import {
   RE_BUDGET_RANGES,
   PURPOSE_OPTIONS,
   POSSESSION_OPTIONS,
+  DUBAI_LOCATION_OPTIONS,
   composePreferenceNotes,
 } from '@/lib/real-estate-options';
 
@@ -820,7 +821,10 @@ export default function LeadsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted mb-1.5">Preferred Location / Project</label>
-              <input type="text" name="location" placeholder="e.g., Wakad, Pune" className="w-full" />
+              <input type="text" name="location" list="lead-dubai-location-options" placeholder="e.g., Dubai Marina or a project name" className="w-full" />
+              <datalist id="lead-dubai-location-options">
+                {DUBAI_LOCATION_OPTIONS.map(location => <option key={location} value={location} />)}
+              </datalist>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

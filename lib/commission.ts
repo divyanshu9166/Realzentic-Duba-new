@@ -15,12 +15,8 @@
  *
  * Requirements: 6.4 (percentage), 6.5 (slab), 6.8 (fixed).
  *
- * NOTE ON SLAB RATE SEMANTICS: design Property 25 defines the percentage
- * commission as `round(rate / 100 × agreementValue, 2)`, whereas design
- * Property 26 defines the slab commission as `round(matchingSlabRate ×
- * agreementValue, 2)` (no division by 100). This implementation follows each
- * property literally: the slab `rate` is applied as a direct multiplier, not
- * as a percentage. See the report/blocker note accompanying this task.
+ * Slab rates use the same percentage convention as percentage commissions:
+ * a configured rate of 2 means 2% of the agreement value.
  */
 
 import type { CommissionType } from '@prisma/client'
@@ -38,7 +34,7 @@ export interface CommissionSlab {
     minValue: number
     /** Inclusive upper bound of the agreement-value range this slab covers. */
     maxValue: number
-    /** Multiplier applied to the agreement value when this slab is selected. */
+    /** Percentage applied to the agreement value when this slab is selected. */
     rate: number
 }
 
@@ -78,8 +74,8 @@ export function computeCommission(
                     agreementValue <= slab.maxValue
             )
             if (!matching) return 0
-            // round(matchingSlabRate × agreementValue, 2) — design Property 26.
-            return roundMoney(matching.rate * agreementValue)
+            // Apply the configured slab rate as a percentage of the agreement value.
+            return roundMoney((matching.rate / 100) * agreementValue)
         }
 
         default: {

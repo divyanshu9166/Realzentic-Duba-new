@@ -28,8 +28,7 @@ const rateArb: fc.Arbitrary<number> = fc
     .map((n) => Math.round(n * 100) / 100)
 
 /**
- * A single slab whose `rate` is a direct multiplier (per design Property 26,
- * the slab rate is applied without dividing by 100). The range is normalized
+ * A single slab whose `rate` is a percentage. The range is normalized
  * so `minValue <= maxValue`.
  */
 const slabArb: fc.Arbitrary<CommissionSlab> = fc
@@ -96,7 +95,7 @@ describe('computeCommission (pure helper)', () => {
 
     // Feature: real-estate-crm, Property 26: Slab commission selects the matching slab
     // For any slab configuration and agreement value, the commission equals
-    // round(matchingSlabRate × agreementValue, 2), where the matching slab is
+    // round(matchingSlabRate / 100 × agreementValue, 2), where the matching slab is
     // the one whose value range contains the agreement value (0 if none match).
     // Validates: Requirements 6.5
     it('Property 26: slab commission applies the matching slab rate', () => {
@@ -105,7 +104,7 @@ describe('computeCommission (pure helper)', () => {
                 const matching = slabs.find(
                     (s) => value >= s.minValue && value <= s.maxValue,
                 )
-                const expected = matching ? roundMoney(matching.rate * value) : 0
+                const expected = matching ? roundMoney((matching.rate / 100) * value) : 0
                 expect(computeCommission('Slab', 0, 0, slabs, value)).toBe(expected)
             }),
         )

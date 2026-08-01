@@ -81,7 +81,7 @@ export default function CmaClient() {
                 <div className="flex size-9 items-center justify-center rounded-lg bg-accent/10"><Scale className="size-5 text-accent" /></div>
                 <div>
                     <h1 className="text-xl font-bold text-foreground">Dynamic CMA — Pricing</h1>
-                    <p className="text-sm text-muted">Derive a data-backed price band from comparable units in your inventory.</p>
+                    <p className="text-sm text-muted">Derive an indicative price band from comparable units in your Dubai inventory.</p>
                 </div>
             </div>
 
@@ -152,7 +152,7 @@ export default function CmaClient() {
                                         <th>Project</th>
                                         <th>Unit</th>
                                         <th>City</th>
-                                        <th>Carpet</th>
+                                        <th>Net area</th>
                                         <th>Price</th>
                                         <th>AED /sqft</th>
                                         <th>Status</th>
@@ -174,6 +174,7 @@ export default function CmaClient() {
                             </table>
                         </div>
                     </div>
+                    <p className="px-4 pb-4 text-[11px] text-muted">Internal estimate only: this CMA uses your saved inventory, not verified DLD transaction data or an RERA-certified valuation. Confirm market evidence before quoting or listing.</p>
                 </>
             )}
 

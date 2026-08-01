@@ -84,7 +84,8 @@ export default function ChannelPartnersPage() {
     }, [notify]);
 
     useEffect(() => {
-        refresh().finally(() => setLoading(false));
+        const timer = setTimeout(() => { refresh().finally(() => setLoading(false)); }, 0);
+        return () => clearTimeout(timer);
     }, [refresh]);
 
     // ─── Onboard partner ──────────────────────────────
@@ -96,6 +97,7 @@ export default function ChannelPartnersPage() {
             name: f.name.value,
             company: f.company.value,
             brnNumber: f.brnNumber.value,
+            ornNumber: f.ornNumber.value,
             phone: f.phone.value,
             email: f.email.value,
             type: f.type.value,
@@ -103,6 +105,11 @@ export default function ChannelPartnersPage() {
             commissionType,
             commissionRate: commissionType === 'Percentage' ? Number(f.commissionRate.value || 0) : 0,
             fixedCommission: commissionType === 'Fixed' ? Number(f.fixedCommission.value || 0) : 0,
+            commissionSlabs: commissionType === 'Slab' ? [{
+                minValue: Number(f.slabMinValue.value || 0),
+                maxValue: Number(f.slabMaxValue.value || 999999999),
+                rate: Number(f.slabRate.value || 0),
+            }] : undefined,
             tradeLicenseNo: f.tradeLicenseNo.value,
             agreementDocUrl: f.agreementDocUrl.value,
         };
@@ -313,7 +320,7 @@ export default function ChannelPartnersPage() {
                         </div>
                     </div>
                     <p className="text-xs text-muted">
-                        The commission amount is computed from the partner's configured rate and the booking agreement value. Provide at least a booking or deal.
+                        The commission amount is computed from the partner&apos;s configured rate and the booking agreement value. Provide at least a booking or deal.
                     </p>
                     <div className="flex justify-end gap-3 pt-2">
                         <button type="button" onClick={() => setShowCommission(false)} className="px-4 py-2.5 rounded-xl text-sm text-muted hover:text-foreground hover:bg-surface-hover transition-colors">Cancel</button>
@@ -607,6 +614,11 @@ function OnboardForm({ submitting, onSubmit, onCancel }) {
                 <p className="text-[11px] text-muted mt-1">Required and must be unique across all partners.</p>
             </div>
 
+            <div>
+                <label className="block text-xs font-medium text-muted mb-1.5">ORN Number (optional)</label>
+                <input type="text" name="ornNumber" placeholder="Optional broker registration number" className="w-full" />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Phone *</label>
@@ -653,8 +665,10 @@ function OnboardForm({ submitting, onSubmit, onCancel }) {
                     </div>
                 )}
                 {commissionType === 'Slab' && (
-                    <div className="flex items-end">
-                        <p className="text-[11px] text-muted pb-2">Slab rates are configured separately after onboarding.</p>
+                    <div className="grid grid-cols-3 gap-2">
+                        <div><label className="block text-[11px] text-muted mb-1">From (AED)</label><input type="number" name="slabMinValue" min="0" step="1" defaultValue="0" className="w-full" /></div>
+                        <div><label className="block text-[11px] text-muted mb-1">To (AED)</label><input type="number" name="slabMaxValue" min="0" step="1" defaultValue="999999999" className="w-full" /></div>
+                        <div><label className="block text-[11px] text-muted mb-1">Rate (%)</label><input type="number" name="slabRate" min="0" max="100" step="0.01" defaultValue="2" className="w-full" /></div>
                     </div>
                 )}
             </div>

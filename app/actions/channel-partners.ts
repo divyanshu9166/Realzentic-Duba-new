@@ -199,6 +199,7 @@ export async function createCommission(data: unknown): Promise<Result<{ id: numb
 
     const partner = await prisma.channelPartner.findUnique({ where: { id: partnerId } })
     if (!partner) return { success: false, error: 'Channel partner not found' }
+    if (partner.status !== 'Active') return { success: false, error: 'Only active channel partners can earn new commissions' }
 
     // The agreement value comes from the booking; a commission needs one to be
     // computable for Percentage/Slab partners.
@@ -206,15 +207,24 @@ export async function createCommission(data: unknown): Promise<Result<{ id: numb
     if (bookingId !== undefined) {
         const booking = await prisma.booking.findUnique({
             where: { id: bookingId },
-            select: { id: true, agreementValue: true },
+            select: { id: true, dealId: true, agreementValue: true },
         })
         if (!booking) return { success: false, error: 'Booking not found' }
+        if (dealId !== undefined && booking.dealId !== dealId) {
+            return { success: false, error: 'The booking and deal references do not match' }
+        }
         agreementValue = toNumber(booking.agreementValue)
     }
 
     if (dealId !== undefined) {
-        const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { id: true } })
+        const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { id: true, value: true } })
         if (!deal) return { success: false, error: 'Deal not found' }
+        // A deal-only commission uses the deal value until a booking exists.
+        if (bookingId === undefined) agreementValue = toNumber(deal.value)
+    }
+
+    if ((partner.commissionType === 'Percentage' || partner.commissionType === 'Slab') && agreementValue <= 0) {
+        return { success: false, error: 'A positive deal value or booking agreement value is required for this commission type' }
     }
 
     const amount = computeCommission(
@@ -266,8 +276,8 @@ export async function approveCommission(data: unknown): Promise<Result<{ id: num
         select: { id: true, status: true },
     })
     if (!commission) return { success: false, error: 'Commission not found' }
-    if (commission.status === 'Paid') {
-        return { success: false, error: 'A paid commission cannot be re-approved' }
+    if (commission.status !== 'Pending' && commission.status !== 'Disputed') {
+        return { success: false, error: `A ${commission.status.toLowerCase()} commission cannot be approved` }
     }
 
     const updated = await prisma.cPCommission.update({
@@ -316,9 +326,9 @@ export async function createPayoutBatch(
                 throw new Error(`Commission ${alreadyBatched.id} is already part of a payout batch`)
             }
 
-            const alreadyPaid = commissions.find((c) => c.status === 'Paid')
-            if (alreadyPaid) {
-                throw new Error(`Commission ${alreadyPaid.id} is already paid`)
+            const notApproved = commissions.find((c) => c.status !== 'Approved')
+            if (notApproved) {
+                throw new Error(`Commission ${notApproved.id} must be approved before it can be paid`)
             }
 
             const totalAmount = roundMoney(
@@ -374,6 +384,14 @@ export async function completePayoutBatch(
             })
             if (!batch) throw new Error('Payout batch not found')
             if (batch.status === 'Completed') throw new Error('Payout batch is already completed')
+
+            const batchCommissions = await tx.cPCommission.findMany({
+                where: { payoutBatchId: batchId },
+                select: { id: true, status: true },
+            })
+            if (batchCommissions.length === 0) throw new Error('Payout batch has no commissions')
+            const notApproved = batchCommissions.find((commission) => commission.status !== 'Approved')
+            if (notApproved) throw new Error(`Commission ${notApproved.id} must be approved before payout`)
 
             const paymentDate = new Date()
 

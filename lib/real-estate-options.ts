@@ -55,12 +55,42 @@ export const FUNDING_OPTIONS = ['Mortgage', 'Cash / Self-funded', 'Mortgage + Ca
 /** Dubai workflows differ materially between off-plan, resale, and rentals. */
 export const SALE_TYPE_OPTIONS = ['Off-Plan (Primary)', 'Secondary / Resale', 'Rental'] as const
 
+/** Common Dubai communities plus nearby UAE markets used by the lead forms. */
+export const DUBAI_LOCATION_OPTIONS = [
+    'Downtown Dubai',
+    'Dubai Marina',
+    'Palm Jumeirah',
+    'Business Bay',
+    'Jumeirah Beach Residence (JBR)',
+    'Jumeirah Lake Towers (JLT)',
+    'Dubai Hills Estate',
+    'Jumeirah Village Circle (JVC)',
+    'Dubai Creek Harbour',
+    'Dubai Harbour',
+    'Dubai Silicon Oasis',
+    'Arabian Ranches',
+    'Meydan',
+    'Dubai Sports City',
+    'Al Furjan',
+    'Dubai South',
+    'Deira',
+    'Bur Dubai',
+    'Jumeirah',
+    'Al Barsha',
+    'Abu Dhabi',
+    'Sharjah',
+    'Ajman',
+    'Ras Al Khaimah',
+    'Other UAE',
+] as const
+
 export type PropertyConfig = (typeof PROPERTY_CONFIG_OPTIONS)[number]
 export type ReBudgetRange = (typeof RE_BUDGET_RANGES)[number]
 export type Purpose = (typeof PURPOSE_OPTIONS)[number]
 export type Possession = (typeof POSSESSION_OPTIONS)[number]
 export type Funding = (typeof FUNDING_OPTIONS)[number]
 export type SaleType = (typeof SALE_TYPE_OPTIONS)[number]
+export type DubaiLocation = (typeof DUBAI_LOCATION_OPTIONS)[number]
 
 /**
  * Fold the optional structured preference fields into a human-readable block

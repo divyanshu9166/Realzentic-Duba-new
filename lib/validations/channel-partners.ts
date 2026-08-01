@@ -53,7 +53,8 @@ const commissionSlab = z
         rate: z
             .number({ message: 'Slab rate must be a number' })
             .finite('Slab rate must be a finite number')
-            .min(0, 'Slab rate must not be negative'),
+            .min(0, 'Slab rate must not be negative')
+            .max(100, 'Slab rate must not exceed 100%'),
     })
     .refine((s) => s.maxValue >= s.minValue, {
         message: 'Slab maxValue must be greater than or equal to minValue',

@@ -20,6 +20,7 @@ import {
   RE_BUDGET_RANGES,
   PURPOSE_OPTIONS,
   POSSESSION_OPTIONS,
+  DUBAI_LOCATION_OPTIONS,
   composePreferenceNotes,
 } from '@/lib/real-estate-options';
 
@@ -430,7 +431,10 @@ export default function WalkinsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-muted mb-1.5">Preferred Location / Project</label>
-              <input type="text" placeholder="e.g., Hinjewadi, Pune" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent/50" />
+              <input list="dubai-location-options" type="text" placeholder="e.g., Dubai Marina or a project name" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent/50" />
+              <datalist id="dubai-location-options">
+                {DUBAI_LOCATION_OPTIONS.map(location => <option key={location} value={location} />)}
+              </datalist>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">

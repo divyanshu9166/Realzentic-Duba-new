@@ -6,8 +6,9 @@
 
 $ErrorActionPreference = "Stop"
 
-# ─── 1. Set PATH to use correct Node.js & PostgreSQL ────
-$env:Path = "C:\pgsql-local\pgsql\bin;C:\nodejs-new\node-v22.15.0-win-x64;" + $env:Path
+# ─── 1. Prefer the bundled Node.js path when it exists ──
+$nodePath = "C:\nodejs-new\node-v22.15.0-win-x64"
+if (Test-Path -LiteralPath $nodePath) { $env:Path = "$nodePath;$env:Path" }
 
 Write-Host ""
 Write-Host "======================================" -ForegroundColor Cyan
@@ -21,14 +22,21 @@ Write-Host "[1/5] Node.js $nodeVersion" -ForegroundColor Green
 
 # ─── 3. Start PostgreSQL (if not already running) ────────
 $pgRunning = $false
-try {
-    $result = & "C:\pgsql-local\pgsql\bin\pg_isready.exe" -h localhost -p 5432 2>&1
-    if ($LASTEXITCODE -eq 0) { $pgRunning = $true }
-} catch {}
+$pgReadyCommand = Get-Command pg_isready.exe -ErrorAction SilentlyContinue
+if ($pgReadyCommand) {
+    & $pgReadyCommand.Source -h localhost -p 5432 2>&1 | Out-Null
+    $pgRunning = ($LASTEXITCODE -eq 0)
+} else {
+    $pgRunning = [bool](Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)
+}
 
 if (-not $pgRunning) {
+    $pgCtlCommand = Get-Command pg_ctl.exe -ErrorAction SilentlyContinue
+    if (-not $pgCtlCommand) {
+        throw "PostgreSQL is not listening on port 5432 and pg_ctl.exe was not found. Start PostgreSQL first, then rerun this script."
+    }
     Write-Host "[2/5] Starting PostgreSQL..." -ForegroundColor Yellow
-    & "C:\pgsql-local\pgsql\bin\pg_ctl.exe" -D "C:\pgsql-local\data" -l "C:\pgsql-local\pg.log" start
+    & $pgCtlCommand.Source -D "C:\pgsql-local\data" -l "C:\pgsql-local\pg.log" start
     Start-Sleep -Seconds 2
 } else {
     Write-Host "[2/5] PostgreSQL already running" -ForegroundColor Green
@@ -37,7 +45,7 @@ if (-not $pgRunning) {
 # ─── 4. Set the isolated testing DATABASE_URL ─────────────
 # Preserve the local credentials from .env, but never reuse its database name.
 $envFile = Join-Path (Get-Location) ".env"
-$sourceDatabaseUrl = (Get-Content $envFile | Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } | Select-Object -First 1) -replace '^\s*DATABASE_URL\s*=\s*', ''
+$sourceDatabaseUrl = ((Get-Content $envFile | Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } | Select-Object -First 1) -replace '^\s*DATABASE_URL\s*=\s*', '').Trim().Trim('"').Trim("'")
 if ([string]::IsNullOrWhiteSpace($sourceDatabaseUrl)) { throw "DATABASE_URL is missing from .env" }
 $sourceDatabaseUrl = $sourceDatabaseUrl.Trim().Trim('"').Trim("'")
 $testDatabaseUri = [System.UriBuilder]::new([System.Uri]$sourceDatabaseUrl)
@@ -56,9 +64,19 @@ if (-not (Test-Path "node_modules")) {
 # ─── 6. Start Next.js dev server ─────────────────────────
 Write-Host "[5/5] Starting Next.js..." -ForegroundColor Green
 Write-Host ""
-Write-Host "  Admin Login:  admin@realzentic.ae / set SEED_ADMIN_PASSWORD" -ForegroundColor Magenta
-Write-Host "  Staff Login:  [staff email] / staff123" -ForegroundColor Magenta
+Write-Host "  Admin Login:  admin@realzentic.com / TestOnly2026!" -ForegroundColor Magenta
+Write-Host "  Staff Login:  use a seeded staff account if configured" -ForegroundColor Magenta
 Write-Host "  URL:          http://localhost:3000" -ForegroundColor Magenta
 Write-Host ""
 
-npm run dev
+# This CRM is large enough for the default Node.js heap to OOM during the
+# first development compile. Keep any caller-provided options and add a safe
+# heap limit only when one was not already supplied.
+if ($env:NODE_OPTIONS -notmatch "--max-old-space-size") {
+    $existingNodeOptions = if ($env:NODE_OPTIONS) { $env:NODE_OPTIONS.Trim() } else { "" }
+    $env:NODE_OPTIONS = "$existingNodeOptions --max-old-space-size=2048".Trim()
+}
+
+# Webpack dev mode is more stable on this Windows workstation for the first
+# compile; production builds continue to use the normal Next.js build command.
+npm run dev:webpack

@@ -90,9 +90,9 @@ describe('estimateDldFeeAndRegistration', () => {
     it('computes DLD and mortgage registration charges', () => {
         const estimate = estimateDldFeeAndRegistration(5_000_000, 'Individual', 3_000_000)
         expect(estimate.dldTransferFee).toBe(200_000)
-        expect(estimate.dldAdminFee).toBe(580)
+        expect(estimate.dldAdminFee).toBe(4945)
         expect(estimate.mortgageRegistrationFee).toBe(7_500)
-        expect(estimate.mortgageAdminFee).toBe(290)
-        expect(estimate.total).toBe(208_370)
+        expect(estimate.mortgageAdminFee).toBe(4470)
+        expect(estimate.total).toBe(216_915)
     })
 })

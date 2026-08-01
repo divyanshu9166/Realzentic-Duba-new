@@ -132,7 +132,8 @@ export default function ChannelPartnersPage() {
     }, [notify]);
 
     useEffect(() => {
-        refresh().finally(() => setLoading(false));
+        const timer = setTimeout(() => { refresh().finally(() => setLoading(false)); }, 0);
+        return () => clearTimeout(timer);
     }, [refresh]);
 
     // ─── Onboard partner ─────────────────────────────────
@@ -145,6 +146,7 @@ export default function ChannelPartnersPage() {
             name: (f.elements.namedItem('name') as HTMLInputElement).value,
             company: (f.elements.namedItem('company') as HTMLInputElement).value,
             brnNumber: (f.elements.namedItem('brnNumber') as HTMLInputElement).value,
+            ornNumber: (f.elements.namedItem('ornNumber') as HTMLInputElement).value,
             phone: (f.elements.namedItem('phone') as HTMLInputElement).value,
             email: (f.elements.namedItem('email') as HTMLInputElement).value,
             type: (f.elements.namedItem('type') as HTMLSelectElement).value,
@@ -154,6 +156,11 @@ export default function ChannelPartnersPage() {
                 ? Number((f.elements.namedItem('commissionRate') as HTMLInputElement).value || 0) : 0,
             fixedCommission: commissionType === 'Fixed'
                 ? Number((f.elements.namedItem('fixedCommission') as HTMLInputElement).value || 0) : 0,
+            commissionSlabs: commissionType === 'Slab' ? [{
+                minValue: Number((f.elements.namedItem('slabMinValue') as HTMLInputElement).value || 0),
+                maxValue: Number((f.elements.namedItem('slabMaxValue') as HTMLInputElement).value || 999999999),
+                rate: Number((f.elements.namedItem('slabRate') as HTMLInputElement).value || 0),
+            }] : undefined,
             tradeLicenseNo: (f.elements.namedItem('tradeLicenseNo') as HTMLInputElement).value,
             agreementDocUrl: (f.elements.namedItem('agreementDocUrl') as HTMLInputElement).value,
         };
@@ -746,6 +753,11 @@ function OnboardForm({ submitting, onSubmit, onCancel }: OnboardFormProps) {
                 <p className="text-[11px] text-muted mt-1">Required and must be unique across all partners.</p>
             </div>
 
+            <div>
+                <label className="block text-xs font-medium text-muted mb-1.5">ORN Number (optional)</label>
+                <input type="text" name="ornNumber" placeholder="Optional broker registration number" className="w-full" />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-xs font-medium text-muted mb-1.5">Phone *</label>
@@ -797,8 +809,10 @@ function OnboardForm({ submitting, onSubmit, onCancel }: OnboardFormProps) {
                     </div>
                 )}
                 {commissionType === 'Slab' && (
-                    <div className="flex items-end">
-                        <p className="text-[11px] text-muted pb-2">Slab rates are configured separately after onboarding.</p>
+                    <div className="grid grid-cols-3 gap-2">
+                        <div><label className="block text-[11px] text-muted mb-1">From (AED)</label><input type="number" name="slabMinValue" min="0" step="1" defaultValue="0" className="w-full" /></div>
+                        <div><label className="block text-[11px] text-muted mb-1">To (AED)</label><input type="number" name="slabMaxValue" min="0" step="1" defaultValue="999999999" className="w-full" /></div>
+                        <div><label className="block text-[11px] text-muted mb-1">Rate (%)</label><input type="number" name="slabRate" min="0" max="100" step="0.01" defaultValue="2" className="w-full" /></div>
                     </div>
                 )}
             </div>

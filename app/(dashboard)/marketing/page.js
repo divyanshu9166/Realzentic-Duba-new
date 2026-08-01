@@ -169,7 +169,7 @@ export default function MarketingPage() {
   };
 
   const downloadTemplate = () => {
-    const csv = 'Name,Phone,Email,Address,City,Source,Notes\nRahul Sharma,9876543210,rahul@example.com,"123 MG Road","Mumbai","Walk-in","VIP customer"';
+    const csv = 'Name,Phone,Email,Address,City,Source,Notes\nAhmed Khan,+971501234567,ahmed@example.com,"Dubai Marina","Dubai","Walk-in","VIP customer"';
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

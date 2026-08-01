@@ -30,13 +30,13 @@ const BANK_RATES: Array<{ bank: string; rate: number }> = [
     { bank: 'Scenario A', rate: 4.5 }, { bank: 'Scenario B', rate: 5 }, { bank: 'Scenario C', rate: 5.5 },
 ]
 
-function Field({ label, value, onChange, type = 'number', placeholder }: {
-    label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string
+function Field({ label, value, onChange, type = 'number', placeholder, min, max }: {
+    label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; min?: number; max?: number
 }) {
     return (
         <div>
             <label className="block text-xs text-muted mb-1">{label}</label>
-            <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
+            <input type={type} value={value} min={min} max={max} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
         </div>
     )
@@ -71,8 +71,9 @@ export default function CalculatorsClient() {
     const [down, setDown] = useState('1000000')
     const [rate, setRate] = useState('8.5')
     const [years, setYears] = useState('20')
+    const effectiveYears = Math.min(25, Math.max(1, Number(years) || 20))
     const loan = useMemo(() => {
-        const value = Number(pValue), dp = Number(down), r = Number(rate), n = Number(years) * 12
+        const value = Number(pValue), dp = Number(down), r = Number(rate), n = effectiveYears * 12
         if (!value || value <= 0 || value > 999_999_999) return null
         if (!validateDownPayment(value, dp)) return null
         if (!Number.isFinite(r) || r < 0 || !Number.isInteger(n) || n < 1) return null
@@ -82,15 +83,15 @@ export default function CalculatorsClient() {
             const interest = totalInterest(principal, r, n)
             return { principal, emi, interest, total: principal + interest }
         } catch { return null }
-    }, [pValue, down, rate, years])
+    }, [pValue, down, rate, effectiveYears])
     const bankEmis = useMemo(() => {
-        const value = Number(pValue), dp = Number(down), n = Number(years) * 12
+        const value = Number(pValue), dp = Number(down), n = effectiveYears * 12
         if (!validateDownPayment(value, dp) || !Number.isInteger(n) || n < 1) return []
         const principal = value - dp
         return BANK_RATES.map((b) => {
             try { return { ...b, emi: computeEmi(principal, b.rate, n) } } catch { return { ...b, emi: 0 } }
         })
-    }, [pValue, down, years])
+    }, [pValue, down, effectiveYears])
 
     // Eligibility
     const [income, setIncome] = useState('100000')
@@ -99,9 +100,9 @@ export default function CalculatorsClient() {
     const [purchaseType, setPurchaseType] = useState<'FIRST_HOME' | 'SECONDARY_OR_INVESTMENT' | 'OFF_PLAN'>('FIRST_HOME')
     const elig = useMemo(() => mortgageEligibility({
         monthlyIncome: Number(income), monthlyObligations: Number(obligations),
-        annualRatePct: Number(rate) || 8.5, tenureMonths: (Number(years) || 20) * 12,
+        annualRatePct: Number(rate) || 8.5, tenureMonths: effectiveYears * 12,
         propertyValue: Number(pValue), applicantType, purchaseType,
-    }), [income, obligations, rate, years, pValue, applicantType, purchaseType])
+    }), [income, obligations, rate, effectiveYears, pValue, applicantType, purchaseType])
 
     // 3. Yield & appreciation
     const [ryValue, setRyValue] = useState('8000000')
@@ -155,12 +156,14 @@ export default function CalculatorsClient() {
                     </div>
                     {dld && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            <Stat label="DLD Transfer Fee (4%)" value={formatCurrency(dld.dldTransferFee)} tint="text-accent" />
-                            <Stat label="DLD Admin Fee" value={formatCurrency(dld.dldAdminFee)} />
+                            <Stat label="DLD Total (4%)" value={formatCurrency(dld.dldTransferFee)} tint="text-accent" />
+                            <Stat label="Buyer share (2%)" value={formatCurrency(dld.buyerTransferFee)} />
+                            <Stat label="Sale registration add-ons" value={formatCurrency(dld.dldAdminFee)} />
                             <Stat label="Mortgage Registration" value={formatCurrency(dld.mortgageRegistrationFee + dld.mortgageAdminFee)} />
-                            <Stat label="Total Charges" value={formatCurrency(dld.total)} tint="text-emerald-600" />
+                            <Stat label="Estimated charges" value={formatCurrency(dld.total)} tint="text-emerald-600" />
                         </div>
                     )}
+                    <p className="text-[11px] text-muted">Indicative estimate based on current DLD published fees; the 4% sale fee is shown as the total transaction fee and the 2% buyer share separately. Trustee, title, map and mortgage charges can vary by service route and property type.</p>
                 </div>
             )}
 
@@ -171,7 +174,7 @@ export default function CalculatorsClient() {
                         <Field label="Property Value (AED)" value={pValue} onChange={setPValue} />
                         <Field label="Down Payment (AED)" value={down} onChange={setDown} />
                         <Field label="Interest Rate (%)" value={rate} onChange={setRate} />
-                        <Field label="Tenure (years)" value={years} onChange={setYears} />
+                        <Field label="Tenure (years, max 25)" value={years} onChange={(value) => setYears(value === '' ? '' : String(Math.min(25, Number(value))))} min={1} max={25} />
                     </div>
                     {loan ? (
                         <>
@@ -182,7 +185,7 @@ export default function CalculatorsClient() {
                                 <Stat label="Total Payment" value={formatCurrency(loan.total)} />
                             </div>
                             <div className="glass-card overflow-hidden">
-                                <div className="px-4 py-2 text-xs font-semibold text-muted border-b border-border">Illustrative rate comparison — monthly installment on {formatCurrency(loan.principal)} over {years} yrs</div>
+                                <div className="px-4 py-2 text-xs font-semibold text-muted border-b border-border">Illustrative rate comparison — monthly installment on {formatCurrency(loan.principal)} over {effectiveYears} yrs</div>
                                 <div className="overflow-x-auto">
                                     <table className="crm-table">
                                         <thead><tr><th>Bank</th><th>Rate</th><th>Monthly EMI</th></tr></thead>
@@ -213,7 +216,7 @@ export default function CalculatorsClient() {
                             <Stat label="Eligible Mortgage" value={formatCurrency(elig.eligibleLoan)} tint="text-emerald-600" />
                             <Stat label="Applicable LTV Cap" value={`${(elig.ltvCap * 100).toFixed(0)}%`} />
                         </div>
-                        <p className="text-[11px] text-muted">Eligible loan at {rate || 8.5}% for {years || 20} years.</p>
+                        <p className="text-[11px] text-muted">Indicative only: eligible loan at {rate || 8.5}% for {effectiveYears} years. Banks may apply a lower DBR/LTV or shorter tenor after underwriting.</p>
                     </div>
                 </div>
             )}

@@ -213,6 +213,7 @@ export function estimateDldFeeAndRegistration(
     mortgageAmount = 0,
 ): {
     dldTransferFee: number
+    buyerTransferFee: number
     dldAdminFee: number
     mortgageRegistrationFee: number
     mortgageAdminFee: number
@@ -228,6 +229,7 @@ export function estimateDldFeeAndRegistration(
     const mortgageAdminFee = safeMortgage > 0 ? MORTGAGE_REGISTRATION_ADMIN_FEE : 0
     return {
         dldTransferFee: dld.transferFee,
+        buyerTransferFee: dld.buyerTransferFee,
         dldAdminFee: dld.adminFee,
         mortgageRegistrationFee,
         mortgageAdminFee,

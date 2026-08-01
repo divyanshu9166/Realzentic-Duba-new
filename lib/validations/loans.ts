@@ -21,7 +21,9 @@ export const createLoanSchema = z.object({
     bankName: z.string().trim().min(1, 'Bank name is required').max(120),
     loanAmount: wholeAed.optional().nullable(),
     interestRate: z.number().finite().min(0).max(100).optional().nullable(),
-    tenureYears: z.number().int().min(1).max(40).optional().nullable(),
+    // UAE mortgage regulation caps the maximum mortgage tenor at 25 years;
+    // individual lenders may apply a shorter term.
+    tenureYears: z.number().int().min(1).max(25).optional().nullable(),
     status: loanStatusEnum.default('Enquiry'),
     applicationNo: z.string().trim().max(80).optional().nullable(),
     sanctionedAmount: wholeAed.optional().nullable(),
@@ -34,7 +36,7 @@ export const updateLoanSchema = z.object({
     bankName: z.string().trim().min(1).max(120).optional(),
     loanAmount: wholeAed.optional().nullable(),
     interestRate: z.number().finite().min(0).max(100).optional().nullable(),
-    tenureYears: z.number().int().min(1).max(40).optional().nullable(),
+    tenureYears: z.number().int().min(1).max(25).optional().nullable(),
     status: loanStatusEnum.optional(),
     applicationNo: z.string().trim().max(80).optional().nullable(),
     sanctionedAmount: wholeAed.optional().nullable(),

@@ -25,10 +25,17 @@ export type BuyerType = 'Individual' | 'Company'
 export const VAT_RATE_STANDARD = 0.05
 export const VAT_RATE_RESIDENTIAL = 0
 export const DLD_TRANSFER_FEE_RATE = 0.04
-export const DLD_ADMIN_FEE_INDIVIDUAL = 580
-export const DLD_ADMIN_FEE_COMPANY = 4200
+export const DLD_BUYER_TRANSFER_FEE_RATE = 0.02
+// Typical Dubai sale-registration add-ons for a property valued at AED
+// 500,000 or more: AED 4,000 trustee fee + VAT, title deed, map, unit/villa,
+// knowledge and innovation fees. The actual DLD quote can vary by service.
+export const DLD_ADMIN_FEE_INDIVIDUAL = 4945
+export const DLD_ADMIN_FEE_COMPANY = 4945
+export const DLD_ADMIN_FEE_LOW_VALUE = 2845
 export const MORTGAGE_REGISTRATION_FEE_RATE = 0.0025
-export const MORTGAGE_REGISTRATION_ADMIN_FEE = 290
+// Typical non-percentage mortgage registration add-ons for an ordinary title
+// deed: AED 4,000 trustee fee + VAT, title deed, knowledge and innovation fees.
+export const MORTGAGE_REGISTRATION_ADMIN_FEE = 4470
 
 export function vatRateForProperty(propertyUse: PropertyUse): number {
     return propertyUse === 'Commercial' ? VAT_RATE_STANDARD : VAT_RATE_RESIDENTIAL
@@ -37,9 +44,15 @@ export function vatRateForProperty(propertyUse: PropertyUse): number {
 export function computeDldFee(propertyValue: number, buyerType: BuyerType = 'Individual') {
     assertMoneyRange(propertyValue)
     const transferFee = assertMoneyRange(roundMoney(propertyValue * DLD_TRANSFER_FEE_RATE))
-    const adminFee = buyerType === 'Company' ? DLD_ADMIN_FEE_COMPANY : DLD_ADMIN_FEE_INDIVIDUAL
+    const buyerTransferFee = assertMoneyRange(roundMoney(propertyValue * DLD_BUYER_TRANSFER_FEE_RATE))
+    // Current DLD service fees do not use the old individual/company split in
+    // this calculator. Keep the parameter for API compatibility while using
+    // the property-value threshold published for trustee service fees.
+    void buyerType
+    const adminFee = propertyValue >= 500_000 ? DLD_ADMIN_FEE_INDIVIDUAL : DLD_ADMIN_FEE_LOW_VALUE
     return {
         transferFee,
+        buyerTransferFee,
         adminFee,
         total: assertMoneyRange(roundMoney(transferFee + adminFee)),
     }

@@ -4,9 +4,10 @@
 # ──────────────────────────────────────────────────────────
 
 $ErrorActionPreference = "Stop"
-$env:Path = "C:\pgsql-local\pgsql\bin;C:\nodejs-new\node-v22.15.0-win-x64;" + $env:Path
+$nodePath = "C:\nodejs-new\node-v22.15.0-win-x64"
+if (Test-Path -LiteralPath $nodePath) { $env:Path = "$nodePath;$env:Path" }
 $envFile = Join-Path (Split-Path $PSScriptRoot -Parent) ".env"
-$sourceDatabaseUrl = (Get-Content $envFile | Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } | Select-Object -First 1) -replace '^\s*DATABASE_URL\s*=\s*', ''
+$sourceDatabaseUrl = ((Get-Content $envFile | Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } | Select-Object -First 1) -replace '^\s*DATABASE_URL\s*=\s*', '').Trim().Trim('"').Trim("'")
 if ([string]::IsNullOrWhiteSpace($sourceDatabaseUrl)) { throw "DATABASE_URL is missing from .env" }
 $sourceDatabaseUrl = $sourceDatabaseUrl.Trim().Trim('"').Trim("'")
 $testDatabaseUri = [System.UriBuilder]::new([System.Uri]$sourceDatabaseUrl)
@@ -23,4 +24,4 @@ npx tsx prisma/seed.ts
 
 Write-Host ""
 Write-Host "Database reset complete!" -ForegroundColor Green
-Write-Host "  Admin: admin@realzentic.ae / set SEED_ADMIN_PASSWORD" -ForegroundColor Magenta
+Write-Host "  Admin: admin@realzentic.com / TestOnly2026!" -ForegroundColor Magenta

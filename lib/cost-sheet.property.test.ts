@@ -20,8 +20,8 @@ import {
     vatRateForProperty,
     splitMilestones,
     DLD_TRANSFER_FEE_RATE,
-    DLD_ADMIN_FEE_COMPANY,
-    DLD_ADMIN_FEE_INDIVIDUAL,
+    DLD_BUYER_TRANSFER_FEE_RATE,
+    DLD_ADMIN_FEE_LOW_VALUE,
     VAT_RATE_RESIDENTIAL,
     VAT_RATE_STANDARD,
     type PaymentPlanInput,
@@ -115,13 +115,15 @@ describe('Property 13: Discount never makes net payable negative', () => {
 // ---------------------------------------------------------------------------
 
 describe('Property 14: DLD transfer fee is flat', () => {
-    // Feature: real-estate-crm, Property 14: For any property value, DLD transfer fee is 4% plus the buyer-type admin fee.
-    it('uses a 4% transfer fee and the correct buyer-type admin fee', () => {
+    // The 4% transaction fee is distinct from the 2% buyer share and current
+    // service-route add-ons; buyer type remains accepted for API compatibility.
+    it('uses the current DLD transfer, buyer-share, and service add-ons', () => {
         fcAssert(
             fc.property(moneyArb, fc.constantFrom<'Individual' | 'Company'>('Individual', 'Company'), (value, buyerType) => {
                 const fee = computeDldFee(value, buyerType)
-                const expectedAdmin = buyerType === 'Company' ? DLD_ADMIN_FEE_COMPANY : DLD_ADMIN_FEE_INDIVIDUAL
+                const expectedAdmin = value >= 500_000 ? 4945 : DLD_ADMIN_FEE_LOW_VALUE
                 expect(fee.transferFee).toBe(roundMoney(value * DLD_TRANSFER_FEE_RATE))
+                expect(fee.buyerTransferFee).toBe(roundMoney(value * DLD_BUYER_TRANSFER_FEE_RATE))
                 expect(fee.adminFee).toBe(expectedAdmin)
                 expect(fee.total).toBe(roundMoney(fee.transferFee + expectedAdmin))
             })
