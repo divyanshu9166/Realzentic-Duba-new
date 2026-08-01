@@ -191,16 +191,30 @@ export async function getStaffForPayroll() {
     },
     orderBy: { name: 'asc' },
   })
-  // Prisma Decimal values cannot cross a Server Action boundary. Convert all
-  // money fields before returning the records to the payroll client.
+
+  // Do not spread Prisma records into this response. In particular,
+  // `eosbAccrued` is a Prisma Decimal and React Server Components reject it
+  // before the client can receive the payload. An explicit DTO also prevents a
+  // future schema field from accidentally crossing this boundary unconverted.
   return {
     success: true,
     data: staff.map((member) => ({
-      ...member,
+      id: member.id,
+      name: member.name,
+      role: member.role,
+      designation: member.designation,
       basicSalary: Number(member.basicSalary ?? 0),
+      emiratesId: member.emiratesId,
+      laborCardNo: member.laborCardNo,
+      mohreNo: member.mohreNo,
+      iban: member.iban,
+      bankName: member.bankName,
+      visaStatus: member.visaStatus,
       eosbAccrued: Number(member.eosbAccrued ?? 0),
+      wpsRegistered: member.wpsRegistered,
       loans: member.loans.map((loan) => ({
-        ...loan,
+        id: loan.id,
+        purpose: loan.purpose,
         remainingAmount: Number(loan.remainingAmount ?? 0),
         monthlyInstallment: Number(loan.monthlyInstallment ?? 0),
       })),
