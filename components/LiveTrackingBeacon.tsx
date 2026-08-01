@@ -16,23 +16,27 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapPin, Radio, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { recordAgentLocation } from '@/app/actions/agent-tracking';
+import { recordAgentLocation, stopAgentLocationSharing } from '@/app/actions/agent-tracking';
+import { AGENT_LOCATION_RETENTION_DAYS } from '@/lib/agent-location';
 
 const MIN_PING_INTERVAL_MS = 30_000; // at most one ping per 30s
 
 interface Props {
     /** Optional active site-visit id to tag pings with. */
     visitId?: number;
+    /** Active visits assigned to this agent; tagging is always optional. */
+    visitOptions?: Array<{ id: number; label: string }>;
     className?: string;
 }
 
 type Status = 'idle' | 'sharing' | 'error';
 
-export default function LiveTrackingBeacon({ visitId, className }: Props) {
+export default function LiveTrackingBeacon({ visitId, visitOptions = [], className }: Props) {
     const [status, setStatus] = useState<Status>('idle');
     const [error, setError] = useState<string | null>(null);
     const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
     const [sending, setSending] = useState(false);
+    const [selectedVisitId, setSelectedVisitId] = useState<number | null>(visitId ?? null);
 
     const watchIdRef = useRef<number | null>(null);
     const lastPingMsRef = useRef<number>(0);
@@ -64,7 +68,7 @@ export default function LiveTrackingBeacon({ visitId, className }: Props) {
                 accuracyM: Number.isFinite(accuracy) ? accuracy : undefined,
                 speed: speed != null && Number.isFinite(speed) && speed >= 0 ? speed : undefined,
                 heading: heading != null && Number.isFinite(heading) && heading >= 0 ? heading : undefined,
-                visitId,
+                visitId: selectedVisitId ?? undefined,
             });
 
             if (res.success) {
@@ -74,17 +78,27 @@ export default function LiveTrackingBeacon({ visitId, className }: Props) {
                 // Roll back the throttle slot so the next callback retries.
                 lastPingMsRef.current = 0;
                 setError(res.error ?? 'Failed to send location');
+                if (res.code === 'NOT_CLOCKED_IN') {
+                    stopWatch();
+                    setStatus('idle');
+                    void stopAgentLocationSharing();
+                }
             }
             sendingRef.current = false;
             setSending(false);
         },
-        [visitId],
+        [selectedVisitId, stopWatch],
     );
 
     const startSharing = useCallback(() => {
         if (typeof navigator === 'undefined' || !navigator.geolocation) {
             setStatus('error');
             setError('Geolocation is not supported on this device');
+            return;
+        }
+        if (!window.isSecureContext) {
+            setStatus('error');
+            setError('Live location requires HTTPS (localhost is allowed for development)');
             return;
         }
         setError(null);
@@ -112,6 +126,7 @@ export default function LiveTrackingBeacon({ visitId, className }: Props) {
         stopWatch();
         setStatus('idle');
         setSending(false);
+        void stopAgentLocationSharing();
     }, [stopWatch]);
 
     // Clean up the watch on unmount.
@@ -134,7 +149,7 @@ export default function LiveTrackingBeacon({ visitId, className }: Props) {
                         <p className="text-[11px] text-muted truncate">
                             {sharing
                                 ? lastSentAt
-                                    ? `Sharing · last updated ${lastSentAt.toLocaleTimeString()}`
+                                    ? `Sharing · last updated ${lastSentAt.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}`
                                     : 'Sharing · waiting for GPS…'
                                 : 'Off · your location is private'}
                         </p>
@@ -158,6 +173,25 @@ export default function LiveTrackingBeacon({ visitId, className }: Props) {
                     {sharing ? 'Stop sharing' : 'Go live'}
                 </button>
             </div>
+
+            {visitOptions.length > 0 && (
+                <label className="mt-3 block text-[11px] text-muted">
+                    Link this live session to an assigned site visit (optional)
+                    <select
+                        value={selectedVisitId ?? ''}
+                        onChange={(event) => setSelectedVisitId(event.target.value ? Number(event.target.value) : null)}
+                        disabled={sharing}
+                        className="mt-1.5 w-full rounded-lg border border-border bg-surface px-2.5 py-2 text-xs text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <option value="">No site visit selected</option>
+                        {visitOptions.map((visit) => <option key={visit.id} value={visit.id}>{visit.label}</option>)}
+                    </select>
+                </label>
+            )}
+
+            <p className="mt-3 text-[11px] text-muted">
+                Shared only while live and retained for {AGENT_LOCATION_RETENTION_DAYS} days for field-operations review.
+            </p>
 
             {error && (
                 <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 text-red-700 text-xs">

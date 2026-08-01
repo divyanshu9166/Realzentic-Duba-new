@@ -290,6 +290,7 @@ model Staff {
   visaStatus           String?
   eosbAccrued          Decimal @default(0) @db.Decimal(12, 2)
   wpsRegistered        Boolean @default(false)
+  locationSharingStoppedAt DateTime?
 
   user             User?
   leads            Lead[]

@@ -20,6 +20,7 @@ import { getLiveAgentLocations, type LiveAgentLocation } from '@/app/actions/age
 const POLL_MS = 15_000;
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 const PRESENCE_COLOR: Record<string, string> = {
     online: '#10b981', // emerald
@@ -101,9 +102,19 @@ const initials = (name: string) =>
         .slice(0, 2)
         .toUpperCase();
 
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function popupHtml(a: LiveAgentLocation): string {
     const acc = a.accuracyM != null ? ` · ±${Math.round(a.accuracyM)}m` : '';
-    return `<strong>${a.name}</strong><br/>${a.role} · ${a.presence}<br/>Seen ${relativeTime(a.secondsAgo)}${acc}`;
+    const visit = a.visitId != null ? `<br/>Active visit #${a.visitId}` : '';
+    return `<strong>${escapeHtml(a.name)}</strong><br/>${escapeHtml(a.role)} · ${escapeHtml(a.presence)}<br/>Seen ${relativeTime(a.secondsAgo)}${acc}${visit}`;
 }
 
 export default function LiveTrackingClient() {
@@ -113,6 +124,7 @@ export default function LiveTrackingClient() {
     const [mapError, setMapError] = useState<string | null>(null);
     const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
     const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [mapReady, setMapReady] = useState(false);
 
     const mapElRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<LeafletMap | null>(null);
@@ -126,11 +138,12 @@ export default function LiveTrackingClient() {
             .then((L) => {
                 if (cancelled || !mapElRef.current || mapRef.current) return;
                 const map = L.map(mapElRef.current, { zoomControl: true }).setView([25.2048, 55.2708], 11); // Dubai
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                L.tileLayer(OSM_TILE_URL, {
                     attribution: '&copy; OpenStreetMap contributors',
                     maxZoom: 19,
                 }).addTo(map);
                 mapRef.current = map;
+                setMapReady(true);
             })
             .catch(() => {
                 if (!cancelled) setMapError('Map could not be loaded. The roster below still shows live positions.');
@@ -189,7 +202,7 @@ export default function LiveTrackingClient() {
                 /* single-point or invalid bounds — ignore */
             }
         }
-    }, [agents]);
+    }, [agents, mapReady]);
 
     // ── Poll the live roster. ──────────────────────────────────────────────
     const refresh = useCallback(async () => {
@@ -232,7 +245,7 @@ export default function LiveTrackingClient() {
                     <Stat icon={Wifi} label="Online now" value={String(onlineCount)} accent="text-emerald-600" />
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted">
-                    {lastRefresh && <span>Updated {lastRefresh.toLocaleTimeString()}</span>}
+                    {lastRefresh && <span>Updated {lastRefresh.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}</span>}
                     <button
                         onClick={refresh}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-surface-hover text-foreground transition-colors"

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { agentLocationRetentionCutoff } from '@/lib/agent-location'
 
 export async function GET(request: Request) {
   try {
@@ -40,11 +41,22 @@ export async function GET(request: Request) {
       }
     })
 
+    // 3. GPS pings are operational data, not permanent employee history.
+    // Keep a short audit window for route/visit review, then remove them.
+    const deletedAgentLocations = await prisma.agentLocation.deleteMany({
+      where: {
+        recordedAt: {
+          lt: agentLocationRetentionCutoff()
+        }
+      }
+    })
+
     return NextResponse.json({
       success: true,
       message: 'Retention cleanup complete',
       deletedMessages: deletedMessages.count,
-      deletedConversations: deletedConversations.count
+      deletedConversations: deletedConversations.count,
+      deletedAgentLocations: deletedAgentLocations.count
     })
   } catch (error) {
     console.error('[cron] cleanup error:', error)

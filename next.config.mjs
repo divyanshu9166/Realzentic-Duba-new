@@ -37,6 +37,12 @@ const nextConfig = {
   // Aggressive caching for static assets (_next/static)
   async headers() {
     return [
+      // Live location is needed only by pages served from this CRM origin.
+      // Explicitly block third-party iframes from requesting staff GPS access.
+      {
+        source: '/:path*',
+        headers: [{ key: 'Permissions-Policy', value: 'geolocation=(self)' }],
+      },
       {
         source: '/_next/static/:path*',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],

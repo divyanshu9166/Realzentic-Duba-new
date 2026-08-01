@@ -604,7 +604,11 @@ export default function StaffPortalPage() {
       {tab === 'dashboard' && (
         <div className="space-y-6">
           {/* Live location sharing (agent-controlled) */}
-          <LiveTrackingBeacon />
+          <LiveTrackingBeacon
+            visitOptions={assignedVisits
+              .filter((visit) => visit.status === 'Scheduled' || visit.status === 'In Progress')
+              .map((visit) => ({ id: visit.id, label: `${visit.displayId} — ${visit.customer}` }))}
+          />
           {/* Quick Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-card p-4 flex items-center gap-3">
