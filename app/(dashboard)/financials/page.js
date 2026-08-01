@@ -496,7 +496,6 @@ export default function FinancialsPage() {
                 { label: 'Cash & Bank', val: bsData.currentAssets?.cashAndBank },
                 { label: 'Accounts Receivable', val: bsData.currentAssets?.accountsReceivable },
                 { label: 'Staff Loans Outstanding', val: bsData.currentAssets?.staffLoans },
-                { label: 'Staff Loans Outstanding', val: bsData.currentAssets?.staffLoans },
               ].map(r => (
                 <div key={r.label} className="flex justify-between text-sm">
                   <span className="text-muted pl-3">{r.label}</span>
