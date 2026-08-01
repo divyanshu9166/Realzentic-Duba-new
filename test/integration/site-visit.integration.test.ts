@@ -5,8 +5,8 @@
  * Covers task 17.7:
  *   - WhatsApp leg succeeds → result.data.channel === 'whatsapp'
  *   - WhatsApp throws, SMS succeeds → result.data.channel === 'sms'
- *   - the dispatched OTP is persisted on the visit and verifyCheckinOtp with
- *     the right code succeeds (Req 12.2, 12.3).
+ *   - only a protected OTP state is persisted, while verifyCheckinOtp with
+ *     the buyer's dispatched code succeeds (Req 12.2, 12.3).
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -86,14 +86,15 @@ describe('Site-visit OTP dispatch — DB integration (task 17.7)', () => {
         expect(res.success).toBe(true)
         if (res.success) expect(res.data.channel).toBe('whatsapp')
 
-        // The OTP was persisted on the visit.
+        // The plaintext OTP is never persisted on the visit.
         const persisted = await prisma.fieldVisit.findUnique({ where: { id: visit.id } })
         expect(persisted?.otpCode).toBeTruthy()
-        expect(persisted?.otpCode).toBe(sentOtp)
+        expect(persisted?.otpCode).not.toBe(sentOtp)
+        expect(persisted?.otpCode).toMatch(/^v1:/)
         expect(persisted?.otpVerified).toBe(false)
 
         // Verifying with the dispatched code succeeds.
-        const verify = await verifyCheckinOtp({ visitId: visit.id, enteredOtp: persisted!.otpCode! })
+        const verify = await verifyCheckinOtp({ visitId: visit.id, enteredOtp: sentOtp! })
         expect(verify.success).toBe(true)
         if (verify.success) expect(verify.data.otpVerified).toBe(true)
     })
@@ -119,26 +120,26 @@ describe('Site-visit OTP dispatch — DB integration (task 17.7)', () => {
         if (res.success) expect(res.data.channel).toBe('sms')
 
         const persisted = await prisma.fieldVisit.findUnique({ where: { id: visit.id } })
-        expect(persisted?.otpCode).toBe(smsOtp)
+        expect(persisted?.otpCode).not.toBe(smsOtp)
+        expect(persisted?.otpCode).toMatch(/^v1:/)
 
-        const verify = await verifyCheckinOtp({ visitId: visit.id, enteredOtp: persisted!.otpCode! })
+        const verify = await verifyCheckinOtp({ visitId: visit.id, enteredOtp: smsOtp! })
         expect(verify.success).toBe(true)
     })
 
     // A wrong code is rejected and the visit stays unverified (Req 12.3).
     it('verifyCheckinOtp rejects an incorrect code', async () => {
         const visit = await makeFieldVisit()
+        let sentOtp = ''
         await sendCheckinOtp(
             { visitId: visit.id, buyerPhone: BUYER_PHONE },
-            { sendWhatsApp: async () => { } },
+            { sendWhatsApp: async (_phone, otp) => { sentOtp = otp } },
         )
 
-        const wrong = await verifyCheckinOtp({ visitId: visit.id, enteredOtp: '000000' })
-        // The stored code is random; a fixed wrong guess is overwhelmingly rejected.
+        const wrongCode = sentOtp === '000000' ? '111111' : '000000'
+        const wrong = await verifyCheckinOtp({ visitId: visit.id, enteredOtp: wrongCode })
         const persisted = await prisma.fieldVisit.findUnique({ where: { id: visit.id } })
-        if (persisted?.otpCode !== '000000') {
-            expect(wrong.success).toBe(false)
-            expect(persisted?.otpVerified).toBe(false)
-        }
+        expect(wrong.success).toBe(false)
+        expect(persisted?.otpVerified).toBe(false)
     })
 })

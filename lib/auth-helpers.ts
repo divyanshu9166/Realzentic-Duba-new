@@ -1,17 +1,38 @@
 import { getSession as getCustomSession } from './session'
+import { prisma } from './db'
 import type { UserRole } from '@prisma/client'
 
 export async function getSession() {
   const session = await getCustomSession()
   if (!session) return null
-  
+
+  // The signed cookie is an identity credential, not the source of truth for
+  // mutable authorization data. Roles, activation and staff links can change
+  // during the cookie's seven-day lifetime, so resolve them from the database
+  // before every server-side permission check.
+  const userId = Number(session.id)
+  if (!Number.isInteger(userId) || userId <= 0) return null
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      staffId: true,
+      isActive: true,
+    },
+  })
+  if (!user?.isActive) return null
+
   return {
     user: {
-      id: session.id,
-      email: session.email,
-      name: session.name,
-      role: session.role as UserRole,
-      staffId: session.staffId,
+      id: String(user.id),
+      email: user.email,
+      name: user.name,
+      role: user.role as UserRole,
+      staffId: user.staffId,
     }
   }
 }

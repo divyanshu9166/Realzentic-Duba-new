@@ -2,7 +2,8 @@
  * Integration-test harness for the Real Estate CRM.
  *
  * These helpers back the DB-backed integration / persistence tests that run the
- * real server actions against the local Postgres `realestatecrm` database.
+ * real server actions against the isolated local Postgres
+ * `realzentic_dubai_test` database.
  *
  * Isolation strategy: every fixture is created with a unique, test-only marker
  * and registered with a {@link Cleanup} tracker that deletes the created rows

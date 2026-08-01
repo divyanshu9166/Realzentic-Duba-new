@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { createSession, deleteSession, getSession } from '@/lib/session'
 import { prisma } from '@/lib/db'
 
 export async function GET() {
@@ -20,10 +20,16 @@ export async function GET() {
             name: true,
             role: true,
             staffId: true,
+            isActive: true,
             createdAt: true,
           },
         })
       : null
+
+    if (!user?.isActive) {
+      await deleteSession()
+      return NextResponse.json(null, { status: 401 })
+    }
 
     // Sync profile to WhatsApp CRM profiles table (non-critical, never crash auth)
     if (user) {
@@ -44,6 +50,24 @@ export async function GET() {
         })
       } catch {
         // waProfile sync is optional — don't let it break authentication
+      }
+
+      // Refresh stale role/profile claims in the signed cookie. Server actions
+      // already resolve the current database role, and this keeps middleware
+      // route checks consistent on the user's next navigation as well.
+      if (
+        session.email !== user.email ||
+        session.name !== user.name ||
+        session.role !== user.role ||
+        session.staffId !== user.staffId
+      ) {
+        await createSession({
+          id: String(user.id),
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          staffId: user.staffId,
+        })
       }
     }
 

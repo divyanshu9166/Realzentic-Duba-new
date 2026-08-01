@@ -396,7 +396,6 @@ export default function StaffPortalPage() {
 
     const updateData = {
       visitId: editingVisit.id,
-      status: form.get('status') || undefined,
       staffNotes: form.get('staffNotes') || undefined,
       measurements: {
         length: form.get('length') || undefined,
@@ -871,19 +870,14 @@ export default function StaffPortalPage() {
                   )}
 
                   <div className="flex gap-2 mt-3 pt-3 border-t border-border flex-wrap">
-                    {visit.status === 'Scheduled' && (
-                      <button disabled={visitSaving} onClick={() => handleVisitStatusChange(visit, 'In Progress')} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-700 border border-blue-500/20 hover:bg-blue-500/20 transition-colors disabled:opacity-50">
-                        Start Visit
+                    {(visit.status === 'Scheduled' || visit.status === 'In Progress') && (
+                      <button onClick={() => router.push(`/field-visits?visit=${visit.id}`)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-700 border border-blue-500/20 hover:bg-blue-500/20 transition-colors">
+                        {visit.status === 'Scheduled' ? 'Verify & Check In' : 'Complete Feedback'}
                       </button>
                     )}
                     <button onClick={() => { setEditingVisit(visit); setShowUpdateVisit(true); }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-500/10 text-purple-700 border border-purple-500/20 hover:bg-purple-500/20 transition-colors">
                       <Ruler className="w-3 h-3 inline mr-1" /> Update Measurements
                     </button>
-                    {(visit.status === 'Scheduled' || visit.status === 'In Progress') && (
-                      <button disabled={visitSaving} onClick={() => handleVisitStatusChange(visit, 'Completed')} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50">
-                        <CheckCircle2 className="w-3 h-3 inline mr-1" /> Visit Completed
-                      </button>
-                    )}
                     {visit.status === 'Scheduled' && (
                       <button disabled={visitSaving} onClick={() => handleVisitStatusChange(visit, 'Cancelled')} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-700 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50">
                         Cannot Visit
@@ -1424,17 +1418,6 @@ export default function StaffPortalPage() {
               </div>
               <p className="text-sm font-medium text-foreground">{editingVisit.customer}</p>
               <p className="text-xs text-muted">{editingVisit.address}</p>
-            </div>
-
-            {/* Visit Status */}
-            <div>
-              <label className="block text-xs font-medium text-muted mb-1.5">Visit Status</label>
-              <select name="status" defaultValue={editingVisit.status} className="w-full px-4 py-2.5 rounded-xl text-sm">
-                <option value="Scheduled">Scheduled</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
             </div>
 
             {/* Measurements */}

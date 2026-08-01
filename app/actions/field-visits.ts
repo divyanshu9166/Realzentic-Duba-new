@@ -2,9 +2,9 @@
 
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
+import { randomUUID } from 'node:crypto'
+import { requireAuth, requireRole } from '@/lib/auth-helpers'
 import {
-  generateOtp,
-  verifyOtp,
   withinGeofence,
   haversineMeters,
   computeVisitAnalytics,
@@ -18,16 +18,93 @@ import {
   geoCheckinSchema,
   submitVisitFeedbackSchema,
   visitAnalyticsSchema,
+  createFieldVisitSchema,
+  updateFieldVisitSchema,
+  updateVisitPhotosSchema,
 } from '@/lib/validations/field-visits'
+import {
+  generateSecureOtp,
+  issueOtpState,
+  otpResendDelaySeconds,
+  verifyOtpState,
+} from '@/lib/site-visit-otp'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { normalizePhoneForMetaUae, isValidE164 } from '@/lib/whatsapp/phone-utils'
+
+const ACTIVE_VISIT_STATUSES = ['Scheduled', 'In Progress'] as const
+const SITE_VISIT_OTP_SECRET = process.env.SITE_VISIT_OTP_SECRET || process.env.SESSION_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SITE_VISIT_OTP_SECRET or SESSION_SECRET must be configured in production')
+  }
+  return 'local-site-visit-otp-secret'
+})()
+
+function isManagerRole(role: string): boolean {
+  return role === 'ADMIN' || role === 'MANAGER'
+}
+
+async function requireStaffScope(staffId: number) {
+  const session = await requireAuth()
+  if (!isManagerRole(session.user.role) && session.user.staffId !== staffId) throw new Error('Forbidden')
+  return session
+}
+
+function assertVisitAccess(
+  session: Awaited<ReturnType<typeof requireAuth>>,
+  visit: { staffId: number },
+) {
+  if (!isManagerRole(session.user.role) && session.user.staffId !== visit.staffId) throw new Error('Forbidden')
+}
+
+function actionError(error: unknown, fallback: string): string {
+  if (error instanceof Error && (error.message === 'Forbidden' || error.message === 'Unauthorized')) return error.message
+  return fallback
+}
+
+function serializeVisit(visit: any) {
+  return {
+    id: visit.id,
+    displayId: visit.displayId,
+    staffId: visit.staffId,
+    staff: visit.staff ? { id: visit.staff.id, name: visit.staff.name, role: visit.staff.role } : undefined,
+    customOrderId: visit.customOrderId,
+    customer: visit.customer,
+    address: visit.address,
+    date: visit.date.toISOString(),
+    time: visit.time,
+    scheduledDate: visit.scheduledDate?.toISOString() ?? null,
+    scheduledTime: visit.scheduledTime,
+    status: visit.status,
+    completedAt: visit.completedAt?.toISOString() ?? null,
+    type: visit.type,
+    notes: visit.notes,
+    staffNotes: visit.staffNotes,
+    measurements: visit.measurements,
+    photos: visit.photos,
+    photoUrls: visit.photoUrls,
+    projectId: visit.projectId,
+    unitIds: visit.unitIds,
+    buyerPhone: visit.buyerPhone,
+    geoCheckinLat: visit.geoCheckinLat,
+    geoCheckinLng: visit.geoCheckinLng,
+    geoCheckinTime: visit.geoCheckinTime?.toISOString() ?? null,
+    otpVerified: visit.otpVerified,
+    buyerRating: visit.buyerRating,
+    feedbackLiked: visit.feedbackLiked,
+    feedbackDisliked: visit.feedbackDisliked,
+    feedbackConcerns: visit.feedbackConcerns,
+    followUpAction: visit.followUpAction,
+    visitDurationMin: visit.visitDurationMin,
+  }
+}
 
 // ─── GET FIELD VISITS FOR A STAFF MEMBER ─────────────────
 // Returns assigned/active visits for the staff member
 
 export async function getStaffVisits(staffId: number) {
   try {
+    await requireStaffScope(staffId)
     const visits = await prisma.fieldVisit.findMany({
       where: {
         staffId,
@@ -39,32 +116,10 @@ export async function getStaffVisits(staffId: number) {
       orderBy: { scheduledDate: 'asc' },
     })
 
-    return {
-      success: true,
-      data: visits.map(v => ({
-        id: v.id,
-        displayId: v.displayId,
-        customer: v.customer,
-        address: v.address,
-        date: v.date.toISOString(),
-        time: v.time,
-        scheduledDate: v.scheduledDate?.toISOString() || null,
-        scheduledTime: v.scheduledTime || null,
-        status: v.status,
-        type: v.type,
-        notes: v.notes,
-        staffNotes: v.staffNotes,
-        measurements: v.measurements,
-        photos: v.photos,
-        photoUrls: v.photoUrls,
-        completedAt: v.completedAt?.toISOString() || null,
-        // Legacy reference — nullable plain Int (no FK)
-        customOrderId: v.customOrderId,
-      })),
-    }
+    return { success: true, data: visits.map(serializeVisit) }
   } catch (error) {
     console.error('Error fetching staff visits:', error)
-    return { success: false, error: 'Failed to fetch visits' }
+    return { success: false, error: actionError(error, 'Failed to fetch visits') }
   }
 }
 
@@ -72,37 +127,21 @@ export async function getStaffVisits(staffId: number) {
 
 export async function getSelfVisits(staffId: number) {
   try {
+    await requireStaffScope(staffId)
     const visits = await prisma.fieldVisit.findMany({
       where: {
         staffId,
-        customOrderId: null, // self-initiated (not assigned from a deal/order)
+        customOrderId: null,
+        projectId: null, // self-initiated, not manager-scheduled against project inventory
       },
       orderBy: { date: 'desc' },
       take: 50,
     })
 
-    return {
-      success: true,
-      data: visits.map(v => ({
-        id: v.id,
-        displayId: v.displayId,
-        customer: v.customer,
-        address: v.address,
-        date: v.date.toISOString(),
-        time: v.time,
-        status: v.status,
-        type: v.type,
-        notes: v.notes,
-        staffNotes: v.staffNotes,
-        measurements: v.measurements,
-        photos: v.photos,
-        photoUrls: v.photoUrls,
-        completedAt: v.completedAt?.toISOString() || null,
-      })),
-    }
+    return { success: true, data: visits.map(serializeVisit) }
   } catch (error) {
     console.error('Error fetching self visits:', error)
-    return { success: false, error: 'Failed to fetch self visits' }
+    return { success: false, error: actionError(error, 'Failed to fetch self visits') }
   }
 }
 
@@ -121,8 +160,11 @@ export async function logSelfVisit(data: {
   photoUrls?: string[]
 }) {
   try {
-    const count = await prisma.fieldVisit.count({ where: { staffId: data.staffId } })
-    const displayId = `SV-${data.staffId}-${count + 1}`
+    await requireStaffScope(data.staffId)
+    if (!data.customer?.trim() || !data.address?.trim()) {
+      return { success: false, error: 'Customer and address are required' }
+    }
+    const displayId = `SV-${data.staffId}-${randomUUID().slice(0, 8).toUpperCase()}`
 
     const visit = await prisma.fieldVisit.create({
       data: {
@@ -144,29 +186,48 @@ export async function logSelfVisit(data: {
 
     revalidatePath('/staff-portal')
     revalidatePath('/staff')
-    return { success: true, data: visit }
+    return { success: true, data: { id: visit.id, displayId: visit.displayId } }
   } catch (error) {
     console.error('Error logging self visit:', error)
-    return { success: false, error: 'Failed to log visit' }
+    return { success: false, error: actionError(error, 'Failed to log visit') }
   }
 }
 
 // ─── UPDATE FIELD VISIT ─────────────────────────────────
 
-export async function updateFieldVisit(data: {
-  visitId: number
-  status?: string
-  staffNotes?: string
-  measurements?: object
-  completedAt?: string
-}) {
+export async function updateFieldVisit(input: unknown) {
   try {
+    const parsed = updateFieldVisitSchema.safeParse(input)
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
+    const data = parsed.data
+    const session = await requireAuth()
+    const existing = await prisma.fieldVisit.findUnique({ where: { id: data.visitId } })
+    if (!existing) return { success: false, error: 'Visit not found' }
+    assertVisitAccess(session, existing)
+
+    if (data.status !== undefined && data.status !== existing.status) {
+      const allowedTransitions: Record<string, string[]> = {
+        Scheduled: ['In Progress', 'Cancelled', 'No Show'],
+        'In Progress': ['Completed', 'Cancelled'],
+        Completed: [],
+        Cancelled: [],
+        'No Show': [],
+      }
+      if (!(allowedTransitions[existing.status] ?? []).includes(data.status)) {
+        return { success: false, error: `Cannot change a ${existing.status} visit to ${data.status}` }
+      }
+      if (data.status === 'Completed') {
+        return { success: false, error: 'Use the verified feedback workflow to complete this visit' }
+      }
+      if (data.status === 'In Progress' && (!existing.otpVerified || existing.geoCheckinTime == null)) {
+        return { success: false, error: 'OTP verification and geo check-in are required before starting the visit' }
+      }
+    }
+
     const updateData: Record<string, unknown> = {}
     if (data.status !== undefined) updateData.status = data.status
     if (data.staffNotes !== undefined) updateData.staffNotes = data.staffNotes
     if (data.measurements !== undefined) updateData.measurements = data.measurements
-    if (data.status === 'Completed' && !data.completedAt) updateData.completedAt = new Date()
-    if (data.completedAt) updateData.completedAt = new Date(data.completedAt)
 
     const visit = await prisma.fieldVisit.update({
       where: { id: data.visitId },
@@ -175,10 +236,10 @@ export async function updateFieldVisit(data: {
 
     revalidatePath('/staff-portal')
     revalidatePath('/staff')
-    return { success: true, data: visit }
+    return { success: true, data: { id: visit.id, status: visit.status } }
   } catch (error) {
     console.error('Error updating field visit:', error)
-    return { success: false, error: 'Failed to update visit' }
+    return { success: false, error: actionError(error, 'Failed to update visit') }
   }
 }
 
@@ -186,19 +247,26 @@ export async function updateFieldVisit(data: {
 
 export async function updateSelfVisitPhotos(visitId: number, photoUrls: string[]) {
   try {
+    const parsed = updateVisitPhotosSchema.safeParse({ visitId, photoUrls })
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
+    const session = await requireAuth()
+    const existing = await prisma.fieldVisit.findUnique({ where: { id: parsed.data.visitId } })
+    if (!existing) return { success: false, error: 'Visit not found' }
+    assertVisitAccess(session, existing)
+
     const visit = await prisma.fieldVisit.update({
-      where: { id: visitId },
+      where: { id: parsed.data.visitId },
       data: {
-        photos: photoUrls.length,
-        photoUrls,
+        photos: parsed.data.photoUrls.length,
+        photoUrls: parsed.data.photoUrls,
       },
     })
 
     revalidatePath('/staff-portal')
-    return { success: true, data: visit }
+    return { success: true, data: { id: visit.id, photos: visit.photos, photoUrls: visit.photoUrls } }
   } catch (error) {
     console.error('Error updating visit photos:', error)
-    return { success: false, error: 'Failed to update photos' }
+    return { success: false, error: actionError(error, 'Failed to update photos') }
   }
 }
 
@@ -211,8 +279,14 @@ export async function getFieldVisits(filters: {
   endDate?: string
 } = {}) {
   try {
+    const session = await requireAuth()
     const where: Record<string, unknown> = {}
-    if (filters.staffId) where.staffId = filters.staffId
+    if (isManagerRole(session.user.role)) {
+      if (filters.staffId) where.staffId = filters.staffId
+    } else {
+      if (session.user.staffId == null) return { success: false, error: 'Staff profile is not linked', data: [] }
+      where.staffId = session.user.staffId
+    }
     if (filters.status) where.status = filters.status
     if (filters.startDate || filters.endDate) {
       const dateFilter: Record<string, Date> = {}
@@ -238,30 +312,57 @@ export async function getFieldVisits(filters: {
       take: 100,
     })
 
-    return { success: true, data: visits }
+    return { success: true, data: visits.map(serializeVisit) }
   } catch (error) {
     console.error('Error fetching field visits:', error)
-    return { success: false, error: 'Failed to fetch field visits' }
+    return { success: false, error: actionError(error, 'Failed to fetch field visits'), data: [] }
   }
 }
 
 // ─── CREATE A FIELD VISIT (Manager/Admin) ────────────────
 
-export async function createFieldVisit(data: {
-  staffId: number
-  customer: string
-  address: string
-  date: string
-  time: string
-  type: string
-  scheduledDate?: string
-  scheduledTime?: string
-  notes?: string
-  buyerPhone?: string
-}) {
+export async function createFieldVisit(input: unknown) {
   try {
-    const count = await prisma.fieldVisit.count()
-    const displayId = `FV-${String(count + 1).padStart(4, '0')}`
+    await requireRole('ADMIN', 'MANAGER')
+    const parsed = createFieldVisitSchema.safeParse(input)
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
+    const data = parsed.data
+    const buyerPhone = normalizePhoneForMetaUae(data.buyerPhone)
+    if (!isValidE164(buyerPhone)) return { success: false, error: 'Enter a valid UAE buyer phone number' }
+    const scheduledAt = new Date(data.scheduledAt)
+    if (scheduledAt.getTime() < Date.now() - 15 * 60_000) {
+      return { success: false, error: 'Scheduled time cannot be in the past' }
+    }
+
+    const [staff, project, units] = await Promise.all([
+      prisma.staff.findUnique({ where: { id: data.staffId }, select: { status: true } }),
+      prisma.project.findUnique({
+        where: { id: data.projectId },
+        select: { id: true, latitude: true, longitude: true },
+      }),
+      data.unitIds.length > 0
+        ? prisma.unit.findMany({
+          where: { id: { in: data.unitIds } },
+          select: { id: true, status: true, tower: { select: { projectId: true } } },
+        })
+        : Promise.resolve([]),
+    ])
+    if (!staff || staff.status !== 'Active') return { success: false, error: 'Assign an active staff member' }
+    if (!project) return { success: false, error: 'Project not found' }
+    if (project.latitude == null || project.longitude == null) {
+      return { success: false, error: 'Add latitude and longitude to the project before scheduling a geo-verified visit' }
+    }
+    if (
+      units.length !== data.unitIds.length ||
+      units.some((unit) => unit.tower.projectId !== data.projectId || unit.status === 'Sold' || unit.status === 'Mortgaged')
+    ) {
+      return { success: false, error: 'One or more selected units are unavailable or do not belong to this project' }
+    }
+
+    const displayId = `FV-${scheduledAt.toISOString().slice(0, 10).replace(/-/g, '')}-${randomUUID().slice(0, 6).toUpperCase()}`
+    const dubaiTime = new Intl.DateTimeFormat('en-AE', {
+      timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit', hour12: true,
+    }).format(scheduledAt)
 
     const visit = await prisma.fieldVisit.create({
       data: {
@@ -269,24 +370,129 @@ export async function createFieldVisit(data: {
         staffId: data.staffId,
         customer: data.customer,
         address: data.address,
-        date: new Date(data.date),
-        time: data.time,
+        date: scheduledAt,
+        time: dubaiTime,
         status: 'Scheduled',
         type: data.type,
-        scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
-        scheduledTime: data.scheduledTime || null,
+        scheduledDate: scheduledAt,
+        scheduledTime: dubaiTime,
         notes: data.notes || null,
-        buyerPhone: data.buyerPhone?.trim() || null,
+        buyerPhone,
+        projectId: data.projectId,
+        unitIds: data.unitIds,
         photoUrls: [],
       },
     })
 
-    revalidatePath('/staff')
-    revalidatePath('/staff-portal')
-    return { success: true, data: visit }
+    revalidateVisitPaths()
+    revalidatePath('/calendar')
+    return { success: true, data: { id: visit.id, displayId: visit.displayId } }
   } catch (error) {
     console.error('Error creating field visit:', error)
-    return { success: false, error: 'Failed to create field visit' }
+    return { success: false, error: actionError(error, 'Failed to create field visit') }
+  }
+}
+
+export async function getSiteVisitProjects() {
+  try {
+    await requireRole('ADMIN', 'MANAGER')
+    const projects = await prisma.project.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        emirate: true,
+        latitude: true,
+        longitude: true,
+        towers: {
+          select: {
+            name: true,
+            units: {
+              where: { status: { in: ['Available', 'Blocked', 'Booked'] } },
+              orderBy: [{ floorNumber: 'asc' }, { unitNumber: 'asc' }],
+              select: { id: true, unitNumber: true, floorNumber: true, type: true, status: true, totalPrice: true },
+            },
+          },
+        },
+      },
+    })
+    return {
+      success: true,
+      data: projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        location: project.location,
+        emirate: project.emirate,
+        hasCoordinates: project.latitude != null && project.longitude != null,
+        units: project.towers.flatMap((tower) => tower.units.map((unit) => ({
+          id: unit.id,
+          label: `${tower.name} · ${unit.unitNumber} · Floor ${unit.floorNumber}`,
+          type: unit.type,
+          status: unit.status,
+          totalPrice: Number(unit.totalPrice),
+        }))),
+      })),
+    }
+  } catch (error) {
+    return { success: false, error: actionError(error, 'Failed to load project inventory'), data: [] }
+  }
+}
+
+export async function getSiteVisitReferenceData() {
+  try {
+    const session = await requireAuth()
+    const manager = isManagerRole(session.user.role)
+    if (!manager && session.user.staffId == null) {
+      return { success: false, error: 'Staff profile is not linked' }
+    }
+
+    const staffWhere = manager ? { status: 'Active' } : { id: session.user.staffId!, status: 'Active' }
+    const leadWhere = manager ? {} : { assignedToId: session.user.staffId! }
+    const [staff, leads, stages, projectsResult] = await Promise.all([
+      prisma.staff.findMany({
+        where: staffWhere,
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, role: true },
+      }),
+      prisma.lead.findMany({
+        where: leadWhere,
+        orderBy: { date: 'desc' },
+        take: 500,
+        select: { id: true, contact: { select: { id: true, name: true, phone: true } } },
+      }),
+      prisma.dealStage.findMany({
+        orderBy: { order: 'asc' },
+        select: { id: true, name: true, isWon: true, isLost: true },
+      }),
+      manager ? getSiteVisitProjects() : Promise.resolve({ success: true as const, data: [] }),
+    ])
+
+    const contacts = manager
+      ? await prisma.contact.findMany({
+        orderBy: { name: 'asc' },
+        take: 500,
+        select: { id: true, name: true, phone: true },
+      })
+      : [...new Map(leads.map((lead) => [lead.contact.id, lead.contact])).values()]
+
+    return {
+      success: true,
+      data: {
+        canManage: manager,
+        staff,
+        leads: leads.map((lead) => ({
+          id: lead.id,
+          name: lead.contact.name,
+          phone: lead.contact.phone,
+        })),
+        stages,
+        contacts,
+        projects: projectsResult.success ? projectsResult.data : [],
+      },
+    }
+  } catch (error) {
+    return { success: false, error: actionError(error, 'Failed to load site visit reference data') }
   }
 }
 
@@ -411,25 +617,51 @@ export async function sendCheckinOtp(
 
   const { visitId, buyerPhone, otpLength } = parsed.data
 
+  let session
+  try {
+    session = await requireAuth()
+  } catch {
+    return { success: false, error: 'Unauthorized' }
+  }
   const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
+  try {
+    assertVisitAccess(session, visit)
+  } catch {
+    return { success: false, error: 'Forbidden' }
+  }
+  if (!ACTIVE_VISIT_STATUSES.includes(visit.status as (typeof ACTIVE_VISIT_STATUSES)[number])) {
+    return { success: false, error: `OTP cannot be sent for a ${visit.status} visit` }
+  }
 
   const phoneE164 = normalizePhoneForMetaUae(buyerPhone)
   if (!isValidE164(phoneE164)) {
     return { success: false, error: `Invalid phone number: ${buyerPhone}` }
   }
+  const storedPhone = visit.buyerPhone ? normalizePhoneForMetaUae(visit.buyerPhone) : null
+  if (storedPhone && storedPhone !== phoneE164) {
+    return { success: false, error: 'Buyer phone does not match the number saved on this visit' }
+  }
 
-  const otp = generateOtp(Math.random, otpLength ?? DEFAULT_OTP_LENGTH)
+  const retryAfter = otpResendDelaySeconds(visit.otpCode)
+  if (retryAfter > 0) return { success: false, error: `Wait ${retryAfter}s before requesting another OTP` }
 
-  // Persist the code (resetting prior verification) before dispatch so a sent
-  // code is always recoverable for verification.
-  await prisma.fieldVisit.update({
-    where: { id: visitId },
-    data: { otpCode: otp, otpVerified: false },
+  const otp = generateSecureOtp(otpLength ?? DEFAULT_OTP_LENGTH)
+  const otpState = issueOtpState({ visitId, otp, secret: SITE_VISIT_OTP_SECRET })
+
+  // Persist only a protected state; the plaintext code exists solely long
+  // enough to dispatch it to the buyer.
+  const reservation = await prisma.fieldVisit.updateMany({
+    where: { id: visitId, otpCode: visit.otpCode },
+    data: { otpCode: otpState, otpVerified: false, buyerPhone: phoneE164 },
   })
+  if (reservation.count !== 1) {
+    return { success: false, error: 'Another OTP request is already in progress. Please wait and try again.' }
+  }
 
   const delivery = await deliverOtp(phoneE164, otp, transports)
   if (!delivery.ok) {
+    await prisma.fieldVisit.updateMany({ where: { id: visitId, otpCode: otpState }, data: { otpCode: null } })
     return { success: false, error: `Could not send OTP. ${delivery.error ?? ''}`.trim() }
   }
 
@@ -455,61 +687,110 @@ export async function verifyCheckinOtp(
 
   const { visitId, enteredOtp } = parsed.data
 
+  let session
+  try {
+    session = await requireAuth()
+  } catch {
+    return { success: false, error: 'Unauthorized' }
+  }
   const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
+  try {
+    assertVisitAccess(session, visit)
+  } catch {
+    return { success: false, error: 'Forbidden' }
+  }
+  if (!ACTIVE_VISIT_STATUSES.includes(visit.status as (typeof ACTIVE_VISIT_STATUSES)[number])) {
+    return { success: false, error: `OTP cannot be verified for a ${visit.status} visit` }
+  }
+  if (visit.otpVerified) return { success: true, data: { visitId, otpVerified: true } }
 
-  if (!verifyOtp(visit.otpCode, enteredOtp.trim())) {
-    return { success: false, error: 'The entered OTP is incorrect' }
+  const verification = verifyOtpState({
+    visitId,
+    enteredOtp: enteredOtp.trim(),
+    state: visit.otpCode,
+    secret: SITE_VISIT_OTP_SECRET,
+  })
+  if (!verification.ok) {
+    const attemptUpdate = await prisma.fieldVisit.updateMany({
+      where: { id: visitId, otpCode: visit.otpCode },
+      data: { otpCode: verification.nextState, otpVerified: false },
+    })
+    if (attemptUpdate.count !== 1) {
+      return { success: false, error: 'OTP state changed. Please enter the latest code or request a new one.' }
+    }
+    const error = verification.reason === 'expired'
+      ? 'OTP expired. Request a new code.'
+      : verification.reason === 'locked'
+        ? 'Too many incorrect attempts. Request a new code.'
+        : verification.reason === 'missing'
+          ? 'Request a new OTP before verifying.'
+          : `The entered OTP is incorrect. ${verification.attemptsRemaining} attempts remaining.`
+    return { success: false, error }
   }
 
-  const updated = await prisma.fieldVisit.update({
-    where: { id: visitId },
-    data: { otpVerified: true },
+  const verified = await prisma.fieldVisit.updateMany({
+    where: { id: visitId, otpCode: visit.otpCode, otpVerified: false },
+    data: { otpVerified: true, otpCode: null },
   })
+  if (verified.count !== 1) {
+    return { success: false, error: 'OTP state changed. Please enter the latest code or request a new one.' }
+  }
 
   revalidateVisitPaths()
-  return { success: true, data: { visitId, otpVerified: updated.otpVerified } }
+  return { success: true, data: { visitId, otpVerified: true } }
 }
 
 // ─── GEO CHECK-IN (Req 12.4) ─────────────────────────────
 
 /**
  * Validate that the agent is within the project geofence (default 500m) and
- * record the check-in coordinates and time. Project coordinates may be passed
- * explicitly or resolved from the visit's linked project. A check-in farther
- * than the radius is rejected with an error and nothing is persisted (Req 12.4).
+ * record the check-in coordinates and time. The trusted project coordinates
+ * are always resolved from the database. A check-in farther than the radius
+ * is rejected with an error and nothing is persisted (Req 12.4).
  */
 export async function geoCheckin(input: unknown) {
   const parsed = geoCheckinSchema.safeParse(input)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-  const { visitId, agentLat, agentLng, projectLat, projectLng, radiusM } = parsed.data
+  const { visitId, agentLat, agentLng, accuracyM } = parsed.data
 
+  let session
+  try {
+    session = await requireAuth()
+  } catch {
+    return { success: false, error: 'Unauthorized' }
+  }
   const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
-
-  // Resolve the project location: explicit coords win, else the linked project.
-  let projLat = projectLat
-  let projLng = projectLng
-  if ((projLat === undefined || projLng === undefined) && visit.projectId != null) {
-    const project = await prisma.project.findUnique({
-      where: { id: visit.projectId },
-      select: { latitude: true, longitude: true },
-    })
-    if (project?.latitude != null && project?.longitude != null) {
-      projLat = project.latitude
-      projLng = project.longitude
-    }
+  try {
+    assertVisitAccess(session, visit)
+  } catch {
+    return { success: false, error: 'Forbidden' }
+  }
+  if (visit.status !== 'Scheduled' && visit.status !== 'In Progress') {
+    return { success: false, error: `Cannot check in to a ${visit.status} visit` }
+  }
+  if (!visit.otpVerified) return { success: false, error: 'Verify the buyer OTP before geo check-in' }
+  if (accuracyM != null && accuracyM > 250) {
+    return { success: false, error: `GPS accuracy is too low (±${Math.round(accuracyM)}m). Move outdoors and try again.` }
   }
 
-  if (projLat === undefined || projLng === undefined) {
+  if (visit.projectId == null) {
+    return { success: false, error: 'Project location is unavailable for this visit' }
+  }
+  const project = await prisma.project.findUnique({
+    where: { id: visit.projectId },
+    select: { latitude: true, longitude: true },
+  })
+  if (project?.latitude == null || project.longitude == null) {
     return { success: false, error: 'Project location is unavailable for this visit' }
   }
 
-  const radius = radiusM ?? DEFAULT_GEOFENCE_RADIUS_M
-  const distanceM = haversineMeters(agentLat, agentLng, projLat, projLng)
+  const radius = DEFAULT_GEOFENCE_RADIUS_M
+  const distanceM = haversineMeters(agentLat, agentLng, project.latitude, project.longitude)
 
-  if (!withinGeofence(agentLat, agentLng, projLat, projLng, radius)) {
+  if (!withinGeofence(agentLat, agentLng, project.latitude, project.longitude, radius)) {
     return {
       success: false,
       error: `You are ${Math.round(distanceM)}m from the project; check-in requires being within ${radius}m`,
@@ -550,27 +831,64 @@ export async function submitVisitFeedback(input: unknown) {
 
   const data = parsed.data
 
+  let session
+  try {
+    session = await requireAuth()
+  } catch {
+    return { success: false, error: 'Unauthorized' }
+  }
   const visit = await prisma.fieldVisit.findUnique({ where: { id: data.visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
+  try {
+    assertVisitAccess(session, visit)
+  } catch {
+    return { success: false, error: 'Forbidden' }
+  }
+  if (!visit.otpVerified || visit.geoCheckinTime == null) {
+    return { success: false, error: 'OTP verification and geo check-in are required before completing the visit' }
+  }
+  if (visit.status !== 'In Progress') {
+    return { success: false, error: `Feedback cannot complete a ${visit.status} visit` }
+  }
+  if (!isManagerRole(session.user.role) && data.assignedAgentId != null && data.assignedAgentId !== visit.staffId) {
+    return { success: false, error: 'Staff cannot reassign a deal to another agent' }
+  }
+  if (data.unitId != null && !visit.unitIds.includes(data.unitId)) {
+    return { success: false, error: 'Selected deal unit was not included in this site visit' }
+  }
 
   // Validate foreign keys up-front so a follow-up action never half-applies.
   if (data.followUpAction === 'Deal') {
-    const [stage, contact] = await Promise.all([
+    const [stage, contact, unit] = await Promise.all([
       prisma.dealStage.findUnique({ where: { id: data.stageId! } }),
       prisma.contact.findUnique({ where: { id: data.contactId! } }),
+      data.unitId != null
+        ? prisma.unit.findUnique({ where: { id: data.unitId }, select: { status: true } })
+        : Promise.resolve(null),
     ])
     if (!stage) return { success: false, error: 'Target deal stage does not exist' }
     if (!contact) return { success: false, error: 'Contact not found' }
     if (stage.isLost) return { success: false, error: 'Cannot create a visit deal directly into a lost stage' }
+    if (data.unitId != null && (!unit || unit.status === 'Sold' || unit.status === 'Mortgaged')) {
+      return { success: false, error: 'Selected unit is no longer available for a deal' }
+    }
   } else if (data.followUpAction === 'FollowUp') {
-    const lead = await prisma.lead.findUnique({ where: { id: data.leadId! } })
+    const lead = await prisma.lead.findUnique({ where: { id: data.leadId! }, select: { assignedToId: true } })
     if (!lead) return { success: false, error: 'Lead not found' }
+    if (!isManagerRole(session.user.role) && lead.assignedToId !== visit.staffId) {
+      return { success: false, error: 'Staff can only schedule follow-ups for their assigned leads' }
+    }
   }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const updatedVisit = await tx.fieldVisit.update({
-        where: { id: data.visitId },
+      const claimed = await tx.fieldVisit.updateMany({
+        where: {
+          id: data.visitId,
+          status: 'In Progress',
+          otpVerified: true,
+          geoCheckinTime: { not: null },
+        },
         data: {
           buyerRating: data.buyerRating ?? null,
           feedbackLiked: data.feedbackLiked ?? null,
@@ -582,6 +900,8 @@ export async function submitVisitFeedback(input: unknown) {
           completedAt: new Date(),
         },
       })
+      if (claimed.count !== 1) throw new Error('VISIT_ALREADY_COMPLETED')
+      const updatedVisit = await tx.fieldVisit.findUniqueOrThrow({ where: { id: data.visitId } })
 
       const deal =
         data.followUpAction === 'Deal'
@@ -619,9 +939,20 @@ export async function submitVisitFeedback(input: unknown) {
     })
 
     revalidateVisitPaths()
-    return { success: true, data: result }
+    return {
+      success: true,
+      data: {
+        visitId: result.visit.id,
+        status: result.visit.status,
+        dealId: result.deal?.id ?? null,
+        followUpId: result.followUp?.id ?? null,
+      },
+    }
   } catch (error) {
     console.error('Error submitting visit feedback:', error)
+    if (error instanceof Error && error.message === 'VISIT_ALREADY_COMPLETED') {
+      return { success: false, error: 'This visit was already completed or changed. Refresh and try again.' }
+    }
     return { success: false, error: 'Failed to submit visit feedback' }
   }
 }
@@ -637,17 +968,34 @@ export async function getVisitAnalytics(input: unknown = {}) {
   const parsed = visitAnalyticsSchema.safeParse(input)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-  const { staffId, projectId, startDate, endDate } = parsed.data
+  let session
+  try {
+    session = await requireAuth()
+  } catch {
+    return { success: false, error: 'Unauthorized' }
+  }
+
+  let { staffId } = parsed.data
+  const { projectId, startDate, endDate } = parsed.data
+  if (!isManagerRole(session.user.role)) {
+    if (session.user.staffId == null) return { success: false, error: 'Staff profile is not linked' }
+    if (staffId != null && staffId !== session.user.staffId) return { success: false, error: 'Forbidden' }
+    staffId = session.user.staffId
+  }
 
   try {
-    const where: Record<string, unknown> = { status: 'Completed' }
+    const where: Record<string, unknown> = {
+      status: 'Completed',
+      otpVerified: true,
+      geoCheckinTime: { not: null },
+    }
     if (staffId) where.staffId = staffId
     if (projectId) where.projectId = projectId
     if (startDate || endDate) {
       const dateFilter: Record<string, Date> = {}
       if (startDate) dateFilter.gte = new Date(startDate)
       if (endDate) dateFilter.lte = new Date(endDate)
-      where.date = dateFilter
+      where.scheduledDate = dateFilter
     }
 
     const visits = await prisma.fieldVisit.findMany({

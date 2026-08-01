@@ -8,30 +8,50 @@
  * `app/actions/field-visits.ts` server actions.
  */
 
-import { MapPinned } from 'lucide-react';
-import { getFieldVisits } from '@/app/actions/field-visits';
-import { getStaff } from '@/app/actions/staff';
-import { getLeads } from '@/app/actions/leads';
-import { listDealStages } from '@/app/actions/deals';
-import { listContactsBrief } from '@/app/actions/contacts';
+import { MapPinned, ShieldAlert } from 'lucide-react';
+import { getFieldVisits, getSiteVisitReferenceData } from '@/app/actions/field-visits';
+import { getSession } from '@/lib/auth-helpers';
 import SiteVisitClient, {
     type VisitItem,
     type StaffItem,
     type LeadItem,
     type StageItem,
     type ContactItem,
+    type ProjectItem,
 } from './SiteVisitClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function FieldVisitsPage() {
-    const [visitsRes, staffRes, leadsRes, stagesRes, contactsRes] = await Promise.all([
+export default async function FieldVisitsPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ visit?: string }>;
+}) {
+    const requestedVisitId = Number((await searchParams).visit);
+    const initialVisitId = Number.isInteger(requestedVisitId) && requestedVisitId > 0 ? requestedVisitId : undefined;
+    const session = await getSession();
+    const role = session?.user.role;
+    if (!session || (role === 'STAFF' && session.user.staffId == null)) {
+        return (
+            <div className="space-y-6">
+                <div className="flex items-center gap-2">
+                    <MapPinned className="h-5 w-5 text-accent" />
+                    <h1 className="text-xl md:text-2xl font-bold text-foreground">Site Visits</h1>
+                </div>
+                <div className="glass-card py-16 text-center text-muted">
+                    <ShieldAlert className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium text-foreground">Site visits are unavailable</p>
+                    <p className="text-sm mt-1">Your account must be linked to an active staff profile.</p>
+                </div>
+            </div>
+        );
+    }
+
+    const [visitsRes, referencesRes] = await Promise.all([
         getFieldVisits(),
-        getStaff(),
-        getLeads(),
-        listDealStages(),
-        listContactsBrief(),
+        getSiteVisitReferenceData(),
     ]);
+    const references = referencesRes.success ? referencesRes.data : null;
 
     const visits: VisitItem[] = (visitsRes.success ? visitsRes.data ?? [] : []).map((v) => ({
         id: v.id,
@@ -46,31 +66,44 @@ export default async function FieldVisitsPage() {
         projectId: v.projectId ?? null,
         staffId: v.staffId,
         staffName: v.staff?.name ?? null,
+        scheduledDate: v.scheduledDate ?? null,
+        scheduledTime: v.scheduledTime ?? null,
+        buyerPhone: v.buyerPhone ?? null,
+        unitIds: v.unitIds ?? [],
     }));
 
-    const staff: StaffItem[] = (staffRes.success ? staffRes.data : []).map((s) => ({
+    const staff: StaffItem[] = (references?.staff ?? []).map((s) => ({
         id: s.id,
         name: s.name,
         role: s.role,
     }));
 
-    const leads: LeadItem[] = (leadsRes.success ? leadsRes.data : []).map((l) => ({
+    const leads: LeadItem[] = (references?.leads ?? []).map((l) => ({
         id: l.id,
         name: l.name,
         phone: l.phone ?? null,
     }));
 
-    const stages: StageItem[] = (stagesRes.success ? stagesRes.data : []).map((s) => ({
+    const stages: StageItem[] = (references?.stages ?? []).map((s) => ({
         id: s.id,
         name: s.name,
         isWon: Boolean(s.isWon),
         isLost: Boolean(s.isLost),
     }));
 
-    const contacts: ContactItem[] = (contactsRes.success ? contactsRes.data : []).map((c) => ({
+    const contacts: ContactItem[] = (references?.contacts ?? []).map((c) => ({
         id: c.id,
         name: c.name,
         phone: c.phone ?? null,
+    }));
+
+    const projects: ProjectItem[] = (references?.projects ?? []).map((project) => ({
+        id: project.id,
+        name: project.name,
+        location: project.location,
+        emirate: project.emirate,
+        hasCoordinates: project.hasCoordinates,
+        units: project.units,
     }));
 
     return (
@@ -93,6 +126,9 @@ export default async function FieldVisitsPage() {
                 leads={leads}
                 stages={stages}
                 contacts={contacts}
+                projects={projects}
+                canManage={Boolean(references?.canManage)}
+                initialVisitId={initialVisitId}
             />
         </div>
     );

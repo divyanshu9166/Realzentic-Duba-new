@@ -19,9 +19,12 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     MapPin, Fingerprint, Send, CheckCircle2, AlertTriangle, Star,
-    ClipboardList, BarChart3, Loader2, Crosshair, Navigation,
+    ClipboardList, BarChart3, Loader2, Crosshair, Navigation, Plus,
+    CalendarClock, Building2, Phone, UserRound,
 } from 'lucide-react';
 import {
+    createFieldVisit,
+    updateFieldVisit,
     sendCheckinOtp,
     verifyCheckinOtp,
     geoCheckin,
@@ -42,6 +45,10 @@ export interface VisitItem {
     projectId: number | null;
     staffId: number;
     staffName: string | null;
+    scheduledDate: string | null;
+    scheduledTime: string | null;
+    buyerPhone: string | null;
+    unitIds: number[];
 }
 
 export interface StaffItem {
@@ -69,6 +76,21 @@ export interface ContactItem {
     phone: string | null;
 }
 
+export interface ProjectItem {
+    id: number;
+    name: string;
+    location: string;
+    emirate: string;
+    hasCoordinates: boolean;
+    units: Array<{
+        id: number;
+        label: string;
+        type: string;
+        status: string;
+        totalPrice: number;
+    }>;
+}
+
 type FollowUpAction = 'None' | 'FollowUp' | 'Deal';
 
 interface Banner {
@@ -82,32 +104,278 @@ interface Props {
     leads: LeadItem[];
     stages: StageItem[];
     contacts: ContactItem[];
+    projects: ProjectItem[];
+    canManage: boolean;
+    initialVisitId?: number;
 }
 
-export default function SiteVisitClient({ visits, staff, leads, stages, contacts }: Props) {
+export default function SiteVisitClient({ visits, staff, leads, stages, contacts, projects, canManage, initialVisitId }: Props) {
     const router = useRouter();
-    const [tab, setTab] = useState<'checkin' | 'analytics'>('checkin');
+    const [tab, setTab] = useState<'visits' | 'checkin' | 'analytics'>(initialVisitId ? 'checkin' : 'visits');
+    const workflowVisits = visits.filter((visit) => visit.status === 'Scheduled' || visit.status === 'In Progress');
 
     return (
         <div className="space-y-5">
             {/* Tabs */}
             <div className="flex flex-wrap gap-1">
+                <TabButton active={tab === 'visits'} onClick={() => setTab('visits')} icon={CalendarClock} label="Visits & Scheduling" />
                 <TabButton active={tab === 'checkin'} onClick={() => setTab('checkin')} icon={MapPin} label="Check-In & Feedback" />
                 <TabButton active={tab === 'analytics'} onClick={() => setTab('analytics')} icon={BarChart3} label="Analytics" />
             </div>
 
-            {tab === 'checkin' ? (
-                <CheckinPanel
+            {tab === 'visits' ? (
+                <VisitsPanel
                     visits={visits}
+                    staff={staff}
+                    contacts={contacts}
+                    projects={projects}
+                    canManage={canManage}
+                    onChanged={() => router.refresh()}
+                />
+            ) : tab === 'checkin' ? (
+                <CheckinPanel
+                    visits={workflowVisits}
                     leads={leads}
                     stages={stages}
                     contacts={contacts}
                     staff={staff}
+                    initialVisitId={initialVisitId}
                     onChanged={() => router.refresh()}
                 />
             ) : (
                 <AnalyticsPanel staff={staff} />
             )}
+        </div>
+    );
+}
+
+function VisitsPanel({
+    visits, staff, contacts, projects, canManage, onChanged,
+}: {
+    visits: VisitItem[];
+    staff: StaffItem[];
+    contacts: ContactItem[];
+    projects: ProjectItem[];
+    canManage: boolean;
+    onChanged: () => void;
+}) {
+    const [showCreate, setShowCreate] = useState(false);
+    const [staffId, setStaffId] = useState<number | ''>('');
+    const [contactId, setContactId] = useState<number | ''>('');
+    const [customer, setCustomer] = useState('');
+    const [buyerPhone, setBuyerPhone] = useState('');
+    const [projectId, setProjectId] = useState<number | ''>('');
+    const [unitIds, setUnitIds] = useState<number[]>([]);
+    const [address, setAddress] = useState('');
+    const [scheduledAt, setScheduledAt] = useState('');
+    const [notes, setNotes] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [banner, setBanner] = useState<Banner | null>(null);
+
+    const selectedProject = projects.find((project) => project.id === projectId) ?? null;
+    const statusCounts = visits.reduce<Record<string, number>>((counts, visit) => {
+        counts[visit.status] = (counts[visit.status] ?? 0) + 1;
+        return counts;
+    }, {});
+
+    function selectContact(value: string) {
+        const id = value ? Number(value) : '';
+        setContactId(id);
+        const contact = contacts.find((item) => item.id === id);
+        if (contact) {
+            setCustomer(contact.name);
+            setBuyerPhone(contact.phone ?? '');
+        }
+    }
+
+    function selectProject(value: string) {
+        const id = value ? Number(value) : '';
+        setProjectId(id);
+        setUnitIds([]);
+        const project = projects.find((item) => item.id === id);
+        setAddress(project ? `${project.name}, ${project.location}, ${project.emirate}` : '');
+    }
+
+    function toggleUnit(unitId: number) {
+        setUnitIds((current) => current.includes(unitId) ? current.filter((id) => id !== unitId) : [...current, unitId]);
+    }
+
+    async function handleCreate() {
+        setBusy(true);
+        setBanner(null);
+        if (!scheduledAt) {
+            setBanner({ type: 'error', text: 'Select the Dubai visit date and time.' });
+            setBusy(false);
+            return;
+        }
+        const res = await createFieldVisit({
+            staffId: staffId === '' ? undefined : staffId,
+            customer,
+            buyerPhone,
+            projectId: projectId === '' ? undefined : projectId,
+            unitIds,
+            address,
+            scheduledAt: new Date(`${scheduledAt}:00+04:00`).toISOString(),
+            type: 'Property Viewing',
+            notes,
+        });
+        if (res.success && res.data) {
+            setBanner({ type: 'success', text: `Visit ${res.data.displayId} scheduled successfully.` });
+            setStaffId('');
+            setContactId('');
+            setCustomer('');
+            setBuyerPhone('');
+            setProjectId('');
+            setUnitIds([]);
+            setAddress('');
+            setScheduledAt('');
+            setNotes('');
+            onChanged();
+        } else {
+            setBanner({ type: 'error', text: res.error ?? 'Could not schedule visit' });
+        }
+        setBusy(false);
+    }
+
+    async function handleStatus(visit: VisitItem, status: 'Cancelled' | 'No Show') {
+        if (!window.confirm(`Mark ${visit.displayId} as ${status}?`)) return;
+        setBanner(null);
+        const res = await updateFieldVisit({ visitId: visit.id, status });
+        if (res.success) {
+            setBanner({ type: 'success', text: `${visit.displayId} marked as ${status}.` });
+            onChanged();
+        } else {
+            setBanner({ type: 'error', text: res.error ?? 'Could not update visit' });
+        }
+    }
+
+    return (
+        <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[
+                    { label: 'Scheduled', value: statusCounts.Scheduled ?? 0 },
+                    { label: 'In Progress', value: statusCounts['In Progress'] ?? 0 },
+                    { label: 'Completed', value: statusCounts.Completed ?? 0 },
+                    { label: 'Cancelled / No Show', value: (statusCounts.Cancelled ?? 0) + (statusCounts['No Show'] ?? 0) },
+                ].map(({ label, value }) => (
+                    <div key={label} className="glass-card p-4">
+                        <p className="text-xs text-muted">{label}</p>
+                        <p className="mt-1 text-xl font-bold text-foreground">{value}</p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="glass-card p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 className="text-sm font-semibold text-foreground">Visit Schedule</h3>
+                        <p className="mt-1 text-xs text-muted">Assign an agent, buyer, project and inventory before check-in.</p>
+                    </div>
+                    {canManage && (
+                        <button onClick={() => setShowCreate((value) => !value)} className="flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white">
+                            <Plus className="h-4 w-4" /> {showCreate ? 'Close form' : 'Schedule visit'}
+                        </button>
+                    )}
+                </div>
+
+                {showCreate && (
+                    <div className="mt-5 space-y-4 border-t border-border pt-5">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <Field label="Assigned agent">
+                                <select value={staffId} onChange={(event) => setStaffId(event.target.value ? Number(event.target.value) : '')} className="feedback-input">
+                                    <option value="">Select an agent…</option>
+                                    {staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+                                </select>
+                            </Field>
+                            <Field label="Buyer / contact">
+                                <select value={contactId} onChange={(event) => selectContact(event.target.value)} className="feedback-input">
+                                    <option value="">Select a contact…</option>
+                                    {contacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.name}{contact.phone ? ` — ${contact.phone}` : ''}</option>)}
+                                </select>
+                            </Field>
+                            <Field label="Buyer name">
+                                <input value={customer} onChange={(event) => setCustomer(event.target.value)} className="feedback-input" />
+                            </Field>
+                            <Field label="Buyer UAE phone">
+                                <input type="tel" value={buyerPhone} onChange={(event) => setBuyerPhone(event.target.value)} placeholder="+971 50 123 4567" className="feedback-input" />
+                            </Field>
+                            <Field label="Project">
+                                <select value={projectId} onChange={(event) => selectProject(event.target.value)} className="feedback-input">
+                                    <option value="">Select a project…</option>
+                                    {projects.map((project) => (
+                                        <option key={project.id} value={project.id} disabled={!project.hasCoordinates}>
+                                            {project.name} — {project.location}{project.hasCoordinates ? '' : ' (add map coordinates)'}
+                                        </option>
+                                    ))}
+                                </select>
+                            </Field>
+                            <Field label="Dubai visit date & time">
+                                <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="feedback-input" />
+                            </Field>
+                        </div>
+
+                        {selectedProject && selectedProject.units.length > 0 && (
+                            <div>
+                                <p className="mb-2 text-xs font-medium text-muted">Units to show (optional, maximum 20)</p>
+                                <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
+                                    {selectedProject.units.map((unit) => (
+                                        <label key={unit.id} className="flex cursor-pointer items-start gap-2 rounded-lg p-2 hover:bg-surface-hover">
+                                            <input type="checkbox" checked={unitIds.includes(unit.id)} onChange={() => toggleUnit(unit.id)} className="mt-0.5" />
+                                            <span className="min-w-0 text-xs text-foreground">
+                                                <span className="block truncate">{unit.label}</span>
+                                                <span className="text-muted">{unit.type} · {unit.status} · AED {unit.totalPrice.toLocaleString('en-AE')}</span>
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <Field label="Meeting point / project address">
+                            <input value={address} onChange={(event) => setAddress(event.target.value)} className="feedback-input" />
+                        </Field>
+                        <Field label="Internal preparation notes">
+                            <textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} className="feedback-input" />
+                        </Field>
+                        <BannerView banner={banner} />
+                        <button onClick={handleCreate} disabled={busy} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />} Schedule site visit
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                <div className="xl:col-span-2"><BannerView banner={!showCreate ? banner : null} /></div>
+                {visits.map((visit) => (
+                    <article key={visit.id} className="glass-card p-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="font-semibold text-foreground">{visit.displayId} · {visit.customer}</p>
+                                <p className="mt-1 flex items-center gap-1 text-xs text-muted"><MapPin className="h-3.5 w-3.5" /> {visit.address}</p>
+                            </div>
+                            <span className="shrink-0 rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">{visit.status}</span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted sm:grid-cols-3">
+                            <span className="flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" /> {visit.scheduledDate ? new Date(visit.scheduledDate).toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' }) : 'Not scheduled'}</span>
+                            <span className="flex items-center gap-1"><UserRound className="h-3.5 w-3.5" /> {visit.staffName ?? 'Unassigned'}</span>
+                            <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {visit.buyerPhone ?? 'No phone'}</span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <StatusPill ok={visit.otpVerified} label={visit.otpVerified ? 'OTP verified' : 'OTP pending'} />
+                            <StatusPill ok={visit.checkedIn} label={visit.checkedIn ? 'Geo checked-in' : 'Geo pending'} />
+                            {visit.unitIds.length > 0 && <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] text-muted">{visit.unitIds.length} unit{visit.unitIds.length === 1 ? '' : 's'}</span>}
+                        </div>
+                        {canManage && visit.status === 'Scheduled' && (
+                            <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                                <button onClick={() => handleStatus(visit, 'No Show')} className="rounded-lg border border-amber-500/30 px-2.5 py-1.5 text-xs text-amber-700 hover:bg-amber-500/10">Mark no-show</button>
+                                <button onClick={() => handleStatus(visit, 'Cancelled')} className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-500/10">Cancel visit</button>
+                            </div>
+                        )}
+                    </article>
+                ))}
+                {visits.length === 0 && <div className="glass-card p-10 text-center text-sm text-muted xl:col-span-2">No site visits have been scheduled yet.</div>}
+            </div>
         </div>
     );
 }
@@ -136,16 +404,19 @@ function TabButton({
 // ─────────────────────────────────────────────────────────
 
 function CheckinPanel({
-    visits, leads, stages, contacts, staff, onChanged,
+    visits, leads, stages, contacts, staff, initialVisitId, onChanged,
 }: {
     visits: VisitItem[];
     leads: LeadItem[];
     stages: StageItem[];
     contacts: ContactItem[];
     staff: StaffItem[];
+    initialVisitId?: number;
     onChanged: () => void;
 }) {
-    const [selectedId, setSelectedId] = useState<number | ''>(visits[0]?.id ?? '');
+    const [selectedId, setSelectedId] = useState<number | ''>(
+        visits.some((visit) => visit.id === initialVisitId) ? initialVisitId! : visits[0]?.id ?? '',
+    );
     const visit = useMemo(() => visits.find((v) => v.id === selectedId) ?? null, [visits, selectedId]);
 
     // Local optimistic flags so the UI advances through the steps without a full
@@ -209,9 +480,10 @@ function CheckinPanel({
             <div className="lg:col-span-2 space-y-5">
                 {visit && (
                     <>
-                        <OtpStep visit={visit} onVerified={() => { setOtpVerified(true); onChanged(); }} verified={effectiveOtpVerified} />
-                        <GeoStep visit={visit} enabled={effectiveOtpVerified} checkedIn={effectiveCheckedIn} onCheckedIn={() => { setCheckedIn(true); onChanged(); }} />
+                        <OtpStep key={`otp-${visit.id}`} visit={visit} onVerified={() => { setOtpVerified(true); onChanged(); }} verified={effectiveOtpVerified} />
+                        <GeoStep key={`geo-${visit.id}`} visit={visit} enabled={effectiveOtpVerified} checkedIn={effectiveCheckedIn} onCheckedIn={() => { setCheckedIn(true); onChanged(); }} />
                         <FeedbackStep
+                            key={`feedback-${visit.id}`}
                             visit={visit}
                             enabled={effectiveCheckedIn}
                             leads={leads}
@@ -270,7 +542,7 @@ function BannerView({ banner }: { banner: Banner | null }) {
 // ── Step 1: OTP ──────────────────────────────────────────
 
 function OtpStep({ visit, verified, onVerified }: { visit: VisitItem; verified: boolean; onVerified: () => void }) {
-    const [phone, setPhone] = useState('');
+    const [phone, setPhone] = useState(visit.buyerPhone ?? '');
     const [otp, setOtp] = useState('');
     const [sending, setSending] = useState(false);
     const [verifying, setVerifying] = useState(false);
@@ -315,7 +587,7 @@ function OtpStep({ visit, verified, onVerified }: { visit: VisitItem; verified: 
                     <div className="flex flex-col sm:flex-row gap-2">
                         <input
                             type="tel"
-                            placeholder="Buyer phone (e.g. 98765 43210)"
+                            placeholder="Buyer phone (e.g. +971 50 123 4567)"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                             className="flex-1 px-3 py-2.5 bg-surface rounded-xl border border-border text-sm text-foreground"
@@ -369,20 +641,16 @@ function GeoStep({
 }) {
     const [busy, setBusy] = useState(false);
     const [banner, setBanner] = useState<Banner | null>(null);
-    const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-    // Optional project-location override (used when the visit has no linked
-    // project coordinates).
-    const [projLat, setProjLat] = useState('');
-    const [projLng, setProjLng] = useState('');
+    const [coords, setCoords] = useState<{ lat: number; lng: number; accuracyM: number } | null>(null);
 
-    function getPosition(): Promise<{ lat: number; lng: number }> {
+    function getPosition(): Promise<{ lat: number; lng: number; accuracyM: number }> {
         return new Promise((resolve, reject) => {
             if (typeof navigator === 'undefined' || !navigator.geolocation) {
                 reject(new Error('Geolocation is not supported on this device'));
                 return;
             }
             navigator.geolocation.getCurrentPosition(
-                (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracyM: pos.coords.accuracy }),
                 (err) => reject(err),
                 { enableHighAccuracy: true, timeout: 10000 },
             );
@@ -399,13 +667,8 @@ function GeoStep({
                 visitId: number;
                 agentLat: number;
                 agentLng: number;
-                projectLat?: number;
-                projectLng?: number;
-            } = { visitId: visit.id, agentLat: pos.lat, agentLng: pos.lng };
-            if (projLat.trim() && projLng.trim()) {
-                input.projectLat = Number(projLat);
-                input.projectLng = Number(projLng);
-            }
+                accuracyM: number;
+            } = { visitId: visit.id, agentLat: pos.lat, agentLng: pos.lng, accuracyM: pos.accuracyM };
             const res = await geoCheckin(input);
             if (res.success) {
                 const dist = (res.data as { distanceM?: number } | undefined)?.distanceM;
@@ -421,8 +684,6 @@ function GeoStep({
         }
     }
 
-    const needsProjectCoords = visit.projectId == null;
-
     return (
         <StepCard title="2 · Geo Check-In" icon={Navigation} disabled={!enabled && !checkedIn}>
             {checkedIn ? (
@@ -435,30 +696,15 @@ function GeoStep({
                         Your browser location is validated against the project geofence (within 500m).
                     </p>
 
-                    {needsProjectCoords && (
-                        <div className="grid grid-cols-2 gap-2">
-                            <input
-                                type="number"
-                                step="any"
-                                placeholder="Project latitude"
-                                value={projLat}
-                                onChange={(e) => setProjLat(e.target.value)}
-                                className="px-3 py-2.5 bg-surface rounded-xl border border-border text-sm text-foreground"
-                            />
-                            <input
-                                type="number"
-                                step="any"
-                                placeholder="Project longitude"
-                                value={projLng}
-                                onChange={(e) => setProjLng(e.target.value)}
-                                className="px-3 py-2.5 bg-surface rounded-xl border border-border text-sm text-foreground"
-                            />
+                    {visit.projectId == null && (
+                        <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                            This legacy visit has no linked project. A manager must schedule a new project-linked visit before geo check-in.
                         </div>
                     )}
 
                     <button
                         onClick={handleCheckin}
-                        disabled={busy}
+                        disabled={busy || visit.projectId == null}
                         className="flex items-center justify-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-all"
                     >
                         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crosshair className="w-4 h-4" />}
@@ -467,7 +713,7 @@ function GeoStep({
 
                     {coords && (
                         <p className="text-[11px] text-muted">
-                            Captured: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+                            Captured: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)} · accuracy ±{Math.round(coords.accuracyM)}m
                         </p>
                     )}
 

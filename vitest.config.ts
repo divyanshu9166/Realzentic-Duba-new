@@ -17,10 +17,9 @@ export default defineConfig({
         // Node environment: the property-tested logic is pure and server-side.
         environment: 'node',
         globals: true,
-        // Load .env (DATABASE_URL, etc.) so DB-backed integration tests can
-        // reach the local Postgres instance. Harmless for the pure tests,
-        // which never touch the database.
-        setupFiles: ['dotenv/config'],
+        // Load local credentials, then force DB-backed tests onto the isolated
+        // Dubai test database before application modules are imported.
+        setupFiles: ['dotenv/config', './test/setup-env.ts'],
         include: [
             'lib/**/*.test.{ts,tsx}',
             'app/**/*.test.{ts,tsx}',

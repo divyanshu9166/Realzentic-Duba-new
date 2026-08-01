@@ -34,6 +34,32 @@ const phone = z
     .min(8, 'Phone number is too short')
     .max(20, 'Phone number is too long')
 
+export const siteVisitStatusEnum = z.enum(['Scheduled', 'In Progress', 'Completed', 'Cancelled', 'No Show'])
+
+export const createFieldVisitSchema = z.object({
+    staffId: idSchema,
+    customer: z.string().trim().min(2, 'Buyer name is required').max(200),
+    address: z.string().trim().min(3, 'Project address is required').max(500),
+    scheduledAt: z.string().datetime({ offset: true, message: 'A valid scheduled date and time is required' }),
+    type: z.string().trim().min(2).max(100).default('Property Viewing'),
+    notes: z.string().trim().max(2000).optional(),
+    buyerPhone: phone,
+    projectId: idSchema,
+    unitIds: z.array(idSchema).max(20, 'A visit can include at most 20 units').default([]),
+})
+
+export const updateFieldVisitSchema = z.object({
+    visitId: idSchema,
+    status: siteVisitStatusEnum.optional(),
+    staffNotes: z.string().trim().max(4000).optional(),
+    measurements: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const updateVisitPhotosSchema = z.object({
+    visitId: idSchema,
+    photoUrls: z.array(z.string().trim().min(1).max(2000)).max(10, 'A visit can contain at most 10 photos'),
+})
+
 // ─── Send check-in OTP (Req 12.2) ────────────────────
 
 export const sendCheckinOtpSchema = z.object({
@@ -64,15 +90,7 @@ export const geoCheckinSchema = z.object({
     visitId: idSchema,
     agentLat: latitude,
     agentLng: longitude,
-    /**
-     * Project coordinates. Optional — when omitted the action resolves them
-     * from the visit's linked project. The check-in is rejected if neither a
-     * supplied nor a stored project location is available.
-     */
-    projectLat: latitude.optional(),
-    projectLng: longitude.optional(),
-    /** Geofence radius in meters; defaults to 500 in the action (Req 12.4). */
-    radiusM: z.number().finite().positive().max(100_000).optional(),
+    accuracyM: z.number().finite().nonnegative().max(10_000).optional(),
 })
 
 export type GeoCheckinInput = z.infer<typeof geoCheckinSchema>

@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
-import { requireRole } from '@/lib/auth-helpers'
+import { requireAuth, requireRole } from '@/lib/auth-helpers'
 import {
   LeadStatus,
   WalkinStatus,
@@ -23,11 +23,18 @@ function coerceEnum<T extends string>(value: unknown, allowed: Set<string>, fall
 // ─── MOVE FIELD VISIT TO DRAFT ─────────────────────────
 
 export async function moveSelfVisitToDraft(visitId: number) {
+  let session
+  try { session = await requireAuth() } catch { return { success: false, error: 'Unauthorized' } }
   const visit = await prisma.fieldVisit.findUnique({
     where: { id: visitId },
     include: { staff: { select: { name: true } } },
   })
   if (!visit) return { success: false, error: 'Visit not found' }
+  const isManager = session.user.role === 'ADMIN' || session.user.role === 'MANAGER'
+  if (!isManager && session.user.staffId !== visit.staffId) return { success: false, error: 'Forbidden' }
+  if (visit.customOrderId != null || visit.projectId != null) {
+    return { success: false, error: 'Only self-logged visits can be moved to drafts' }
+  }
 
   const now = new Date()
   const expiresAt = new Date(now.getTime() + DRAFT_TTL_MS)
