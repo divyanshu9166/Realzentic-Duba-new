@@ -2,6 +2,7 @@
 -- migration, which meant prisma migrate deploy never created this table.
 
 ALTER TABLE "Staff" ADD COLUMN IF NOT EXISTS "locationSharingStoppedAt" TIMESTAMP(3);
+ALTER TABLE "Staff" ADD COLUMN IF NOT EXISTS "locationSharingExpiresAt" TIMESTAMP(3);
 
 CREATE TABLE IF NOT EXISTS "AgentLocation" (
   "id" SERIAL NOT NULL,

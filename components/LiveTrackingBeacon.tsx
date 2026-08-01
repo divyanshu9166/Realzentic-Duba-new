@@ -41,6 +41,7 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
     const watchIdRef = useRef<number | null>(null);
     const lastPingMsRef = useRef<number>(0);
     const sendingRef = useRef(false);
+    const sharingRef = useRef(false);
 
     const stopWatch = useCallback(() => {
         if (watchIdRef.current != null && typeof navigator !== 'undefined' && navigator.geolocation) {
@@ -81,6 +82,7 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
                 if (res.code === 'NOT_CLOCKED_IN') {
                     stopWatch();
                     setStatus('idle');
+                    sharingRef.current = false;
                     void stopAgentLocationSharing();
                 }
             }
@@ -103,6 +105,7 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
         }
         setError(null);
         setStatus('sharing');
+        sharingRef.current = true;
         lastPingMsRef.current = 0; // allow an immediate first ping
 
         watchIdRef.current = navigator.geolocation.watchPosition(
@@ -117,6 +120,8 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
                         : 'Could not read your location. Check GPS and try again.',
                 );
                 stopWatch();
+                sharingRef.current = false;
+                void stopAgentLocationSharing();
             },
             { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
         );
@@ -126,11 +131,17 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
         stopWatch();
         setStatus('idle');
         setSending(false);
+        sharingRef.current = false;
         void stopAgentLocationSharing();
     }, [stopWatch]);
 
-    // Clean up the watch on unmount.
-    useEffect(() => () => stopWatch(), [stopWatch]);
+    // A normal navigation away from the portal also ends sharing. A hard tab
+    // close cannot be guaranteed by browsers, so the server-side 90-second
+    // lease is the final stale-location safeguard.
+    useEffect(() => () => {
+        stopWatch();
+        if (sharingRef.current) void stopAgentLocationSharing();
+    }, [stopWatch]);
 
     const sharing = status === 'sharing';
 

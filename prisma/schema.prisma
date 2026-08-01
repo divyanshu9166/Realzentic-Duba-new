@@ -103,8 +103,8 @@ model Contact {
   kycRecords          KYCRecord[]
   buyerSessions       BuyerSession[]
   supportTickets      SupportTicket[]
-  referralsAsReferrer Referral[]     @relation("ReferrerContact")
-  referralsAsReferred Referral[]     @relation("ReferredContact")
+  referralsAsReferrer Referral[]          @relation("ReferrerContact")
+  referralsAsReferred Referral[]          @relation("ReferredContact")
   tasks               Task[]
   loanApplications    LoanApplication[]
   signatures          DocumentSignature[]
@@ -128,29 +128,29 @@ enum LeadStatus {
 }
 
 model Lead {
-  id           Int        @id @default(autoincrement())
-  contactId    Int
-  contact      Contact    @relation(fields: [contactId], references: [id])
-  interest     String
-  budget       String?
-  status       LeadStatus @default(NEW)
-  source       String?
-  date         DateTime   @default(now())
-  notes        String?
-  nationality  String?
-  passportNumber String?
-  visaStatus   String?
+  id                Int        @id @default(autoincrement())
+  contactId         Int
+  contact           Contact    @relation(fields: [contactId], references: [id])
+  interest          String
+  budget            String?
+  status            LeadStatus @default(NEW)
+  source            String?
+  date              DateTime   @default(now())
+  notes             String?
+  nationality       String?
+  passportNumber    String?
+  visaStatus        String?
   preferredLanguage String?
-  assignedToId Int?
-  assignedTo   Staff?     @relation(fields: [assignedToId], references: [id])
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  assignedToId      Int?
+  assignedTo        Staff?     @relation(fields: [assignedToId], references: [id])
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
-  followUps     FollowUp[]
+  followUps FollowUp[]
 
   // Real Estate CRM back-relations (additive)
-  cpLead     CPLead?
-  portalLead PortalLead?
+  cpLead          CPLead?
+  portalLead      PortalLead?
   followUpEntries FollowUpEntry[]
 
   @@index([status])
@@ -184,25 +184,25 @@ enum FollowUpStatus {
 }
 
 model FollowUpEntry {
-  id            Int            @id @default(autoincrement())
-  contactId     Int
-  contact       Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  id              Int            @id @default(autoincrement())
+  contactId       Int
+  contact         Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
   // Set when this follow-up was created by converting a Lead.
-  leadId        Int?
-  lead          Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  interest      String // what the prospect is interested in (property/config)
-  budget        String?
-  followUpDate  DateTime // the future date to reconnect (KEY field)
-  reason        String? // why following up / prospect's note ("buying after 2 months")
-  status        FollowUpStatus @default(PENDING)
-  priority      String         @default("Medium") // Low | Medium | High
-  source        String?
-  notes         String?
-  assignedToId  Int?
-  assignedTo    Staff?         @relation(fields: [assignedToId], references: [id])
+  leadId          Int?
+  lead            Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  interest        String // what the prospect is interested in (property/config)
+  budget          String?
+  followUpDate    DateTime // the future date to reconnect (KEY field)
+  reason          String? // why following up / prospect's note ("buying after 2 months")
+  status          FollowUpStatus @default(PENDING)
+  priority        String         @default("Medium") // Low | Medium | High
+  source          String?
+  notes           String?
+  assignedToId    Int?
+  assignedTo      Staff?         @relation(fields: [assignedToId], references: [id])
   lastContactedAt DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([status])
   @@index([followUpDate])
@@ -280,39 +280,40 @@ model Staff {
   updatedAt  DateTime @updatedAt
 
   // Payroll fields
-  basicSalary          Int     @default(0)
-  designation          String?
-  emiratesId           String?
-  laborCardNo          String?
-  mohreNo              String?
-  iban                 String?
-  bankName             String?
-  visaStatus           String?
-  eosbAccrued          Decimal @default(0) @db.Decimal(12, 2)
-  wpsRegistered        Boolean @default(false)
+  basicSalary              Int       @default(0)
+  designation              String?
+  emiratesId               String?
+  laborCardNo              String?
+  mohreNo                  String?
+  iban                     String?
+  bankName                 String?
+  visaStatus               String?
+  eosbAccrued              Decimal   @default(0) @db.Decimal(12, 2)
+  wpsRegistered            Boolean   @default(false)
   locationSharingStoppedAt DateTime?
+  locationSharingExpiresAt DateTime?
 
   user             User?
   leads            Lead[]
-  walkins          Walkin[]          @relation("WalkinAssigned")
+  walkins          Walkin[]        @relation("WalkinAssigned")
   attendance       Attendance[]
   activities       StaffActivity[]
   fieldVisits      FieldVisit[]
   payslips         Payslip[]
   loans            StaffLoan[]
-  expenses         Expense[]         @relation("StaffExpenses")
+  expenses         Expense[]       @relation("StaffExpenses")
   receivedPayments DailyPayment[]
 
   // Real Estate CRM back-relations (additive)
-  agentScores AgentScore[]
-  agentBadges AgentBadge[]
-  deals       Deal[]
-  tasks       Task[]
+  agentScores      AgentScore[]
+  agentBadges      AgentBadge[]
+  deals            Deal[]
+  tasks            Task[]
   loanApplications LoanApplication[]
-  agentTargets AgentTarget[]
-  snagReports SnagReport[]
-  agentLocations AgentLocation[]
-  followUpEntries FollowUpEntry[]
+  agentTargets     AgentTarget[]
+  snagReports      SnagReport[]
+  agentLocations   AgentLocation[]
+  followUpEntries  FollowUpEntry[]
 
   @@index([email])
 }
@@ -359,23 +360,23 @@ model StaffActivity {
 // Repurposed for real-estate site visits / property inspections
 
 model FieldVisit {
-  id            Int      @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   displayId     String
   staffId       Int
-  staff         Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  staff         Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
   // Plain Int reference (no FK) — will link to a future Property model
-  customOrderId Int?     // legacy column kept as nullable plain Int — use for property/deal reference
+  customOrderId Int? // legacy column kept as nullable plain Int — use for property/deal reference
   customer      String
   address       String
   date          DateTime
   time          String
   scheduledDate DateTime? // when the visit is scheduled for
-  scheduledTime String?   // time slot e.g. "10:00 AM - 12:00 PM"
-  status        String    // Scheduled, In Progress, Completed, Cancelled
+  scheduledTime String? // time slot e.g. "10:00 AM - 12:00 PM"
+  status        String // Scheduled, In Progress, Completed, Cancelled
   completedAt   DateTime?
   type          String
   notes         String?
-  staffNotes    String?   // notes added by staff after visit
+  staffNotes    String? // notes added by staff after visit
   measurements  Json?
   photos        Int       @default(0)
   photoUrls     String[]
@@ -491,7 +492,7 @@ model Review {
   rating       Int
   text         String
   date         DateTime
-  product      String   // repurposed: property/service name
+  product      String // repurposed: property/service name
   platform     String   @default("Google")
   replied      Boolean  @default(false)
   createdAt    DateTime @default(now())
@@ -540,39 +541,39 @@ model MarketplaceChannel {
 // ─── STORE / AGENCY SETTINGS ─────────────────────────
 
 model StoreSettings {
-  id              Int      @id @default(1)
-  storeName       String   @default("Real Estate Agency")
-  phone           String?
-  whatsappNumber  String?
-  email           String?
-  address         String?
-  paymentQr       String?
-  invoicePrefix   String   @default("INV-")
-  invoicePadding  Int      @default(4)
-  invoiceTerms    String?
-  bankName        String?
-  bankAccountName String?
+  id                Int      @id @default(1)
+  storeName         String   @default("Real Estate Agency")
+  phone             String?
+  whatsappNumber    String?
+  email             String?
+  address           String?
+  paymentQr         String?
+  invoicePrefix     String   @default("INV-")
+  invoicePadding    Int      @default(4)
+  invoiceTerms      String?
+  bankName          String?
+  bankAccountName   String?
   bankAccountNumber String?
-  bankIban        String?
-  vatTrn          String?
-  vatRate         Float    @default(5.0)
-  currency        String   @default("AED")
-  logo            String?
+  bankIban          String?
+  vatTrn            String?
+  vatRate           Float    @default(5.0)
+  currency          String   @default("AED")
+  logo              String?
   // Geofence for GPS attendance
-  storeLat        Float?
-  storeLng        Float?
-  geofenceRadius  Int      @default(100) // meters
-  shiftStartTime  String   @default("09:00") // HH:mm — late after this
-  shiftEndTime    String   @default("20:00") // HH:mm — shift ends
+  storeLat          Float?
+  storeLng          Float?
+  geofenceRadius    Int      @default(100) // meters
+  shiftStartTime    String   @default("09:00") // HH:mm — late after this
+  shiftEndTime      String   @default("20:00") // HH:mm — shift ends
   // SMTP Email Configuration
-  smtpHost        String?
-  smtpPort        Int?     @default(587)
-  smtpUser        String?
-  smtpPass        String?
-  smtpFromName    String?
-  smtpSecure      Boolean  @default(false)
-  smtpConfigured  Boolean  @default(false)
-  updatedAt       DateTime @updatedAt
+  smtpHost          String?
+  smtpPort          Int?     @default(587)
+  smtpUser          String?
+  smtpPass          String?
+  smtpFromName      String?
+  smtpSecure        Boolean  @default(false)
+  smtpConfigured    Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
 }
 
 // ─── IN-APP NOTIFICATIONS ───────────────────────────
@@ -751,27 +752,27 @@ model PayrollRun {
 }
 
 model Payslip {
-  id               Int        @id @default(autoincrement())
-  payrollRunId     Int
-  payrollRun       PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  staffId          Int
-  staff            Staff      @relation(fields: [staffId], references: [id])
-  workingDays      Int        @default(26)
-  presentDays      Float      @default(0)
-  basicSalary      Int        @default(0)
+  id                 Int        @id @default(autoincrement())
+  payrollRunId       Int
+  payrollRun         PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  staffId            Int
+  staff              Staff      @relation(fields: [staffId], references: [id])
+  workingDays        Int        @default(26)
+  presentDays        Float      @default(0)
+  basicSalary        Int        @default(0)
   housingAllowance   Int        @default(0)
   transportAllowance Int        @default(0)
   otherAllowance     Int        @default(0)
-  otHours          Float      @default(0)
-  otPay            Int        @default(0)
-  bonus            Int        @default(0)
-  grossSalary      Int        @default(0)
-  loanDeduction    Int        @default(0)
-  otherDeductions  Int        @default(0)
-  totalDeductions  Int        @default(0)
-  netSalary        Int        @default(0)
-  status           String     @default("Generated")
-  createdAt        DateTime   @default(now())
+  otHours            Float      @default(0)
+  otPay              Int        @default(0)
+  bonus              Int        @default(0)
+  grossSalary        Int        @default(0)
+  loanDeduction      Int        @default(0)
+  otherDeductions    Int        @default(0)
+  totalDeductions    Int        @default(0)
+  netSalary          Int        @default(0)
+  status             String     @default("Generated")
+  createdAt          DateTime   @default(now())
 
   @@unique([payrollRunId, staffId])
   @@index([staffId])
@@ -877,52 +878,52 @@ model DailyCashRegister {
 // Repurposed for real estate: reservation deposits, booking payments, commission, etc.
 
 model DailyPayment {
-  id              Int      @id @default(autoincrement())
-  displayId       String   @unique
-  amount          Int
-  vatAmount       Int      @default(0)
-  type            String   @default("IN")      // IN = received, OUT = given
-  method          String                       // Cash, Card, Bank Transfer, Cheque, PDC, Mortgage Disbursement
-  reference       String?
-  referenceHash   String?
-  date            DateTime @default(now())
-  status          String   @default("Pending") // Pending, Reconciled, Reversed, Bounced
+  id            Int      @id @default(autoincrement())
+  displayId     String   @unique
+  amount        Int
+  vatAmount     Int      @default(0)
+  type          String   @default("IN") // IN = received, OUT = given
+  method        String // Cash, Card, Bank Transfer, Cheque, PDC, Mortgage Disbursement
+  reference     String?
+  referenceHash String?
+  date          DateTime @default(now())
+  status        String   @default("Pending") // Pending, Reconciled, Reversed, Bounced
 
   // Staff tracking
   receivedByStaffId Int?
-  receivedByStaff   Staff?  @relation(fields: [receivedByStaffId], references: [id])
+  receivedByStaff   Staff? @relation(fields: [receivedByStaffId], references: [id])
 
   // Cheque-specific fields
   chequeNumber  String?
   chequeDate    DateTime?
-  chequeBounced Boolean  @default(false)
+  chequeBounced Boolean   @default(false)
   bounceReason  String?
 
-  customerName  String?
+  customerName String?
 
   // Document linking — plain Int references (no FK) for future property/deal models
   contactId     Int?
   contact       Contact? @relation(fields: [contactId], references: [id])
-  orderId       Int?     // plain nullable Int — no FK (Order model removed)
-  invoiceId     Int?     // plain nullable Int — no FK (Invoice model removed)
-  customOrderId Int?     // plain nullable Int — no FK (CustomOrder model removed)
+  orderId       Int? // plain nullable Int — no FK (Order model removed)
+  invoiceId     Int? // plain nullable Int — no FK (Invoice model removed)
+  customOrderId Int? // plain nullable Int — no FK (CustomOrder model removed)
 
   // Reconciliation
-  reconciled      Boolean  @default(false)
-  reconciledDate  DateTime?
-  reconciledBy    String?
-  bankRefNumber   String?
+  reconciled     Boolean   @default(false)
+  reconciledDate DateTime?
+  reconciledBy   String?
+  bankRefNumber  String?
 
   // Reversal tracking
-  reversalId      Int?
-  isReversal      Boolean  @default(false)
-  reversalReason  String?
+  reversalId     Int?
+  isReversal     Boolean @default(false)
+  reversalReason String?
 
   notes      String?
   attachment String?
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([date])
   @@index([method])
@@ -1112,19 +1113,19 @@ model WaContactNote {
 }
 
 model WaConversation {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   user_id           String
   contact_id        String
-  status            String   @default("open")
-  needs_human       Boolean  @default(false)
+  status            String    @default("open")
+  needs_human       Boolean   @default(false)
   assigned_agent_id String?
   last_message_text String?
   last_message_at   DateTime?
-  unread_count      Int      @default(0)
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  unread_count      Int       @default(0)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
 
-  contact           WaContact          @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  contact           WaContact           @relation(fields: [contact_id], references: [id], onDelete: Cascade)
   messages          WaMessage[]
   deals             WaDeal[]
   message_reactions WaMessageReaction[]
@@ -1150,9 +1151,9 @@ model WaMessage {
   created_at          DateTime @default(now())
   reply_to_message_id String?
 
-  conversation     WaConversation    @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  reply_to_message WaMessage?        @relation("WaMessageReplies", fields: [reply_to_message_id], references: [id], onDelete: SetNull)
-  replies          WaMessage[]       @relation("WaMessageReplies")
+  conversation     WaConversation      @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  reply_to_message WaMessage?          @relation("WaMessageReplies", fields: [reply_to_message_id], references: [id], onDelete: SetNull)
+  replies          WaMessage[]         @relation("WaMessageReplies")
   reactions        WaMessageReaction[]
 
   @@index([conversation_id])
@@ -1162,8 +1163,8 @@ model WaMessage {
 }
 
 model WaWhatsappConfig {
-  id              String   @id @default(cuid())
-  user_id         String   @unique
+  id              String    @id @default(cuid())
+  user_id         String    @unique
   phone_number_id String
   waba_id         String?
   access_token    String
@@ -1172,10 +1173,10 @@ model WaWhatsappConfig {
   // operator no longer has to set a META_APP_SECRET env var + redeploy.
   app_secret      String?
   verify_token    String?
-  status          String   @default("disconnected")
+  status          String    @default("disconnected")
   connected_at    DateTime?
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
   @@index([phone_number_id])
   @@map("whatsapp_config")
@@ -1231,7 +1232,7 @@ model WaPipelineStage {
 }
 
 model WaDeal {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   user_id             String
   pipeline_id         String
   stage_id            String
@@ -1239,14 +1240,14 @@ model WaDeal {
   conversation_id     String?
   assigned_to         String?
   title               String
-  value               Float    @default(0)
-  currency            String?  @default("AED")
+  value               Float     @default(0)
+  currency            String?   @default("AED")
   notes               String?
   expected_close_date DateTime?
-  status              String   @default("open")
-  crm_deal_id         Int?     // FK-free plain Int reference to CRM Deal
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
+  status              String    @default("open")
+  crm_deal_id         Int? // FK-free plain Int reference to CRM Deal
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
 
   pipeline     WaPipeline      @relation(fields: [pipeline_id], references: [id], onDelete: Cascade)
   stage        WaPipelineStage @relation(fields: [stage_id], references: [id])
@@ -1262,23 +1263,23 @@ model WaDeal {
 }
 
 model WaBroadcast {
-  id                String   @id @default(cuid())
-  user_id           String
-  name              String
-  template_name     String
-  template_language String   @default("en_US")
+  id                 String    @id @default(cuid())
+  user_id            String
+  name               String
+  template_name      String
+  template_language  String    @default("en_US")
   template_variables Json?
-  audience_filter   Json?
-  scheduled_at      DateTime?
-  status            String   @default("draft")
-  total_recipients  Int      @default(0)
-  sent_count        Int      @default(0)
-  delivered_count   Int      @default(0)
-  read_count        Int      @default(0)
-  replied_count     Int      @default(0)
-  failed_count      Int      @default(0)
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  audience_filter    Json?
+  scheduled_at       DateTime?
+  status             String    @default("draft")
+  total_recipients   Int       @default(0)
+  sent_count         Int       @default(0)
+  delivered_count    Int       @default(0)
+  read_count         Int       @default(0)
+  replied_count      Int       @default(0)
+  failed_count       Int       @default(0)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
 
   recipients WaBroadcastRecipient[]
 
@@ -1288,17 +1289,17 @@ model WaBroadcast {
 }
 
 model WaBroadcastRecipient {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   broadcast_id        String
   contact_id          String?
-  status              String   @default("pending")
+  status              String    @default("pending")
   sent_at             DateTime?
   delivered_at        DateTime?
   read_at             DateTime?
   replied_at          DateTime?
   error_message       String?
-  whatsapp_message_id String?  @unique
-  created_at          DateTime @default(now())
+  whatsapp_message_id String?   @unique
+  created_at          DateTime  @default(now())
 
   broadcast WaBroadcast @relation(fields: [broadcast_id], references: [id], onDelete: Cascade)
   contact   WaContact?  @relation(fields: [contact_id], references: [id], onDelete: SetNull)
@@ -1310,17 +1311,17 @@ model WaBroadcastRecipient {
 }
 
 model WaAutomation {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   user_id          String
   name             String
   description      String?
   trigger_type     String
-  trigger_config   Json     @default("{}")
-  is_active        Boolean  @default(false)
-  execution_count  Int      @default(0)
+  trigger_config   Json      @default("{}")
+  is_active        Boolean   @default(false)
+  execution_count  Int       @default(0)
   last_executed_at DateTime?
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
 
   steps              WaAutomationStep[]
   logs               WaAutomationLog[]
@@ -1341,9 +1342,9 @@ model WaAutomationStep {
   position       Int
   created_at     DateTime @default(now())
 
-  automation   WaAutomation       @relation(fields: [automation_id], references: [id], onDelete: Cascade)
-  parent_step  WaAutomationStep?  @relation("WaAutomationStepHierarchy", fields: [parent_step_id], references: [id], onDelete: Cascade)
-  child_steps  WaAutomationStep[] @relation("WaAutomationStepHierarchy")
+  automation       WaAutomation                   @relation(fields: [automation_id], references: [id], onDelete: Cascade)
+  parent_step      WaAutomationStep?              @relation("WaAutomationStepHierarchy", fields: [parent_step_id], references: [id], onDelete: Cascade)
+  child_steps      WaAutomationStep[]             @relation("WaAutomationStepHierarchy")
   pending_children WaAutomationPendingExecution[] @relation("WaPendingParentStep")
 
   @@index([automation_id, position])
@@ -1362,8 +1363,8 @@ model WaAutomationLog {
   error_message  String?
   created_at     DateTime @default(now())
 
-  automation WaAutomation @relation(fields: [automation_id], references: [id], onDelete: Cascade)
-  contact    WaContact?   @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  automation WaAutomation                   @relation(fields: [automation_id], references: [id], onDelete: Cascade)
+  contact    WaContact?                     @relation(fields: [contact_id], references: [id], onDelete: SetNull)
   pending    WaAutomationPendingExecution[]
 
   @@index([automation_id, created_at])
@@ -1514,8 +1515,8 @@ model IgConfig {
 model SocialContact {
   id          String   @id @default(cuid())
   user_id     String
-  platform    String   // "facebook" | "instagram"
-  platform_id String   // PSID (FB) or IGSID (IG)
+  platform    String // "facebook" | "instagram"
+  platform_id String // PSID (FB) or IGSID (IG)
   name        String?
   profile_pic String?
   created_at  DateTime @default(now())
@@ -1533,7 +1534,7 @@ model SocialConversation {
   id                String    @id @default(cuid())
   user_id           String
   contact_id        String
-  platform          String    // "facebook" | "instagram"
+  platform          String // "facebook" | "instagram"
   status            String    @default("open")
   needs_human       Boolean   @default(false)
   last_message_text String?
@@ -1542,7 +1543,7 @@ model SocialConversation {
   created_at        DateTime  @default(now())
   updated_at        DateTime  @updatedAt
 
-  contact  SocialContact  @relation(fields: [contact_id], references: [id], onDelete: Cascade)
+  contact  SocialContact   @relation(fields: [contact_id], references: [id], onDelete: Cascade)
   messages SocialMessage[]
 
   @@unique([user_id, contact_id])
@@ -1557,7 +1558,7 @@ model SocialMessage {
   id              String   @id @default(cuid())
   conversation_id String
   platform_msg_id String?
-  sender_type     String   // "customer" | "agent"
+  sender_type     String // "customer" | "agent"
   content_type    String   @default("text")
   content_text    String?
   media_url       String?
@@ -1707,30 +1708,30 @@ enum DldTransferStatus {
 // ─── PHASE 1 MODELS ──────────────────────────────────
 
 model Project {
-  id             Int           @id @default(autoincrement())
-  name           String
-  location       String
-  city           String
-  emirate        String    @default("Dubai")
-  dldProjectRegNo String?
+  id                  Int           @id @default(autoincrement())
+  name                String
+  location            String
+  city                String
+  emirate             String        @default("Dubai")
+  dldProjectRegNo     String?
   dldProjectRegExpiry DateTime?
-  escrowAccountNo String?
-  trakheesiPermitNo String?
-  saleType       String?
-  isFreeholdZone Boolean   @default(false)
-  type           ProjectType
-  status         ProjectStatus
-  builderName    String?
-  totalUnits     Int           @default(0)
-  description    String?
-  amenities      String[]
-  brochureUrl    String?
-  photoUrls      String[]
-  latitude       Float?
-  longitude      Float?
-  possessionDate DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  escrowAccountNo     String?
+  trakheesiPermitNo   String?
+  saleType            String?
+  isFreeholdZone      Boolean       @default(false)
+  type                ProjectType
+  status              ProjectStatus
+  builderName         String?
+  totalUnits          Int           @default(0)
+  description         String?
+  amenities           String[]
+  brochureUrl         String?
+  photoUrls           String[]
+  latitude            Float?
+  longitude           Float?
+  possessionDate      DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   towers              Tower[]
   paymentPlans        PaymentPlan[]
@@ -1844,11 +1845,11 @@ model CostSheet {
 }
 
 model PaymentPlan {
-  id        Int     @id @default(autoincrement())
-  projectId Int
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name      String
-  isDefault Boolean @default(false)
+  id         Int     @id @default(autoincrement())
+  projectId  Int
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name       String
+  isDefault  Boolean @default(false)
   milestones Json // [{ name, dueOffsetDays, percentage }]
 
   schedules PaymentSchedule[]
@@ -1881,39 +1882,39 @@ model DealStage {
 }
 
 model Deal {
-  id                Int       @id @default(autoincrement())
-  contactId         Int
-  contact           Contact   @relation(fields: [contactId], references: [id])
-  unitId            Int?
-  unit              Unit?     @relation(fields: [unitId], references: [id])
-  assignedAgentId   Int?
-  assignedAgent     Staff?    @relation(fields: [assignedAgentId], references: [id])
-  channelPartnerId  Int?
-  channelPartner    ChannelPartner? @relation(fields: [channelPartnerId], references: [id])
-  stageId           Int
-  stage             DealStage @relation(fields: [stageId], references: [id])
-  value             Decimal   @db.Decimal(12, 2)
-  expectedCloseDate DateTime?
-  source            String?
-  notes             String?
-  aiScore           Int? // 0..100
-  aiScoredAt        DateTime?
-  isHot             Boolean   @default(false)
-  isAtRisk          Boolean   @default(false)
+  id                 Int                @id @default(autoincrement())
+  contactId          Int
+  contact            Contact            @relation(fields: [contactId], references: [id])
+  unitId             Int?
+  unit               Unit?              @relation(fields: [unitId], references: [id])
+  assignedAgentId    Int?
+  assignedAgent      Staff?             @relation(fields: [assignedAgentId], references: [id])
+  channelPartnerId   Int?
+  channelPartner     ChannelPartner?    @relation(fields: [channelPartnerId], references: [id])
+  stageId            Int
+  stage              DealStage          @relation(fields: [stageId], references: [id])
+  value              Decimal            @db.Decimal(12, 2)
+  expectedCloseDate  DateTime?
+  source             String?
+  notes              String?
+  aiScore            Int? // 0..100
+  aiScoredAt         DateTime?
+  isHot              Boolean            @default(false)
+  isAtRisk           Boolean            @default(false)
   developerNocStatus DeveloperNocStatus @default(NotRequested)
-  dldTransferStatus DldTransferStatus @default(NotStarted)
-  dldTrusteeOffice  String?
-  dldTransferNotes  String?
-  lostReason        String?
-  wonDate           DateTime?
-  metadata          Json? // EMI saved calculations (Req 10.4)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  dldTransferStatus  DldTransferStatus  @default(NotStarted)
+  dldTrusteeOffice   String?
+  dldTransferNotes   String?
+  lostReason         String?
+  wonDate            DateTime?
+  metadata           Json? // EMI saved calculations (Req 10.4)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  activities  DealActivity[]
-  booking     Booking?
-  commissions CPCommission[]
-  referrals   Referral[]
+  activities   DealActivity[]
+  booking      Booking?
+  commissions  CPCommission[]
+  referrals    Referral[]
   appointments Appointment[]
 
   @@index([stageId])
@@ -2276,8 +2277,8 @@ model Task {
   title        String
   description  String?
   type         String    @default("Follow-up") // Follow-up | Call | Site Visit | Documentation | Payment | Meeting | Other
-  priority     String    @default("Medium")    // Low | Medium | High
-  status       String    @default("Open")      // Open | Done | Cancelled
+  priority     String    @default("Medium") // Low | Medium | High
+  status       String    @default("Open") // Open | Done | Cancelled
   dueDate      DateTime
   completedAt  DateTime?
   recurrence   String    @default("none") // none | daily | weekly | monthly
@@ -2300,22 +2301,22 @@ model Task {
 // (Enquiry → Documentation → Submitted → Sanctioned → Disbursed / Rejected).
 
 model LoanApplication {
-  id               Int       @id @default(autoincrement())
+  id               Int      @id @default(autoincrement())
   contactId        Int
-  contact          Contact   @relation(fields: [contactId], references: [id])
+  contact          Contact  @relation(fields: [contactId], references: [id])
   dealId           Int? // plain reference to a Deal (no FK)
   bankName         String
   loanAmount       Int? // requested amount in whole AED
   interestRate     Float?
   tenureYears      Int?
-  status           String    @default("Enquiry") // Enquiry | Documentation | Submitted | Sanctioned | Disbursed | Rejected
+  status           String   @default("Enquiry") // Enquiry | Documentation | Submitted | Sanctioned | Disbursed | Rejected
   applicationNo    String?
   sanctionedAmount Int? // sanctioned amount in whole AED
   notes            String?
   assignedToId     Int?
-  assignedTo       Staff?    @relation(fields: [assignedToId], references: [id])
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  assignedTo       Staff?   @relation(fields: [assignedToId], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([contactId])
   @@index([status])
@@ -2326,18 +2327,18 @@ model LoanApplication {
 // Digital signature capture (in-browser canvas/typed) on a generated document.
 
 model DocumentSignature {
-  id             Int       @id @default(autoincrement())
-  documentId     Int?      // FK-free; links to Document.id for context only
-  contactId      Int?
-  contact        Contact?  @relation(fields: [contactId], references: [id])
-  signerName     String
-  signerEmail    String?
-  signerPhone    String?
-  signatureUrl   String    // URL of the stored signature image (PNG)
-  signedDocUrl   String?   // URL of the merged/signed PDF
-  ipAddress      String?
-  signedAt       DateTime  @default(now())
-  createdAt      DateTime  @default(now())
+  id           Int      @id @default(autoincrement())
+  documentId   Int? // FK-free; links to Document.id for context only
+  contactId    Int?
+  contact      Contact? @relation(fields: [contactId], references: [id])
+  signerName   String
+  signerEmail  String?
+  signerPhone  String?
+  signatureUrl String // URL of the stored signature image (PNG)
+  signedDocUrl String? // URL of the merged/signed PDF
+  ipAddress    String?
+  signedAt     DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   @@index([contactId])
   @@index([documentId])
@@ -2349,21 +2350,21 @@ model DocumentSignature {
 // conversion to bookings.
 
 model UnitWaitlist {
-  id          Int       @id @default(autoincrement())
-  projectId   Int
-  project     Project   @relation(fields: [projectId], references: [id])
-  contactId   Int
-  contact     Contact   @relation(fields: [contactId], references: [id])
-  unitId      Int?      // preferred unit (nullable — may only know config)
-  unit        Unit?     @relation("WaitlistUnit", fields: [unitId], references: [id])
-  config      String?   // preferred configuration e.g. "3-bedroom, marina view"
-  budgetMin   Decimal?  @db.Decimal(12,2)
-  budgetMax   Decimal?  @db.Decimal(12,2)
-  priority    Int       @default(0)   // rank order for launch-day assignment
-  status      String    @default("Waiting") // Waiting | Offered | Converted | Withdrawn
-  notes       String?
+  id           Int      @id @default(autoincrement())
+  projectId    Int
+  project      Project  @relation(fields: [projectId], references: [id])
+  contactId    Int
+  contact      Contact  @relation(fields: [contactId], references: [id])
+  unitId       Int? // preferred unit (nullable — may only know config)
+  unit         Unit?    @relation("WaitlistUnit", fields: [unitId], references: [id])
+  config       String? // preferred configuration e.g. "3-bedroom, marina view"
+  budgetMin    Decimal? @db.Decimal(12, 2)
+  budgetMax    Decimal? @db.Decimal(12, 2)
+  priority     Int      @default(0) // rank order for launch-day assignment
+  status       String   @default("Waiting") // Waiting | Offered | Converted | Withdrawn
+  notes        String?
   registeredAt DateTime @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt    DateTime @updatedAt
 
   @@index([projectId])
   @@index([contactId])
@@ -2374,19 +2375,19 @@ model UnitWaitlist {
 // Monthly/quarterly sales targets per agent with attainment tracking.
 
 model AgentTarget {
-  id           Int      @id @default(autoincrement())
-  staffId      Int
-  staff        Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  period       String   // "YYYY-MM" or "YYYY-Q1"
-  periodType   String   @default("monthly") // monthly | quarterly
-  unitTarget   Int      @default(0)    // # units to sell
-  revenueTarget Decimal @default(0) @db.Decimal(14,2)
-  unitAchieved Int      @default(0)
-  revenueAchieved Decimal @default(0) @db.Decimal(14,2)
+  id                 Int      @id @default(autoincrement())
+  staffId            Int
+  staff              Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  period             String // "YYYY-MM" or "YYYY-Q1"
+  periodType         String   @default("monthly") // monthly | quarterly
+  unitTarget         Int      @default(0) // # units to sell
+  revenueTarget      Decimal  @default(0) @db.Decimal(14, 2)
+  unitAchieved       Int      @default(0)
+  revenueAchieved    Decimal  @default(0) @db.Decimal(14, 2)
   incentiveStructure Json? // [{threshold, bonus}]
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@unique([staffId, period])
   @@index([staffId])
@@ -2470,8 +2471,8 @@ model SnagReport {
   title        String
   description  String?
   category     String    @default("General") // Civil | Electrical | Plumbing | Painting | Flooring | General
-  severity     String    @default("Medium")  // Low | Medium | High | Critical
-  status       String    @default("Open")    // Open | In Progress | Resolved | Closed
+  severity     String    @default("Medium") // Low | Medium | High | Critical
+  status       String    @default("Open") // Open | In Progress | Resolved | Closed
   photoUrls    String[]
   assignedToId Int?
   assignedTo   Staff?    @relation(fields: [assignedToId], references: [id])

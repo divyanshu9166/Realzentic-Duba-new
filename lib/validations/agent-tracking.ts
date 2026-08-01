@@ -32,7 +32,8 @@ export type RecordLocationInput = z.infer<typeof recordLocationSchema>
 export const liveLocationsSchema = z.object({
     /**
      * Only include agents whose latest ping is within this many minutes.
-     * Defaults to 15 minutes so the map shows a recent picture.
+     * Defaults to two minutes. Active location-sharing leases are additionally
+     * enforced by the server, so a stale ping is never treated as live.
      */
     withinMinutes: z.number().int().positive().max(1440).optional(),
 })

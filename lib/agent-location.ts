@@ -12,6 +12,13 @@ export const AGENT_LOCATION_RETENTION_DAYS = 7
 /** Server-side backstop; the browser beacon normally sends at most every 30s. */
 export const MIN_AGENT_LOCATION_PING_INTERVAL_MS = 25_000
 
+/**
+ * A location is live only while the device keeps renewing this short lease.
+ * It prevents a closed browser or lost connection from leaving a stale point
+ * visible as if the agent were still sharing.
+ */
+export const AGENT_LOCATION_SHARING_LEASE_MS = 90_000
+
 /** Dubai does not observe daylight saving time. */
 const DUBAI_UTC_OFFSET_MS = 4 * 60 * 60 * 1000
 
@@ -24,6 +31,10 @@ export function shouldRecordAgentLocation(
     now: Date = new Date(),
 ): boolean {
     return !lastRecordedAt || now.getTime() - lastRecordedAt.getTime() >= MIN_AGENT_LOCATION_PING_INTERVAL_MS
+}
+
+export function agentLocationSharingExpiresAt(now: Date = new Date()): Date {
+    return new Date(now.getTime() + AGENT_LOCATION_SHARING_LEASE_MS)
 }
 
 /**

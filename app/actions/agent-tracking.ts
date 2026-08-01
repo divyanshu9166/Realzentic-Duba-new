@@ -35,6 +35,7 @@ import {
     locationTrailSchema,
 } from '@/lib/validations/agent-tracking'
 import {
+    agentLocationSharingExpiresAt,
     dubaiAttendanceDate,
     shouldRecordAgentLocation,
 } from '@/lib/agent-location'
@@ -141,7 +142,10 @@ export async function recordAgentLocation(
             // in-window ping visible again without waiting for the next write.
             await prisma.staff.updateMany({
                 where: { id: staffId, locationSharingStoppedAt: { not: null } },
-                data: { locationSharingStoppedAt: null },
+                data: {
+                    locationSharingStoppedAt: null,
+                    locationSharingExpiresAt: agentLocationSharingExpiresAt(now),
+                },
             })
             return { success: true }
         }
@@ -160,7 +164,10 @@ export async function recordAgentLocation(
             }),
             prisma.staff.update({
                 where: { id: staffId },
-                data: { locationSharingStoppedAt: null },
+                data: {
+                    locationSharingStoppedAt: null,
+                    locationSharingExpiresAt: agentLocationSharingExpiresAt(now),
+                },
             }),
         ])
         return { success: true }
@@ -190,7 +197,10 @@ export async function stopAgentLocationSharing(): Promise<{ success: boolean; er
     try {
         await prisma.staff.update({
             where: { id: staffId },
-            data: { locationSharingStoppedAt: new Date() },
+            data: {
+                locationSharingStoppedAt: new Date(),
+                locationSharingExpiresAt: null,
+            },
         })
         return { success: true }
     } catch {
@@ -218,8 +228,9 @@ export async function getLiveAgentLocations(
         return { success: false, error: parsed.error.issues[0].message }
     }
 
-    const withinMinutes = parsed.data.withinMinutes ?? 15
-    const cutoff = new Date(Date.now() - withinMinutes * 60_000)
+    const now = new Date()
+    const withinMinutes = parsed.data.withinMinutes ?? 2
+    const cutoff = new Date(now.getTime() - withinMinutes * 60_000)
 
     try {
         // Newest recordedAt per staff within the window (one grouped query).
@@ -242,7 +253,17 @@ export async function getLiveAgentLocations(
                 recordedAt: { gte: cutoff },
             },
             orderBy: { recordedAt: 'desc' },
-            include: { staff: { select: { id: true, name: true, role: true, locationSharingStoppedAt: true } } },
+            include: {
+                staff: {
+                    select: {
+                        id: true,
+                        name: true,
+                        role: true,
+                        locationSharingStoppedAt: true,
+                        locationSharingExpiresAt: true,
+                    },
+                },
+            },
         })
 
         // First row per staff is the newest (rows are sorted desc).
@@ -251,12 +272,16 @@ export async function getLiveAgentLocations(
             if (!newestByStaff.has(row.staffId)) newestByStaff.set(row.staffId, row)
         }
 
-        const now = Date.now()
+        const nowMs = now.getTime()
         const data: LiveAgentLocation[] = [...newestByStaff.values()]
-            .filter((row) => row.staff?.locationSharingStoppedAt == null || row.staff.locationSharingStoppedAt < row.recordedAt)
+            .filter((row) =>
+                row.staff?.locationSharingExpiresAt != null &&
+                row.staff.locationSharingExpiresAt > now &&
+                (row.staff.locationSharingStoppedAt == null || row.staff.locationSharingStoppedAt < row.recordedAt),
+            )
             .map((row) => {
             const recordedMs = row.recordedAt.getTime()
-            const secondsAgo = Math.max(0, Math.round((now - recordedMs) / 1000))
+            const secondsAgo = Math.max(0, Math.round((nowMs - recordedMs) / 1000))
             return {
                 staffId: row.staffId,
                 name: row.staff?.name ?? `Staff #${row.staffId}`,
@@ -271,7 +296,7 @@ export async function getLiveAgentLocations(
                 secondsAgo,
                 presence: classifyPresence(
                     recordedMs,
-                    now,
+                    nowMs,
                     DEFAULT_ONLINE_WITHIN_SEC,
                     DEFAULT_AWAY_WITHIN_SEC,
                 ),

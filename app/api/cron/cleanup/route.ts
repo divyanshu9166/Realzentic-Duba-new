@@ -4,12 +4,17 @@ import { agentLocationRetentionCutoff } from '@/lib/agent-location'
 
 export async function GET(request: Request) {
   try {
-    // Basic security: if CRON_SECRET is set in .env, require it in the Authorization header.
-    // If not set, allow execution (useful for local VPS cron scripts calling this endpoint).
+    // Cleanup contains employee GPS data, so this endpoint must never be
+    // callable without a configured secret, including by accident in production.
     const authHeader = request.headers.get('authorization')
     const secret = process.env.CRON_SECRET
-    
-    if (secret && authHeader !== `Bearer ${secret}`) {
+
+    if (!secret) {
+      console.error('[cron] CRON_SECRET is not configured')
+      return NextResponse.json({ error: 'Service misconfigured' }, { status: 503 })
+    }
+
+    if (authHeader !== `Bearer ${secret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
