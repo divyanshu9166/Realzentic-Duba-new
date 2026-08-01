@@ -371,6 +371,15 @@ export async function getExecutiveSummary(fromDate: string, toDate: string) {
         cashAndBank: bsData.currentAssets?.cashAndBank || 0,
         cashRunwayDays: null,
       },
+      // DSO/DPO need invoice and supplier-payable due dates. Those ledgers are
+      // not part of this real-estate CRM, so expose the metrics explicitly as
+      // unavailable instead of implying a calculated operating cycle.
+      cycle: {
+        dso: null,
+        dpo: null,
+        cashConversionCycle: null,
+        note: 'DSO and DPO require invoice and supplier-payable ledgers, which are not tracked in this CRM.',
+      },
       performance: {
         netProfit: currentPL.netProfit || 0,
         netProfitDelta,
@@ -384,6 +393,7 @@ export async function getExecutiveSummary(fromDate: string, toDate: string) {
         payables: { over90Amount: 0, over90SharePct: 0, note: 'No purchase-order payables in Real Estate CRM' },
       },
       alerts,
+      benchmarkNote: 'Liquidity and profitability are calculated from the CRM payment and payroll records. DSO/DPO are unavailable until invoice and payable ledgers are connected.',
     },
   }
 }

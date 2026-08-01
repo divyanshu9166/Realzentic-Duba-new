@@ -627,8 +627,18 @@ export default function FinancialsPage() {
     </div>
   )
 
-  const renderExecutive = () => (
-    <div className="space-y-4">
+  const renderExecutive = () => {
+    // Keep the dashboard safe when an older deployment or partial API response
+    // does not yet contain every executive-summary section.
+    const liquidity = execData?.liquidity || {}
+    const cycle = execData?.cycle || {}
+    const performance = execData?.performance || {}
+    const decimalMetric = (value, digits = 1, suffix = '') => (
+      typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : '—'
+    )
+
+    return (
+      <div className="space-y-4">
       <div className="flex items-end gap-4 flex-wrap">
         <div>
           <label className="text-xs text-muted mb-1 block">From</label>
@@ -646,16 +656,16 @@ export default function FinancialsPage() {
       {execData && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="glass-card p-4"><p className="text-xs text-muted">Current Ratio</p><p className="text-xl font-bold text-blue-400">{execData.liquidity.currentRatio !== null ? execData.liquidity.currentRatio.toFixed(2) : '—'}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-muted">DSO</p><p className="text-xl font-bold text-amber-400">{execData.cycle.dso !== null ? `${execData.cycle.dso.toFixed(1)}d` : '—'}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-muted">DPO</p><p className="text-xl font-bold text-purple-400">{execData.cycle.dpo !== null ? `${execData.cycle.dpo.toFixed(1)}d` : '—'}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-muted">Cash Runway</p><p className="text-xl font-bold text-emerald-400">{execData.liquidity.cashRunwayDays !== null ? `${execData.liquidity.cashRunwayDays.toFixed(1)}d` : '—'}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-muted">Current Ratio</p><p className="text-xl font-bold text-blue-400">{decimalMetric(liquidity.currentRatio, 2)}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-muted">DSO</p><p className="text-xl font-bold text-amber-400">{decimalMetric(cycle.dso, 1, 'd')}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-muted">DPO</p><p className="text-xl font-bold text-purple-400">{decimalMetric(cycle.dpo, 1, 'd')}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-muted">Cash Runway</p><p className="text-xl font-bold text-emerald-400">{decimalMetric(liquidity.cashRunwayDays, 1, 'd')}</p></div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="glass-card p-4"><p className="text-xs text-muted">Net Profit</p><p className={`text-xl font-bold ${(execData.performance.netProfit || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtSigned(execData.performance.netProfit)}</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-muted">Net Margin Change</p><p className={`text-xl font-bold ${(execData.performance.netMarginDeltaPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{(execData.performance.netMarginDeltaPct || 0).toFixed(1)}pp</p></div>
-            <div className="glass-card p-4"><p className="text-xs text-muted">Gross Margin Change</p><p className={`text-xl font-bold ${(execData.performance.grossMarginDeltaPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{(execData.performance.grossMarginDeltaPct || 0).toFixed(1)}pp</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-muted">Net Profit</p><p className={`text-xl font-bold ${(performance.netProfit || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtSigned(performance.netProfit)}</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-muted">Net Margin Change</p><p className={`text-xl font-bold ${(performance.netMarginDeltaPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{(performance.netMarginDeltaPct || 0).toFixed(1)}pp</p></div>
+            <div className="glass-card p-4"><p className="text-xs text-muted">Gross Margin Change</p><p className={`text-xl font-bold ${(performance.grossMarginDeltaPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{(performance.grossMarginDeltaPct || 0).toFixed(1)}pp</p></div>
           </div>
 
           <div className="glass-card p-4">
@@ -671,8 +681,9 @@ export default function FinancialsPage() {
           </div>
         </div>
       )}
-    </div>
-  )
+      </div>
+    )
+  }
 
   // ── TRIAL BALANCE ─────────────────────────────────
   const renderTrialBalance = () => (
