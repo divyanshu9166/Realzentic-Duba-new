@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import {
   LogIn, LogOut, Clock, Phone, Users,
   MapPin, MapPinned, Camera, Ruler, Target, Star,
-  DollarSign, TrendingUp, CheckCircle2, Plus, X, Calendar,
+  DollarSign, TrendingUp, CheckCircle2, Plus, X, Calendar, ShoppingBag,
   UserCheck, Activity, Percent, Banknote,
   Megaphone, AlertTriangle, Search,
   Timer, Home,
@@ -69,6 +69,15 @@ export default function StaffPortalPage() {
   const [monthAttendance, setMonthAttendance] = useState([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
 
+  // Visit data is used by login and tab effects below, so keep its hooks with
+  // the other top-level state declarations.
+  const [assignedVisits, setAssignedVisits] = useState([]);
+  const [showUpdateVisit, setShowUpdateVisit] = useState(false);
+  const [editingVisit, setEditingVisit] = useState(null);
+  const [visitSaving, setVisitSaving] = useState(false);
+  const [selfVisits, setSelfVisits] = useState([]);
+  const [deletingVisitId, setDeletingVisitId] = useState(null);
+
   useEffect(() => {
     getStaff().then((staffRes) => {
       if (staffRes.success) setStaff(staffRes.data);
@@ -96,13 +105,15 @@ export default function StaffPortalPage() {
   useEffect(() => {
     if (!session?.user?.staffId || loggedInStaff) return;
     let active = true;
-    setAutoLoginLoading(true);
-    getStaffPortalProfile(Number(session.user.staffId)).then(res => {
-      if (!active) return;
-      if (res.success) applyStaffLogin(res.data);
-      setAutoLoginLoading(false);
-    });
-    return () => { active = false; };
+    const timer = setTimeout(() => {
+      setAutoLoginLoading(true);
+      getStaffPortalProfile(Number(session.user.staffId)).then(res => {
+        if (!active) return;
+        if (res.success) applyStaffLogin(res.data);
+        setAutoLoginLoading(false);
+      });
+    }, 0);
+    return () => { active = false; clearTimeout(timer); };
   }, [session, loggedInStaff]);
 
   // Re-fetch assigned visits when switching to assigned/dashboard tabs so manager updates are visible
@@ -118,11 +129,16 @@ export default function StaffPortalPage() {
   // Fetch month attendance when tab = 'attendance' or month changes
   useEffect(() => {
     if (!loggedInStaff || tab !== 'attendance') return;
-    setAttendanceLoading(true);
-    getMonthAttendance(loggedInStaff.id, attendanceMonth.year, attendanceMonth.month).then(res => {
-      if (res.success) setMonthAttendance(res.data);
-      setAttendanceLoading(false);
-    });
+    let active = true;
+    const timer = setTimeout(() => {
+      setAttendanceLoading(true);
+      getMonthAttendance(loggedInStaff.id, attendanceMonth.year, attendanceMonth.month).then(res => {
+        if (!active) return;
+        if (res.success) setMonthAttendance(res.data);
+        setAttendanceLoading(false);
+      });
+    }, 0);
+    return () => { active = false; clearTimeout(timer); };
   }, [tab, loggedInStaff, attendanceMonth]);
 
   // Re-fetch self visits from DB when switching to self tab
@@ -155,16 +171,6 @@ export default function StaffPortalPage() {
 
   // Photo upload for existing visits
   const [uploadingVisitId, setUploadingVisitId] = useState(null);
-
-  // Assigned visits from custom orders
-  const [assignedVisits, setAssignedVisits] = useState([]);
-  const [showUpdateVisit, setShowUpdateVisit] = useState(false);
-  const [editingVisit, setEditingVisit] = useState(null);
-  const [visitSaving, setVisitSaving] = useState(false);
-
-  // Self visits from DB
-  const [selfVisits, setSelfVisits] = useState([]);
-  const [deletingVisitId, setDeletingVisitId] = useState(null);
 
   const handleLogin = async (e) => {
     e.preventDefault();
