@@ -25,7 +25,7 @@ const floorNumber = (field: string) =>
         .int(`${field} must be a whole number`)
 
 /** A carpet-area measurement in square feet: a finite, non-negative number. */
-const carpetArea = (field: string) =>
+const netArea = (field: string) =>
     z
         .number({ message: `${field} must be a number` })
         .finite(`${field} must be a finite number`)
@@ -41,8 +41,8 @@ export const buyerPreferencesSchema = z
         facing: oneOrMany(unitFacingEnum).optional(),
         minFloor: floorNumber('Minimum floor').optional(),
         maxFloor: floorNumber('Maximum floor').optional(),
-        minCarpetArea: carpetArea('Minimum carpet area').optional(),
-        maxCarpetArea: carpetArea('Maximum carpet area').optional(),
+        minCarpetArea: netArea('Minimum net area').optional(),
+        maxCarpetArea: netArea('Maximum net area').optional(),
         amenities: z.array(z.string().trim().min(1, 'Amenity must not be empty')).optional(),
     })
     .refine(

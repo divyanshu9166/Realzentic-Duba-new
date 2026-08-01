@@ -171,7 +171,7 @@ describe('Property 3: Unit filtering soundness and completeness', () => {
         status: statusArb,
         facing: facingArb,
         floorNumber: fc.nat({ max: 50 }),
-        superBuiltUpArea: fc
+        builtUpArea: fc
             .double({ min: 0, max: 10_000, noNaN: true, noDefaultInfinity: true })
             .map((n) => Math.round(n * 100) / 100),
         totalPrice: moneyArb,

@@ -31,7 +31,7 @@ export default function AddInventoryButton({
     const [units, setUnits] = useState({
         towerId: towers[0] ? String(towers[0].id) : '',
         floorStart: '1', floorEnd: '10', unitsPerFloor: '4',
-        type: 'Apartment2', carpetArea: '800', superBuiltUpArea: '1000', facing: 'N',
+        type: 'Apartment2', netArea: '800', builtUpArea: '1000', facing: 'N',
         basePricePerSqft: '5000', floorRisePremium: '0', viewPremium: '0',
     })
 
@@ -65,8 +65,8 @@ export default function AddInventoryButton({
                 unitsPerFloor: per,
                 unitTemplate: {
                     type: units.type,
-                    carpetArea: Number(units.carpetArea),
-                    superBuiltUpArea: Number(units.superBuiltUpArea),
+                    netArea: Number(units.netArea),
+                    builtUpArea: Number(units.builtUpArea),
                     facing: units.facing,
                     basePricePerSqft: Number(units.basePricePerSqft),
                     floorRisePremium: Number(units.floorRisePremium) || 0,
@@ -157,12 +157,12 @@ export default function AddInventoryButton({
                                 </div>
                                 <div className="grid grid-cols-3 gap-3">
                                     <div>
-                                        <label className="block text-xs text-muted mb-1">Carpet (sqft)</label>
-                                        <input type="number" value={units.carpetArea} onChange={(e) => setUnits((u) => ({ ...u, carpetArea: e.target.value }))} className={field} />
+                                        <label className="block text-xs text-muted mb-1">Net / suite area (sq ft)</label>
+                                        <input type="number" value={units.netArea} onChange={(e) => setUnits((u) => ({ ...u, netArea: e.target.value }))} className={field} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-muted mb-1">Built-up (sqft)</label>
-                                        <input type="number" value={units.superBuiltUpArea} onChange={(e) => setUnits((u) => ({ ...u, superBuiltUpArea: e.target.value }))} className={field} />
+                                        <label className="block text-xs text-muted mb-1">Built-up area / BUA (sq ft)</label>
+                                        <input type="number" value={units.builtUpArea} onChange={(e) => setUnits((u) => ({ ...u, builtUpArea: e.target.value }))} className={field} />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-muted mb-1">AED  / sqft</label>

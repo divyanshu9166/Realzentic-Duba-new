@@ -87,12 +87,12 @@ export const moveDealSchema = z.object({
 
 /**
  * Convert-deal-to-booking input (Req 5.1). Mirrors the `Booking` columns:
- * agreement value (money range), token amount (money range; constrained to
- * the agreement value below), token receipt number (1–50 chars), optional
+ * agreement value (money range), reservation deposit (money range; constrained to
+ * the agreement value below), reservation receipt number (1–50 chars), optional
  * token date / mode, optional payment plan and booking date, and an optional
  * unit override (defaults to the deal's unit in the action).
  *
- * The token amount must not exceed the agreement value (Req 5.1); this is
+ * The reservation deposit must not exceed the agreement value (Req 5.1); this is
  * checked with a cross-field refinement so the error names `tokenAmount`.
  */
 export const convertDealToBookingSchema = z
@@ -102,8 +102,8 @@ export const convertDealToBookingSchema = z
         tokenReceiptNo: z
             .string()
             .trim()
-            .min(1, 'Token receipt number is required')
-            .max(50, 'Token receipt number must be at most 50 characters'),
+            .min(1, 'Reservation receipt number is required')
+            .max(50, 'Reservation receipt number must be at most 50 characters'),
         tokenDate: z.coerce.date().optional(),
         tokenMode: z.string().trim().max(50, 'Token mode must be at most 50 characters').optional(),
         paymentPlanId: idSchema.optional(),
@@ -111,14 +111,14 @@ export const convertDealToBookingSchema = z
         unitId: idSchema.optional(),
     })
     .refine((data) => data.tokenAmount <= data.agreementValue, {
-        message: 'Token amount must not exceed the agreement value',
+        message: 'Reservation deposit must not exceed the agreement value',
         path: ['tokenAmount'],
     })
 
 /**
  * Token-payment input (Req 5.6). The payment is recorded against the existing
  * `DailyPayment` model and the booking's token fields are updated: a positive
- * money amount, a payment method (1–50 chars), a token receipt number
+ * money amount, a payment method (1–50 chars), a reservation receipt number
  * (1–50 chars), and optional reference / token date / staff / payment date.
  */
 export const recordTokenPaymentSchema = z.object({
@@ -131,8 +131,8 @@ export const recordTokenPaymentSchema = z.object({
     tokenReceiptNo: z
         .string()
         .trim()
-        .min(1, 'Token receipt number is required')
-        .max(50, 'Token receipt number must be at most 50 characters'),
+            .min(1, 'Reservation receipt number is required')
+            .max(50, 'Reservation receipt number must be at most 50 characters'),
     reference: z.string().trim().max(255, 'Reference must be at most 255 characters').optional(),
     tokenDate: z.coerce.date().optional(),
     receivedByStaffId: idSchema.optional(),

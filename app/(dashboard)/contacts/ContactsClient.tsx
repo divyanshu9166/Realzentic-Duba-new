@@ -153,7 +153,7 @@ export default function ContactsClient() {
                 emirate: get('emirate') || undefined,
                 address: get('address') || undefined,
                 notes: get('notes') || undefined,
-                nriCountry: get('nriCountry') || undefined,
+                nationality: get('nationality') || undefined,
             })
             if (res.success) {
                 toast.success('Contact added')
@@ -274,13 +274,13 @@ export default function ContactsClient() {
                                                 <div>
                                                     <p className="font-medium text-foreground flex items-center gap-1.5">
                                                         {c.name}
-                                                        {c.nriCountry && (
+                                                        {c.nationality && (
                                                             <span
-                                                                title={`NRI — ${c.nriCountry}`}
+                                                                title={`Nationality — ${c.nationality}`}
                                                                 className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 border border-sky-200"
                                                             >
                                                                 <Globe className="size-2.5" />
-                                                                NRI
+                                                                {c.nationality}
                                                             </span>
                                                         )}
                                                     </p>
@@ -336,7 +336,7 @@ export default function ContactsClient() {
                                     </select>
                                 </div>
                                 <Field label="Emirate" name="emirate" placeholder="e.g. Dubai" />
-                                <Field label="Nationality (if applicable)" name="nriCountry" placeholder="e.g. Emirati" />
+                                <Field label="Nationality (if applicable)" name="nationality" placeholder="e.g. Emirati" />
                             </div>
                             <Field label="Address" name="address" />
                             <div>

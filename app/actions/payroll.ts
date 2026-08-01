@@ -75,66 +75,6 @@ export async function getAttendanceSummaryForPayroll(period: string) {
   return { success: true, data: summary }
 }
 
-// ─── PROFESSIONAL TAX SLABS (state-wise) ─────────────
-// Monthly gross → PT amount
-const PT_SLABS: Record<string, { upTo: number; tax: number }[]> = {
-  Maharashtra: [
-    { upTo: 7500, tax: 0 },
-    { upTo: 10000, tax: 175 },
-    { upTo: Infinity, tax: 200 }, // 300 in Feb
-  ],
-  Karnataka: [
-    { upTo: 15000, tax: 0 },
-    { upTo: 25000, tax: 150 },
-    { upTo: 35000, tax: 200 },
-    { upTo: Infinity, tax: 200 },
-  ],
-  'West Bengal': [
-    { upTo: 10000, tax: 0 },
-    { upTo: 15000, tax: 110 },
-    { upTo: 25000, tax: 130 },
-    { upTo: 40000, tax: 150 },
-    { upTo: Infinity, tax: 200 },
-  ],
-  'Tamil Nadu': [
-    { upTo: 21000, tax: 0 },
-    { upTo: Infinity, tax: 208 },
-  ],
-  Gujarat: [
-    { upTo: 5999, tax: 0 },
-    { upTo: 8999, tax: 80 },
-    { upTo: 11999, tax: 150 },
-    { upTo: Infinity, tax: 200 },
-  ],
-  Andhra: [
-    { upTo: 15000, tax: 0 },
-    { upTo: 20000, tax: 150 },
-    { upTo: Infinity, tax: 200 },
-  ],
-  Telangana: [
-    { upTo: 15000, tax: 0 },
-    { upTo: 20000, tax: 150 },
-    { upTo: Infinity, tax: 200 },
-  ],
-  // Default (no PT state)
-  None: [{ upTo: Infinity, tax: 0 }],
-}
-
-function calcProfessionalTax(state: string, grossSalary: number, period?: string): number {
-  const slabs = PT_SLABS[state] || PT_SLABS['None']
-  for (const slab of slabs) {
-    if (grossSalary <= slab.upTo) {
-      // Maharashtra has an extra PT charge in February for higher salary slabs.
-      if (state === 'Maharashtra' && slab.tax === 200 && grossSalary > 10000 && period) {
-        const month = Number(period.split('-')[1])
-        if (month === 2) return 300
-      }
-      return slab.tax
-    }
-  }
-  return 0
-}
-
 function attendanceDayCredit(status: string): number {
   const normalized = (status || '').trim().toLowerCase()
   if (normalized === 'absent' || normalized === 'off duty' || normalized === 'off-duty') return 0
@@ -402,11 +342,11 @@ export async function generatePayroll(data: unknown) {
     const dailyRate = workingDays > 0 ? basic / workingDays : 0
     const effectiveBasic = Math.round(dailyRate * payableDays)
 
-    // Earnings. The configured basic salary is the contractual wage. Legacy
-    // HRA/DA fields remain only for historical payslip compatibility and are
-    // deliberately zero for UAE payroll runs.
-    const hra = 0
-    const da = 0
+    // Earnings. The configured basic salary is the contractual wage. The
+    // allowance fields are ready for a UAE compensation-policy extension and
+    // are deliberately zero until those amounts are configured per staff.
+    const housingAllowance = 0
+    const transportAllowance = 0
     const hourlyRate = effectiveBasic > 0 ? Math.round(effectiveBasic / (workingDays * 8)) : 0
     const otPay = Math.round(hourlyRate * otHours * 2)      // OT at double rate
 
@@ -415,16 +355,6 @@ export async function generatePayroll(data: unknown) {
     const bonus = 0
 
     const grossSalary = effectiveBasic + otPay
-
-    // Statutory deductions are not inferred by this CRM. The legacy payslip
-    // columns remain zero-value audit fields until payroll is split into a
-    // dedicated UAE payroll model validated by the employer's adviser.
-    const pfEmployee = 0
-    const pfEmployer = 0
-    const esiEmployee = 0
-    const esiEmployer = 0
-    const professionalTax = 0
-    const tds = 0
 
     // Loan deductions — only loans that have started by this payroll period
     let requestedLoanDeduction = 0
@@ -435,34 +365,28 @@ export async function generatePayroll(data: unknown) {
     }
 
     // Guard against over-deduction; loan recovery should not push net below zero by itself.
-    const maxLoanRecoverable = Math.max(0, grossSalary - (pfEmployee + esiEmployee + professionalTax + tds))
+    const maxLoanRecoverable = Math.max(0, grossSalary)
     const loanDeduction = Math.min(requestedLoanDeduction, maxLoanRecoverable)
 
-    const totalDeductionsStaff = pfEmployee + esiEmployee + professionalTax + tds + loanDeduction
+    const totalDeductionsStaff = loanDeduction
     const netSalary = Math.max(0, grossSalary - totalDeductionsStaff)
 
     totalGross += grossSalary
     totalDeductions += totalDeductionsStaff
     totalNet += netSalary
-    totalEmployerContributions += pfEmployer + esiEmployer + bonus
+    totalEmployerContributions += bonus
 
     return {
       staffId: staff.id,
       workingDays,
       presentDays,
       basicSalary: effectiveBasic,
-      hra, da,
-      specialAllowance: 0,
+      housingAllowance, transportAllowance,
+      otherAllowance: 0,
       otHours,
       otPay,
       bonus,
       grossSalary,
-      pfEmployee,
-      pfEmployer,
-      esiEmployee,
-      esiEmployer,
-      professionalTax,
-      tds,
       loanDeduction,
       otherDeductions: 0,
       totalDeductions: totalDeductionsStaff,

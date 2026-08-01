@@ -243,7 +243,7 @@ function buildUnitCreateData(
         input.totalPrice ??
         computeTotalPrice(
             input.basePricePerSqft,
-            input.superBuiltUpArea,
+            input.builtUpArea,
             input.floorRisePremium,
             input.viewPremium
         )
@@ -253,8 +253,8 @@ function buildUnitCreateData(
         floorNumber: input.floorNumber,
         unitNumber: input.unitNumber,
         type: input.type,
-        carpetArea: input.carpetArea,
-        superBuiltUpArea: input.superBuiltUpArea,
+        netArea: input.netArea,
+        builtUpArea: input.builtUpArea,
         facing: input.facing,
         status: input.status,
         basePricePerSqft: input.basePricePerSqft,
@@ -515,7 +515,7 @@ export async function filterUnits(
                 status: unit.status,
                 facing: unit.facing,
                 floorNumber: unit.floorNumber,
-                superBuiltUpArea: unit.superBuiltUpArea,
+                builtUpArea: unit.builtUpArea,
                 totalPrice: Number(unit.totalPrice),
             }
             return matchesUnitFilters(filterable, filters ?? {})
@@ -1084,7 +1084,7 @@ export async function buildCostSheet(
         const project = unit.tower.project
 
         // ── Unit-derived figures (Req 3.1). ──
-        const baseCost = roundMoney(Number(unit.basePricePerSqft) * unit.superBuiltUpArea)
+        const baseCost = roundMoney(Number(unit.basePricePerSqft) * unit.builtUpArea)
         const floorRise = toNumber(unit.floorRisePremium) ?? 0
         const viewPremium = toNumber(unit.viewPremium) ?? 0
         const total = toNumber(unit.totalPrice) ?? roundMoney(baseCost + floorRise + viewPremium)
@@ -1453,7 +1453,7 @@ export async function generateCostSheetPdf(
         doc.text(`Unit No: ${sheet.unit.unitNumber}  |  Floor: ${sheet.unit.floorNumber}  |  Type: ${sheet.unit.type}`, marginX, y)
         y += 5
         doc.text(
-            `Super Built-Up Area: ${sheet.unit.superBuiltUpArea.toFixed(2)} sq ft  |  Carpet Area: ${sheet.unit.carpetArea.toFixed(2)} sq ft`,
+            `Built-Up Area (BUA): ${sheet.unit.builtUpArea.toFixed(2)} sq ft  |  Net Area: ${sheet.unit.netArea.toFixed(2)} sq ft`,
             marginX,
             y
         )
@@ -1805,8 +1805,8 @@ function templateUnitDescription(facts: {
     location: string
     city: string | null
     floorNumber: number
-    superBuiltUpArea: number
-    carpetArea: number
+    builtUpArea: number
+    netArea: number
     facingLabel: string
     priceLabel: string
     amenities: string[]
@@ -1819,7 +1819,7 @@ function templateUnitDescription(facts: {
     return (
         `Presenting a ${facts.facingLabel}-facing ${facts.typeLabel} at ${facts.projectName}` +
         `${where ? `, ${where}` : ''}. Set on floor ${facts.floorNumber}, this home offers ` +
-        `${facts.superBuiltUpArea} sq.ft. of super built-up area (${facts.carpetArea} sq.ft. carpet), ` +
+        `${facts.builtUpArea} sq.ft. of built-up area (${facts.netArea} sq.ft. net area), ` +
         `thoughtfully planned for natural light and ventilation.${amenityLine} ` +
         `Priced at ${facts.priceLabel}. Contact us today to schedule a site visit.`
     ).replace(/\s+/g, ' ').trim()
@@ -1854,8 +1854,8 @@ export async function generateUnitDescription(
         location: project?.location ?? '',
         city: project?.city ?? null,
         floorNumber: unit.floorNumber,
-        superBuiltUpArea: unit.superBuiltUpArea,
-        carpetArea: unit.carpetArea,
+        builtUpArea: unit.builtUpArea,
+        netArea: unit.netArea,
         facingLabel: FACING_LABELS[unit.facing] ?? unit.facing,
         priceLabel: formatDubaiPrice(Number(unit.totalPrice)),
         amenities: project?.amenities ?? [],
@@ -1873,8 +1873,8 @@ export async function generateUnitDescription(
         `- Project: ${facts.projectName}\n` +
         `- Location: ${[facts.location, facts.city].filter(Boolean).join(', ') || 'not specified'}\n` +
         `- Floor: ${facts.floorNumber}\n` +
-        `- Super built-up area: ${facts.superBuiltUpArea} sq.ft.\n` +
-        `- Carpet area: ${facts.carpetArea} sq.ft.\n` +
+        `- Built-up area (BUA): ${facts.builtUpArea} sq.ft.\n` +
+        `- Net / suite area: ${facts.netArea} sq.ft.\n` +
         `- Facing: ${facts.facingLabel}\n` +
         `- Price: ${facts.priceLabel}\n` +
         `- Amenities: ${facts.amenities.length ? facts.amenities.join(', ') : 'none listed'}\n` +

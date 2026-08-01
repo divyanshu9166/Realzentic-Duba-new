@@ -210,7 +210,6 @@ const MERGEABLE_FIELDS = [
   'phone',
   'email',
   'address',
-  'gstNumber',
   'state',
   'source',
   'notes',

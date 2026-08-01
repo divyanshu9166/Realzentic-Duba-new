@@ -48,6 +48,15 @@ import { isValidE164, normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-util
 
 const DEALS_PATH = '/deals'
 
+const DEFAULT_DUBAI_POSSESSION_CHECKLIST = [
+    { id: 'dewa', label: 'DEWA account transfer or activation confirmed', status: 'Pending' },
+    { id: 'cooling', label: 'District cooling (Empower / Tabreed) transfer confirmed', status: 'Pending' },
+    { id: 'ejari', label: 'Ejari registration completed, where applicable', status: 'Pending' },
+    { id: 'snag', label: 'Snag inspection completed', status: 'Pending' },
+    { id: 'keys', label: 'Keys and access cards handed over', status: 'Pending' },
+    { id: 'parking', label: 'Parking allocation and access confirmed', status: 'Pending' },
+] satisfies Prisma.InputJsonArray
+
 /**
  * Resolve the staff id of the acting user for audit logging (Req 20.7).
  * Falls back to an explicit `actorId` override, then the session's staff id,
@@ -641,6 +650,13 @@ export async function convertDealToBooking(
                 },
             })
 
+            await tx.possessionChecklist.create({
+                data: {
+                    bookingId: created.id,
+                    items: DEFAULT_DUBAI_POSSESSION_CHECKLIST,
+                },
+            })
+
             // Transition the unit to Booked and clear any timed hold (Req 5.2).
             await tx.unit.update({
                 where: { id: unitId },
@@ -673,7 +689,7 @@ export async function convertDealToBooking(
                 data: {
                     dealId,
                     type: 'BOOKING_CREATED',
-                    description: `Deal converted to booking (token receipt ${input.tokenReceiptNo})`,
+                    description: `Deal converted to booking (reservation receipt ${input.tokenReceiptNo})`,
                     performedById,
                 },
             })
@@ -748,7 +764,7 @@ export async function recordTokenPayment(bookingId: number, payment: unknown) {
                 contactId: booking.contactId,
                 customerName: booking.contact?.name ?? null,
                 receivedByStaffId: input.receivedByStaffId ?? null,
-                notes: `Token payment for booking #${booking.id} (receipt ${input.tokenReceiptNo})`,
+                notes: `Reservation deposit for booking #${booking.id} (receipt ${input.tokenReceiptNo})`,
             },
         })
 
@@ -811,6 +827,8 @@ export async function cancelBooking(bookingId: number, reason: unknown, actorId?
                 cancellationDate,
             },
         })
+
+        await tx.possessionChecklist.deleteMany({ where: { bookingId } })
 
         // Return the unit to Available and detach the booking reference (Req 5.7).
         await tx.unit.update({

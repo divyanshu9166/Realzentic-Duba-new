@@ -39,21 +39,21 @@ export type UnitFacing = 'N' | 'S' | 'E' | 'W' | 'NE' | 'NW' | 'SE' | 'SW'
  * premium and the view premium.
  *
  * Per design Property 1, the result equals
- * `round(basePsf × superBuiltUpArea, 2) + floorRisePremium + viewPremium`.
+ * `round(basePsf × builtUpArea, 2) + floorRisePremium + viewPremium`.
  *
  * @param basePricePerSqft   Base price per square foot (money).
- * @param superBuiltUpArea   Super-built-up area in square feet.
+ * @param builtUpArea   Super-built-up area in square feet.
  * @param floorRisePremium   Floor-rise premium (money, default 0).
  * @param viewPremium        View premium (money, default 0).
  * @returns The total price rounded to 2 dp, asserted within the money range.
  */
 export function computeTotalPrice(
     basePricePerSqft: number,
-    superBuiltUpArea: number,
+    builtUpArea: number,
     floorRisePremium: number = 0,
     viewPremium: number = 0
 ): number {
-    const baseCost = roundMoney(basePricePerSqft * superBuiltUpArea)
+    const baseCost = roundMoney(basePricePerSqft * builtUpArea)
     const total = roundMoney(baseCost + floorRisePremium + viewPremium)
     return assertMoneyRange(total)
 }
@@ -127,7 +127,7 @@ export interface FilterableUnit {
     facing: UnitFacing
     floorNumber: number
     /** Super-built-up area in square feet, used as the "area" filter basis. */
-    superBuiltUpArea: number
+    builtUpArea: number
     /** Total price (money), used as the "price" filter basis. */
     totalPrice: number
 }
@@ -171,8 +171,8 @@ export function matchesUnitFilters<U extends FilterableUnit>(
 
     if (filters.minPrice !== undefined && unit.totalPrice < filters.minPrice) return false
     if (filters.maxPrice !== undefined && unit.totalPrice > filters.maxPrice) return false
-    if (filters.minArea !== undefined && unit.superBuiltUpArea < filters.minArea) return false
-    if (filters.maxArea !== undefined && unit.superBuiltUpArea > filters.maxArea) return false
+    if (filters.minArea !== undefined && unit.builtUpArea < filters.minArea) return false
+    if (filters.maxArea !== undefined && unit.builtUpArea > filters.maxArea) return false
 
     return true
 }

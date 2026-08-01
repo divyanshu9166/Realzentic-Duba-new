@@ -112,7 +112,7 @@ async function main() {
     const contact = await prisma.contact.upsert({
       where: { phone: spec.phone },
       update: {},
-      create: { name: spec.name, phone: spec.phone, email: spec.email, emirate: spec.emirate, source: spec.source, nriCountry: spec.nationality },
+      create: { name: spec.name, phone: spec.phone, email: spec.email, emirate: spec.emirate, source: spec.source, nationality: spec.nationality },
     })
     contacts.push(contact)
     const existingLead = await prisma.lead.findFirst({ where: { contactId: contact.id, interest: spec.interest } })
@@ -153,9 +153,9 @@ async function main() {
     : await prisma.tower.create({ data: { projectId: hillsProject.id, name: 'Villa Collection', totalFloors: 2 } })
 
   const unitSpecs = [
-    { towerId: marinaTower.id, floorNumber: 12, unitNumber: 'A-1204', type: 'Apartment2' as const, carpetArea: 1040, superBuiltUpArea: 1260, facing: 'NE' as const, basePricePerSqft: 1750, totalPrice: 2205000 },
-    { towerId: marinaTower.id, floorNumber: 22, unitNumber: 'A-2201', type: 'Penthouse' as const, carpetArea: 2640, superBuiltUpArea: 3090, facing: 'W' as const, basePricePerSqft: 2350, totalPrice: 7350000 },
-    { towerId: hillsTower.id, floorNumber: 1, unitNumber: 'V-18', type: 'Villa' as const, carpetArea: 3560, superBuiltUpArea: 4210, facing: 'E' as const, basePricePerSqft: 1560, totalPrice: 6567600 },
+    { towerId: marinaTower.id, floorNumber: 12, unitNumber: 'A-1204', type: 'Apartment2' as const, netArea: 1040, builtUpArea: 1260, facing: 'NE' as const, basePricePerSqft: 1750, totalPrice: 2205000 },
+    { towerId: marinaTower.id, floorNumber: 22, unitNumber: 'A-2201', type: 'Penthouse' as const, netArea: 2640, builtUpArea: 3090, facing: 'W' as const, basePricePerSqft: 2350, totalPrice: 7350000 },
+    { towerId: hillsTower.id, floorNumber: 1, unitNumber: 'V-18', type: 'Villa' as const, netArea: 3560, builtUpArea: 4210, facing: 'E' as const, basePricePerSqft: 1560, totalPrice: 6567600 },
   ]
   const units = []
   for (const unit of unitSpecs) {

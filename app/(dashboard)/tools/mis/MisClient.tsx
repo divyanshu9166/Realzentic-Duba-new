@@ -105,7 +105,7 @@ const COL_LABELS: Record<string, string> = {
     nextMilestoneName: 'Next Milestone',
     nextMilestoneDue: 'Due Date',
     projectName: 'Project',
-    tokenAmount: 'Token (AED )',
+    tokenAmount: 'Reservation Deposit (AED)',
     amountCollected: 'Collected (AED )',
     cancellationReason: 'Reason',
     cancellationDate: 'Cancelled On',

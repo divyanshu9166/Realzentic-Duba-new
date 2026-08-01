@@ -33,7 +33,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   confidence_threshold: 0.45,
   max_response_tokens: 300,
   response_delay_ms: 1500,
-  languages: ['en', 'hi'],
+  languages: ['en'],
 }
 
 // ── Sub-tab definitions ──────────────────────────────────────────────────────

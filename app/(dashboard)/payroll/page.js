@@ -611,13 +611,9 @@ export default function PayrollPage() {
                       const payableDays = Math.max(0, Number(workingDays) - lop)
                       const dailyRate   = Number(workingDays) > 0 ? s.basicSalary / Number(workingDays) : 0
                       const effBasic    = Math.round(dailyRate * payableDays)
-                      const hra         = Math.round(effBasic * 0.40)
-                      const da          = Math.round(effBasic * 0.10)
                       const otPay       = Math.round((effBasic > 0 ? Math.round(effBasic / (Number(workingDays) * 8)) : 0) * s.otHours * 2)
-                      const gross       = effBasic + hra + da + otPay
-                      const pf          = Math.round(effBasic * 0.12)
-                      const esi         = gross <= 21000 ? Math.round(gross * 0.0075) : 0
-                      const estNet      = Math.max(0, gross - pf - esi)
+                      const gross       = effBasic + otPay
+                      const estNet      = gross
                       const isOverridden = lopOverrides[s.id] !== undefined
                       return (
                         <tr key={s.id} className={`border-b border-border/40 hover:bg-surface-hover/50 transition-colors ${!s.hasAttendance ? 'opacity-60' : ''}`}>

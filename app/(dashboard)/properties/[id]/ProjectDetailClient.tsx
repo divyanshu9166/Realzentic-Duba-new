@@ -34,8 +34,8 @@ export interface UnitRow {
     type: string;
     status: string;
     facing: string;
-    carpetArea: number;
-    superBuiltUpArea: number;
+    netArea: number;
+    builtUpArea: number;
     basePricePerSqft: number | null;
     floorRisePremium: number | null;
     viewPremium: number | null;
@@ -155,8 +155,8 @@ function applyFilters(units: UnitRow[], f: Filters): UnitRow[] {
         if (f.floor && u.floorNumber !== parseInt(f.floor, 10)) return false;
         if (f.minPrice && (u.totalPrice ?? 0) < Number(f.minPrice)) return false;
         if (f.maxPrice && (u.totalPrice ?? 0) > Number(f.maxPrice)) return false;
-        if (f.minArea && u.superBuiltUpArea < Number(f.minArea)) return false;
-        if (f.maxArea && u.superBuiltUpArea > Number(f.maxArea)) return false;
+        if (f.minArea && u.builtUpArea < Number(f.minArea)) return false;
+        if (f.maxArea && u.builtUpArea > Number(f.maxArea)) return false;
         return true;
     });
 }
@@ -291,7 +291,7 @@ function UnitCell({ unit }: { unit: UnitRow }) {
                         <p>Type: <span className="text-foreground">{displayType(unit.type)}</span></p>
                         <p>Floor: <span className="text-foreground">{unit.floorNumber}</span></p>
                         <p>Status: <span className="text-foreground">{unit.status}</span></p>
-                        <p>Area: <span className="text-foreground">{unit.superBuiltUpArea} sq ft</span></p>
+                        <p>Area: <span className="text-foreground">{unit.builtUpArea} sq ft</span></p>
                         <p>Price: <span className="text-foreground">{formatAed(unit.totalPrice)}</span></p>
                         <p>Facing: <span className="text-foreground">{unit.facing}</span></p>
                     </div>

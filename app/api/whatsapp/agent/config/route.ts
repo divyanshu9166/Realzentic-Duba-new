@@ -28,7 +28,7 @@ export async function GET() {
         confidence_threshold: 0.45,
         max_response_tokens: 300,
         response_delay_ms: 1500,
-        languages: ['en', 'hi'],
+        languages: ['en'],
       })
     }
 
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       confidence_threshold: body.confidence_threshold ?? 0.45,
       max_response_tokens:  body.max_response_tokens  ?? 300,
       response_delay_ms:    body.response_delay_ms    ?? 1500,
-      languages:            body.languages            ?? ['en', 'hi'],
+      languages:            body.languages            ?? ['en'],
     }
 
     const config = await prisma.waAgentConfig.upsert({

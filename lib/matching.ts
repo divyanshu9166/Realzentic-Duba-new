@@ -12,7 +12,7 @@
  *   - Property 56 — matching considers only Available units.         Req 16.2
  *
  * Buyer preferences (Req 16.1) cover: budget range, location or project, property type
- * (Dubai property type), facing, floor, carpet area, and amenities. Every preference is
+ * (Dubai property type), facing, floor, net/suite area, and amenities. Every preference is
  * OPTIONAL — only the preferences a buyer actually supplies ("active"
  * dimensions) constrain the score. When no preference is active, every unit is
  * a vacuous full match (score 100).
@@ -50,9 +50,9 @@ export interface BuyerPreferences {
     minFloor?: number
     /** Maximum acceptable floor number. */
     maxFloor?: number
-    /** Minimum acceptable carpet area (sq ft). */
+    /** Minimum acceptable net/suite area (sq ft). */
     minCarpetArea?: number
-    /** Maximum acceptable carpet area (sq ft). */
+    /** Maximum acceptable net/suite area (sq ft). */
     maxCarpetArea?: number
     /** Desired amenities (matched against the unit's project amenities). */
     amenities?: string[]
@@ -68,8 +68,8 @@ export interface MatchableUnit {
     type: UnitType
     facing: UnitFacing
     floorNumber: number
-    /** Carpet area in square feet. */
-    carpetArea: number
+    /** Net/suite area in square feet. */
+    netArea: number
     /** Total price (money). */
     totalPrice: number
     /** Parent project id, used for the location/project preference. */
@@ -99,7 +99,7 @@ export interface MatchResult<U extends MatchableUnit = MatchableUnit> {
 const WEIGHTS = {
     budget: 25,
     type: 20,
-    carpetArea: 15,
+    netArea: 15,
     location: 15,
     facing: 10,
     floor: 10,
@@ -251,13 +251,13 @@ export function scoreMatch(preferences: BuyerPreferences, unit: MatchableUnit): 
         weighted += WEIGHTS.type * typeSubscore(prefTypes, unit.type)
     }
 
-    // Carpet area range.
+    // Net/suite area range.
     if (preferences.minCarpetArea !== undefined || preferences.maxCarpetArea !== undefined) {
-        totalWeight += WEIGHTS.carpetArea
+        totalWeight += WEIGHTS.netArea
         weighted +=
-            WEIGHTS.carpetArea *
+            WEIGHTS.netArea *
             relativeRangeSubscore(
-                unit.carpetArea,
+                unit.netArea,
                 preferences.minCarpetArea,
                 preferences.maxCarpetArea,
                 0.2

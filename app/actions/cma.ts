@@ -4,7 +4,7 @@
  * Dynamic CMA (Comparative Market Analysis) — pricing intelligence.
  *
  * Inspired by the "Dynamic CMA" tools in BoldTrail/Lofty: given a subject
- * configuration (type + carpet area, optionally scoped to a city/project),
+ * configuration (type + net area, optionally scoped to a city/project),
  * find comparable units across the live inventory and derive a data-backed
  * price-per-sqft band and a suggested price range. Helps agents price units
  * and justify the number to buyers.
@@ -19,7 +19,7 @@ import { idSchema, unitTypeEnum } from '@/lib/validations/common'
 
 const cmaSchema = z.object({
     type: unitTypeEnum,
-    carpetArea: z.number({ message: 'Carpet area must be a number' }).finite().positive('Carpet area must be greater than 0'),
+    netArea: z.number({ message: 'Net area must be a number' }).finite().positive('Net area must be greater than 0'),
     city: z.string().trim().optional(),
     projectId: idSchema.optional(),
     areaTolerancePct: z.number().int().min(5).max(100).optional(),
@@ -32,13 +32,13 @@ export interface Comparable {
     unitNumber: string
     type: string
     status: string
-    carpetArea: number
+    netArea: number
     totalPrice: number
     pricePerSqft: number
 }
 
 export interface CmaResult {
-    subject: { type: string; carpetArea: number; city: string | null }
+    subject: { type: string; netArea: number; city: string | null }
     comparableCount: number
     pricePerSqft: { min: number; avg: number; max: number }
     suggested: { low: number; mid: number; high: number }
@@ -60,16 +60,16 @@ export async function generateCma(input: unknown): Promise<Result<CmaResult>> {
     const parsed = cmaSchema.safeParse(input)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const { type, carpetArea, city, projectId, areaTolerancePct } = parsed.data
+    const { type, netArea, city, projectId, areaTolerancePct } = parsed.data
     const tol = (areaTolerancePct ?? 25) / 100
-    const minArea = carpetArea * (1 - tol)
-    const maxArea = carpetArea * (1 + tol)
+    const minArea = netArea * (1 - tol)
+    const maxArea = netArea * (1 + tol)
 
     try {
         const units = await prisma.unit.findMany({
             where: {
                 type,
-                carpetArea: { gte: minArea, lte: maxArea },
+                netArea: { gte: minArea, lte: maxArea },
                 tower: {
                     project: {
                         ...(projectId ? { id: projectId } : {}),
@@ -82,7 +82,7 @@ export async function generateCma(input: unknown): Promise<Result<CmaResult>> {
                 unitNumber: true,
                 type: true,
                 status: true,
-                carpetArea: true,
+                netArea: true,
                 totalPrice: true,
                 tower: { select: { project: { select: { name: true, city: true } } } },
             },
@@ -91,7 +91,7 @@ export async function generateCma(input: unknown): Promise<Result<CmaResult>> {
 
         const comparables: Comparable[] = units
             .map((u) => {
-                const ca = u.carpetArea
+                const ca = u.netArea
                 const price = toNum(u.totalPrice)
                 const ppsf = ca > 0 ? price / ca : 0
                 return {
@@ -101,19 +101,19 @@ export async function generateCma(input: unknown): Promise<Result<CmaResult>> {
                     unitNumber: u.unitNumber,
                     type: u.type,
                     status: u.status,
-                    carpetArea: ca,
+                    netArea: ca,
                     totalPrice: price,
                     pricePerSqft: Math.round(ppsf),
                 }
             })
             .filter((c) => c.pricePerSqft > 0)
-            .sort((a, b) => Math.abs(a.carpetArea - carpetArea) - Math.abs(b.carpetArea - carpetArea))
+            .sort((a, b) => Math.abs(a.netArea - netArea) - Math.abs(b.netArea - netArea))
 
         if (comparables.length === 0) {
             return {
                 success: true,
                 data: {
-                    subject: { type, carpetArea, city: city ?? null },
+                    subject: { type, netArea, city: city ?? null },
                     comparableCount: 0,
                     pricePerSqft: { min: 0, avg: 0, max: 0 },
                     suggested: { low: 0, mid: 0, high: 0 },
@@ -130,13 +130,13 @@ export async function generateCma(input: unknown): Promise<Result<CmaResult>> {
         return {
             success: true,
             data: {
-                subject: { type, carpetArea, city: city ?? null },
+                subject: { type, netArea, city: city ?? null },
                 comparableCount: comparables.length,
                 pricePerSqft: { min, avg, max },
                 suggested: {
-                    low: Math.round(min * carpetArea),
-                    mid: Math.round(avg * carpetArea),
-                    high: Math.round(max * carpetArea),
+                    low: Math.round(min * netArea),
+                    mid: Math.round(avg * netArea),
+                    high: Math.round(max * netArea),
                 },
                 comparables: comparables.slice(0, 40),
             },

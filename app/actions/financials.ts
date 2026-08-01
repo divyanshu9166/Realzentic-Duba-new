@@ -11,7 +11,7 @@ const DEFAULT_ACCOUNTS = [
   // Assets
   { groupName: 'Current Assets', type: 'ASSET', code: '1001', name: 'Cash in Hand' },
   { groupName: 'Current Assets', type: 'ASSET', code: '1002', name: 'Bank Account' },
-  { groupName: 'Current Assets', type: 'ASSET', code: '1100', name: 'Token / Advance Receivable' },
+  { groupName: 'Current Assets', type: 'ASSET', code: '1100', name: 'Reservation Deposit / Advance Receivable' },
   { groupName: 'Current Assets', type: 'ASSET', code: '1200', name: 'Brokerage Receivable' },
   { groupName: 'Current Assets', type: 'ASSET', code: '1300', name: 'Security Deposit (Paid)' },
   { groupName: 'Fixed Assets', type: 'ASSET', code: '1500', name: 'Office Equipment' },
@@ -235,7 +235,6 @@ export async function getBalanceSheet(asOfDate: string) {
         total: totalCurrentAssets,
         accountsReceivable: 0,
         inventory: 0,
-        itcReceivable: 0,
       },
       totalAssets,
       currentLiabilities: {

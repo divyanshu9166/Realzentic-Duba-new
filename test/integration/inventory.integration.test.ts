@@ -64,8 +64,8 @@ afterAll(async () => {
 
 const unitTemplate = {
     type: 'Apartment2',
-    carpetArea: 800,
-    superBuiltUpArea: 1000,
+    netArea: 800,
+    builtUpArea: 1000,
     facing: 'N',
     basePricePerSqft: 5000,
 } as const
@@ -137,8 +137,8 @@ describe('Inventory service — DB integration', () => {
             floorNumber: 1,
             unitNumber: uid('U'),
             type: 'Apartment2',
-            carpetArea: -5, // invalid
-            superBuiltUpArea: 1000,
+            netArea: -5, // invalid
+            builtUpArea: 1000,
             facing: 'N',
             basePricePerSqft: 5000,
         })

@@ -82,8 +82,8 @@ model Contact {
   notes                String?
   emailSubscribed      Boolean  @default(true)
   // International buyer fields
-  nriCountry           String?
-  nriCurrency          String?  @default("USD")
+  nationality          String?
+  preferredCurrency    String?  @default("AED")
   preferredContactTime String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -755,19 +755,13 @@ model Payslip {
   workingDays      Int        @default(26)
   presentDays      Float      @default(0)
   basicSalary      Int        @default(0)
-  hra              Int        @default(0)
-  da               Int        @default(0)
-  specialAllowance Int        @default(0)
+  housingAllowance   Int        @default(0)
+  transportAllowance Int        @default(0)
+  otherAllowance     Int        @default(0)
   otHours          Float      @default(0)
   otPay            Int        @default(0)
   bonus            Int        @default(0)
   grossSalary      Int        @default(0)
-  pfEmployee       Int        @default(0)
-  pfEmployer       Int        @default(0)
-  esiEmployee      Int        @default(0)
-  esiEmployer      Int        @default(0)
-  professionalTax  Int        @default(0)
-  tds              Int        @default(0)
   loanDeduction    Int        @default(0)
   otherDeductions  Int        @default(0)
   totalDeductions  Int        @default(0)
@@ -876,7 +870,7 @@ model DailyCashRegister {
 }
 
 // ─── DAILY PAYMENTS ─────────────────────────────────
-// Repurposed for real estate: token amounts, booking payments, commission, etc.
+// Repurposed for real estate: reservation deposits, booking payments, commission, etc.
 
 model DailyPayment {
   id              Int      @id @default(autoincrement())
@@ -1431,7 +1425,7 @@ model WaAgentConfig {
   confidence_threshold Float    @default(0.45)
   max_response_tokens  Int      @default(300)
   response_delay_ms    Int      @default(1500)
-  languages            String[] @default(["en", "hi"])
+  languages            String[] @default(["en"])
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
@@ -1760,8 +1754,9 @@ model Unit {
   floorNumber      Int
   unitNumber       String
   type             UnitType
-  carpetArea       Float
-  superBuiltUpArea Float
+  netArea          Float
+  builtUpArea      Float
+  areaUnit         String     @default("sqft")
   facing           UnitFacing
   status           UnitStatus @default(Available)
   basePricePerSqft Decimal    @db.Decimal(12, 2)

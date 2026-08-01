@@ -54,8 +54,8 @@ describe('Document & KYC persistence — DB integration (task 12.7)', () => {
         const contact = await makeContact(cleanup)
 
         const res = await createKycRecord(contact.id, {
-            documentType: 'PAN',
-            documentNumber: `ABCDE${Math.floor(1000 + Math.random() * 8999)}F`,
+            documentType: 'Emirates ID',
+            documentNumber: `784-${Math.floor(1000 + Math.random() * 8999)}-${Math.floor(1000 + Math.random() * 8999)}-${Math.floor(100 + Math.random() * 899)}`,
             verified: true,
         })
 
@@ -66,14 +66,14 @@ describe('Document & KYC persistence — DB integration (task 12.7)', () => {
         const persisted = await prisma.kYCRecord.findUnique({ where: { id: kyc.id } })
         expect(persisted).toBeTruthy()
         expect(persisted?.contactId).toBe(contact.id)
-        expect(persisted?.documentType).toBe('PAN')
+        expect(persisted?.documentType).toBe('Emirates ID')
         expect(persisted?.verified).toBe(true)
     })
 
     it('createKycRecord rejects a non-existent contact', async () => {
         const res = await createKycRecord(2_000_000_000, {
-            documentType: 'PAN',
-            documentNumber: 'ZZZZZ9999Z',
+            documentType: 'Emirates ID',
+            documentNumber: '784-0000-0000000-000',
         })
         expect(res.success).toBe(false)
     })

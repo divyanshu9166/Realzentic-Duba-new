@@ -55,7 +55,7 @@ const matchableUnitArb: fc.Arbitrary<MatchableUnit> = fc.record({
     type: typeArb,
     facing: facingArb,
     floorNumber: fc.integer({ min: 0, max: 50 }),
-    carpetArea: areaArb,
+    netArea: areaArb,
     totalPrice: priceArb,
     projectId: fc.option(fc.integer({ min: 1, max: 20 }), { nil: undefined }),
     location: fc.option(fc.constantFrom('Pune', 'Mumbai', 'Delhi', 'Bengaluru'), {

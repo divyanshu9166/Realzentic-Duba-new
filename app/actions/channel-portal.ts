@@ -186,8 +186,8 @@ export interface CpInventoryUnit {
     floorNumber: number
     type: string
     facing: string
-    carpetArea: number
-    superBuiltUpArea: number
+    netArea: number
+    builtUpArea: number
     totalPrice: number
     projectName: string
     towerName: string
@@ -220,8 +220,8 @@ export async function cpBrowseInventory(): Promise<Result<CpInventoryUnit[]>> {
                 floorNumber: true,
                 type: true,
                 facing: true,
-                carpetArea: true,
-                superBuiltUpArea: true,
+                netArea: true,
+                builtUpArea: true,
                 totalPrice: true,
                 tower: {
                     select: {
@@ -238,8 +238,8 @@ export async function cpBrowseInventory(): Promise<Result<CpInventoryUnit[]>> {
             floorNumber: unit.floorNumber,
             type: unit.type,
             facing: unit.facing,
-            carpetArea: unit.carpetArea,
-            superBuiltUpArea: unit.superBuiltUpArea,
+            netArea: unit.netArea,
+            builtUpArea: unit.builtUpArea,
             totalPrice: decimalToNumber(unit.totalPrice),
             projectName: unit.tower.project.name,
             towerName: unit.tower.name,

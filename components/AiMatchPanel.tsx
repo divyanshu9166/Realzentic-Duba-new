@@ -64,7 +64,7 @@ function buildWhatsAppUrl(phone: string | undefined, text: string): string {
 function buildUnitMessage(unit: MatchedUnit, buyerName?: string): string {
     const name = buyerName ? `Hello ${buyerName}, ` : 'Hello, ';
     const unitDesc = `${unit.type} at ${unit.projectName || 'a project'}${unit.location ? `, ${unit.location}` : ''}`;
-    const details = `Unit ${unit.unitNumber}, Floor ${unit.floorNumber}, ${unit.carpetArea} sqft`;
+    const details = `Unit ${unit.unitNumber}, Floor ${unit.floorNumber}, ${unit.netArea} sq ft net area`;
     const price = formatCurrency(unit.totalPrice);
     return `${name}we have a great property match for you!\n\n🏠 ${unitDesc}\n📐 ${details}\n💰 ${price}\n✅ ${unit.matchPercentage}% match with your preferences\n\nInterested? Let's schedule a site visit!`;
 }
@@ -252,7 +252,7 @@ export default function AiMatchPanel({ preferences, initialBudgetText, buyerName
                                                 {unit.projectName}
                                                 {unit.location ? ` · ${unit.location}` : ''}
                                                 {' · '}Floor {unit.floorNumber}
-                                                {' · '}{unit.carpetArea} sqft
+                                                {' · '}{unit.netArea} sq ft net
                                             </p>
                                             <p className="text-xs font-medium text-accent">{formatCurrency(unit.totalPrice)}</p>
                                         </div>

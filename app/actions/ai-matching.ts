@@ -78,7 +78,7 @@ type ScorableUnit = MatchableUnit & {
     id: number
     towerId: number
     unitNumber: string
-    superBuiltUpArea: number
+    builtUpArea: number
     projectName: string
 }
 
@@ -89,8 +89,8 @@ const unitMatchSelect = {
     floorNumber: true,
     unitNumber: true,
     type: true,
-    carpetArea: true,
-    superBuiltUpArea: true,
+    netArea: true,
+    builtUpArea: true,
     facing: true,
     status: true,
     totalPrice: true,
@@ -108,8 +108,8 @@ type LoadedUnit = {
     floorNumber: number
     unitNumber: string
     type: ScorableUnit['type']
-    carpetArea: number
-    superBuiltUpArea: number
+    netArea: number
+    builtUpArea: number
     facing: ScorableUnit['facing']
     status: ScorableUnit['status']
     totalPrice: unknown
@@ -130,13 +130,13 @@ function toScorableUnit(unit: LoadedUnit): ScorableUnit {
         id: unit.id,
         towerId: unit.towerId,
         unitNumber: unit.unitNumber,
-        superBuiltUpArea: unit.superBuiltUpArea,
+        builtUpArea: unit.builtUpArea,
         projectName: project?.name ?? '',
         status: unit.status,
         type: unit.type,
         facing: unit.facing,
         floorNumber: unit.floorNumber,
-        carpetArea: unit.carpetArea,
+        netArea: unit.netArea,
         totalPrice: Number(unit.totalPrice),
         projectId: unit.tower.projectId,
         location: project?.location,
@@ -156,8 +156,8 @@ export interface MatchedUnit {
     type: UnitType
     facing: ScorableUnit['facing']
     floorNumber: number
-    carpetArea: number
-    superBuiltUpArea: number
+    netArea: number
+    builtUpArea: number
     totalPrice: number
     projectId?: number
     projectName: string
@@ -197,8 +197,8 @@ export async function matchUnits(preferences: unknown): Promise<Result<MatchedUn
             type: unit.type,
             facing: unit.facing,
             floorNumber: unit.floorNumber,
-            carpetArea: unit.carpetArea,
-            superBuiltUpArea: unit.superBuiltUpArea,
+            netArea: unit.netArea,
+            builtUpArea: unit.builtUpArea,
             totalPrice: unit.totalPrice,
             projectId: unit.projectId,
             projectName: unit.projectName,

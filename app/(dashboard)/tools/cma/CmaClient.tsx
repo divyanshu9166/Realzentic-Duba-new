@@ -24,7 +24,7 @@ function formatAed(amount: number): string {
 
 export default function CmaClient() {
     const [type, setType] = useState('Apartment2')
-    const [carpetArea, setCarpetArea] = useState('800')
+    const [netArea, setCarpetArea] = useState('800')
     const [city, setCity] = useState('')
     const [projectId, setProjectId] = useState('')
     const [projects, setProjects] = useState<Array<{ id: number; name: string; city: string }>>([])
@@ -39,13 +39,13 @@ export default function CmaClient() {
     }, [])
 
     async function handleRun() {
-        const ca = Number(carpetArea)
-        if (!ca || ca <= 0) { toast.error('Enter a valid carpet area'); return }
+        const ca = Number(netArea)
+        if (!ca || ca <= 0) { toast.error('Enter a valid net area'); return }
         setLoading(true)
         try {
             const res = await generateCma({
                 type,
-                carpetArea: ca,
+                netArea: ca,
                 city: city.trim() || undefined,
                 projectId: projectId ? Number(projectId) : undefined,
             })
@@ -60,7 +60,7 @@ export default function CmaClient() {
     async function copySummary() {
         if (!result) return
         const text =
-            `CMA — ${TYPE_LABELS[result.subject.type] ?? result.subject.type}, ${result.subject.carpetArea} sq.ft.` +
+            `CMA — ${TYPE_LABELS[result.subject.type] ?? result.subject.type}, ${result.subject.netArea} sq.ft. net area` +
             `${result.subject.city ? ` (${result.subject.city})` : ''}\n` +
             `Based on ${result.comparableCount} comparable units.\n` +
             `Price/sqft: ${result.pricePerSqft.min}–${result.pricePerSqft.max} (avg ${result.pricePerSqft.avg}).\n` +
@@ -94,12 +94,12 @@ export default function CmaClient() {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs text-muted mb-1">Carpet Area (sq.ft.)</label>
-                        <input type="number" min="1" value={carpetArea} onChange={(e) => setCarpetArea(e.target.value)} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                        <label className="block text-xs text-muted mb-1">Net / Suite Area (sq.ft.)</label>
+                        <input type="number" min="1" value={netArea} onChange={(e) => setCarpetArea(e.target.value)} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                     </div>
                     <div>
                         <label className="block text-xs text-muted mb-1">City (optional)</label>
-                        <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g., Pune" className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                        <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g., Dubai" className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                     </div>
                     <div>
                         <label className="block text-xs text-muted mb-1">Project (optional)</label>
@@ -164,7 +164,7 @@ export default function CmaClient() {
                                             <td className="text-foreground">{c.projectName}</td>
                                             <td className="text-muted">{c.unitNumber}</td>
                                             <td className="text-muted">{c.city}</td>
-                                            <td className="text-muted">{c.carpetArea} sqft</td>
+                                            <td className="text-muted">{c.netArea} sqft</td>
                                             <td className="text-foreground">{formatAed(c.totalPrice)}</td>
                                             <td className="text-accent font-medium">AED {c.pricePerSqft.toLocaleString('en-AE')}</td>
                                             <td><span className="px-2 py-0.5 rounded-full text-xs bg-surface border border-border">{c.status}</span></td>

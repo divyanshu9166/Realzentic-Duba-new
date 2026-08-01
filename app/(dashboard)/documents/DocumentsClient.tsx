@@ -530,7 +530,7 @@ function UploadPanel({
                         <label className="block text-xs font-medium text-muted mb-1">Document type</label>
                         <input
                             type="text"
-                            placeholder="e.g. Aadhaar, Agreement"
+                            placeholder="e.g. Emirates ID, SPA"
                             value={docType}
                             onChange={(e) => setDocType(e.target.value)}
                             className="w-full px-3 py-2.5 bg-surface rounded-xl border border-border text-sm text-foreground"
@@ -665,7 +665,7 @@ function DocumentTable({
 
 // ─── KYC Center ───────────────────────────────────────────
 
-const KYC_DOC_TYPES = ['Aadhaar', 'PAN', 'Passport', 'Voter ID', 'Driving License', 'Other'];
+const KYC_DOC_TYPES = ['Emirates ID', 'Passport', 'UAE Visa', 'UAE Driving Licence', 'VAT TRN', 'SPA / Form F', 'Other'];
 
 function KycCenter({
     contacts,

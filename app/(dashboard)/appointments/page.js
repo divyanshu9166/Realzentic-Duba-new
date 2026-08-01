@@ -344,7 +344,7 @@ export default function AppointmentsPage() {
               <option>Sales Office Meeting</option>
               <option>Cost Sheet Discussion</option>
               <option>Negotiation Meeting</option>
-              <option>Booking / Token</option>
+              <option>Booking / Reservation Deposit</option>
               <option>Agreement Signing</option>
               <option>Home Loan Assistance</option>
               <option>Possession / Handover</option>

@@ -68,8 +68,8 @@ export interface CreateContactInput {
   emirate?: string
   address?: string
   notes?: string
-  nriCountry?: string
-  nriCurrency?: string
+  nationality?: string
+  preferredCurrency?: string
 }
 
 export async function createContact(input: CreateContactInput) {
@@ -105,8 +105,8 @@ export async function createContact(input: CreateContactInput) {
         emirate: input.emirate?.trim() || null,
         address: input.address?.trim() || null,
         notes: input.notes?.trim() || null,
-        nriCountry: input.nriCountry?.trim() || null,
-        nriCurrency: input.nriCountry?.trim() ? (input.nriCurrency?.trim() || 'USD') : null,
+        nationality: input.nationality?.trim() || null,
+        preferredCurrency: input.preferredCurrency?.trim() || 'AED',
       },
     })
 
@@ -148,7 +148,7 @@ export interface ContactDirectoryRow {
   email: string | null
   source: string | null
   emirate: string | null
-  nriCountry: string | null
+  nationality: string | null
   createdAt: string
   leadCount: number
   dealCount: number
@@ -188,7 +188,7 @@ export async function getContactsDirectory(params?: { search?: string }): Promis
         email: true,
         source: true,
         emirate: true,
-        nriCountry: true,
+        nationality: true,
         createdAt: true,
         _count: { select: { leads: true, deals: true, bookings: true } },
       },
@@ -203,7 +203,7 @@ export async function getContactsDirectory(params?: { search?: string }): Promis
         email: c.email,
         source: c.source,
         emirate: c.emirate,
-        nriCountry: c.nriCountry,
+        nationality: c.nationality,
         createdAt: c.createdAt.toISOString(),
         leadCount: c._count.leads,
         dealCount: c._count.deals,

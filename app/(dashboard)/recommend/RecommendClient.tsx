@@ -240,7 +240,7 @@ export default function RecommendClient() {
                                             </p>
                                             <p className="text-xs text-muted">
                                                 {TYPE_LABELS[u.type] ?? u.type} · Floor {u.floorNumber} · {u.facing}-facing ·{' '}
-                                                {u.superBuiltUpArea} sq.ft. · {formatPropertyPrice(u.totalPrice)}
+                                                {u.builtUpArea} sq.ft. · {formatPropertyPrice(u.totalPrice)}
                                                 {u.location ? ` · ${u.location}` : ''}
                                             </p>
                                         </div>
