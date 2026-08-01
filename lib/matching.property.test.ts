@@ -84,8 +84,8 @@ const preferencesArb: fc.Arbitrary<BuyerPreferences> = fc.record({
     facing: optionalScalarFilter(facingArb),
     minFloor: fc.option(fc.integer({ min: 0, max: 50 }), { nil: undefined }),
     maxFloor: fc.option(fc.integer({ min: 0, max: 50 }), { nil: undefined }),
-    minCarpetArea: fc.option(areaArb, { nil: undefined }),
-    maxCarpetArea: fc.option(areaArb, { nil: undefined }),
+    minNetArea: fc.option(areaArb, { nil: undefined }),
+    maxNetArea: fc.option(areaArb, { nil: undefined }),
     amenities: fc.option(fc.subarray(AMENITY_POOL), { nil: undefined }),
 })
 

@@ -1,5 +1,5 @@
 // ─── Lead Pipeline ────────────────────────────────────
-export const PIPELINE_STAGES = ['New', 'Contacted', 'Showroom Visit', 'Quotation', 'Won', 'Lost'] as const
+export const PIPELINE_STAGES = ['New', 'Contacted', 'Property Viewing', 'Quotation', 'Won', 'Lost'] as const
 
 export const LEAD_SOURCES = ['WhatsApp', 'Instagram', 'Facebook', 'Website'] as const
 

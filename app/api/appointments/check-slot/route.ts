@@ -13,11 +13,11 @@ import { prisma } from '@/lib/db'
  *   { available: false, suggestions: ["10:00 AM", "2:00 PM", ...] }
  *
  * Called by:
- *   - AI calling agent (Anushka) before confirming appointment on call
+ *   - AI calling agent before confirming a property viewing on call
  *   - WhatsApp appointment chatbot after customer picks a time
  */
 
-// Fixed showroom visit slots — 10 AM to 5 PM
+// Fixed property-viewing slots — 10 AM to 5 PM
 const ALL_SLOTS = [
   '10:00 AM',
   '11:00 AM',
@@ -43,7 +43,7 @@ function timeToMinutes(t: string): number {
   if (period === 'AM' && hours === 12) hours = 0
   
   // If no AM/PM provided and hours between 1 and 7, assume PM (e.g. "2:00" -> 2 PM) 
-  // since showroom is open 10 AM to 5 PM
+  // since property viewings are scheduled between 10 AM and 5 PM
   if (!period && hours >= 1 && hours <= 7) {
     hours += 12
   }

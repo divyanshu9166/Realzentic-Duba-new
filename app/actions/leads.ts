@@ -17,7 +17,7 @@ const statusMap: Record<string, LeadStatus> = {
   'New': 'NEW',
   'Contacted': 'CONTACTED',
   'Site Visit': 'SHOWROOM_VISIT',
-  'Showroom Visit': 'SHOWROOM_VISIT',
+  'Property Viewing': 'SHOWROOM_VISIT',
   'Quotation': 'QUOTATION',
   'Won': 'WON',
   'Lost': 'LOST',

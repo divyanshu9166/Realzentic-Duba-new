@@ -33,7 +33,7 @@ const sourceColorMap = {
   Instagram: 'text-pink bg-pink-light',
   Facebook: 'text-info bg-info-light',
   Website: 'text-teal bg-teal-light',
-  'Showroom Visit': 'text-amber-700 bg-amber-500/10',
+  'Property Viewing': 'text-amber-700 bg-amber-500/10',
   'Site Visit': 'text-amber-700 bg-amber-500/10',
   'Walk-in': 'text-amber-700 bg-amber-500/10',
   Referral: 'text-purple bg-purple-light',

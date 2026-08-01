@@ -11,13 +11,14 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Sparkles, Loader2, Copy, Check, Wand2, Building2 } from 'lucide-react'
+import { Sparkles, Loader2, Copy, Check, Wand2, Building2, BadgeCheck } from 'lucide-react'
 import { matchUnits, type MatchedUnit } from '@/app/actions/ai-matching'
 import { generateUnitDescription } from '@/app/actions/properties'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatCurrency } from '@/lib/currency'
+import { isGoldenVisaEligible } from '@/lib/golden-visa'
 
 const UNIT_TYPES = ['Studio', 'Apartment1', 'Apartment2', 'Apartment3', 'Apartment4Plus', 'Penthouse', 'Villa', 'Townhouse', 'Duplex', 'Retail', 'Office', 'Warehouse', 'LandPlot'] as const
 const TYPE_LABELS: Record<string, string> = {
@@ -47,8 +48,8 @@ export default function RecommendClient() {
     const [location, setLocation] = useState('')
     const [minFloor, setMinFloor] = useState('')
     const [maxFloor, setMaxFloor] = useState('')
-    const [minCarpetArea, setMinCarpetArea] = useState('')
-    const [maxCarpetArea, setMaxCarpetArea] = useState('')
+    const [minNetArea, setMinNetArea] = useState('')
+    const [maxNetArea, setMaxNetArea] = useState('')
 
     const [loading, setLoading] = useState(false)
     const [searched, setSearched] = useState(false)
@@ -73,8 +74,8 @@ export default function RecommendClient() {
         if (location.trim()) prefs.location = location.trim()
         if (num(minFloor) !== undefined) prefs.minFloor = num(minFloor)
         if (num(maxFloor) !== undefined) prefs.maxFloor = num(maxFloor)
-        if (num(minCarpetArea) !== undefined) prefs.minCarpetArea = num(minCarpetArea)
-        if (num(maxCarpetArea) !== undefined) prefs.maxCarpetArea = num(maxCarpetArea)
+        if (num(minNetArea) !== undefined) prefs.minNetArea = num(minNetArea)
+        if (num(maxNetArea) !== undefined) prefs.maxNetArea = num(maxNetArea)
         return prefs
     }
 
@@ -178,12 +179,12 @@ export default function RecommendClient() {
                         <Input type="number" placeholder="e.g. 15" value={maxFloor} onChange={(e) => setMaxFloor(e.target.value)} />
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-xs">Min Carpet (sq.ft.)</Label>
-                        <Input type="number" min="0" placeholder="e.g. 600" value={minCarpetArea} onChange={(e) => setMinCarpetArea(e.target.value)} />
+                        <Label className="text-xs">Min Net / Suite Area (sq.ft.)</Label>
+                        <Input type="number" min="0" placeholder="e.g. 600" value={minNetArea} onChange={(e) => setMinNetArea(e.target.value)} />
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-xs">Max Carpet (sq.ft.)</Label>
-                        <Input type="number" min="0" placeholder="e.g. 1200" value={maxCarpetArea} onChange={(e) => setMaxCarpetArea(e.target.value)} />
+                        <Label className="text-xs">Max Net / Suite Area (sq.ft.)</Label>
+                        <Input type="number" min="0" placeholder="e.g. 1200" value={maxNetArea} onChange={(e) => setMaxNetArea(e.target.value)} />
                     </div>
                 </div>
 
@@ -243,6 +244,11 @@ export default function RecommendClient() {
                                                 {u.builtUpArea} sq.ft. · {formatPropertyPrice(u.totalPrice)}
                                                 {u.location ? ` · ${u.location}` : ''}
                                             </p>
+                                            {isGoldenVisaEligible(u.totalPrice) && (
+                                                <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-amber-700">
+                                                    <BadgeCheck className="size-3.5" /> Golden Visa eligibility indicator
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 

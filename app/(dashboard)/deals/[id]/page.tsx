@@ -20,6 +20,7 @@ import {
     CheckCircle2,
     Clock,
     ExternalLink,
+    BadgeCheck,
 } from 'lucide-react';
 import { getDealDetail } from '@/app/actions/deals';
 import { getStaff } from '@/app/actions/staff';
@@ -27,6 +28,8 @@ import AiMatchPanel from '@/components/AiMatchPanel';
 import MilestoneTracker, { type MilestoneView } from './MilestoneTracker';
 import SnagPanel from './SnagPanel';
 import DealActions from './DealActions';
+import DldTransferPanel from './DldTransferPanel';
+import { isGoldenVisaEligible } from '@/lib/golden-visa';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,7 +108,8 @@ export default async function DealDetailPage({
         );
     }
 
-    const { deal, timeline, documents, milestones, costSheet } = res.data;
+    const { deal, timeline, documents, milestones, costSheet, dldTrusteeAppointment } = res.data;
+    const developerNocDocument = documents.find((document) => document.type.toLowerCase().includes('developer noc')) ?? null;
 
     // Staff list for the inline-edit agent dropdown.
     const staffRes = await getStaff();
@@ -168,6 +172,11 @@ export default async function DealDetailPage({
                                     <AlertTriangle className="h-3 w-3" /> At risk
                                 </span>
                             )}
+                            {isGoldenVisaEligible(num(deal.booking?.agreementValue ?? deal.value)) && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                    <BadgeCheck className="h-3 w-3" /> Golden Visa eligibility indicator
+                                </span>
+                            )}
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                             {deal.contact?.phone && <span>{deal.contact.phone}</span>}
@@ -204,6 +213,26 @@ export default async function DealDetailPage({
                     </div>
                 )}
             </div>
+
+            <DldTransferPanel
+                dealId={deal.id}
+                workflow={{
+                    developerNocStatus: deal.developerNocStatus,
+                    dldTransferStatus: deal.dldTransferStatus,
+                    dldTrusteeOffice: deal.dldTrusteeOffice,
+                    dldTransferNotes: deal.dldTransferNotes,
+                }}
+                appointment={dldTrusteeAppointment ? {
+                    date: dldTrusteeAppointment.date.toISOString(),
+                    time: dldTrusteeAppointment.time,
+                    status: dldTrusteeAppointment.status,
+                } : null}
+                nocDocument={developerNocDocument ? {
+                    fileName: developerNocDocument.fileName,
+                    fileUrl: developerNocDocument.fileUrl,
+                    status: developerNocDocument.status,
+                } : null}
+            />
 
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
                 {/* Activity timeline */}

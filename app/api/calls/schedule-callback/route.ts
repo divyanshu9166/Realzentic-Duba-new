@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         status: 'COMPLETED',
         duration: '0:00',
         durationSec: 0,
-        agent: 'AI Agent - Anushka',
+        agent: 'AI Agent - Maya',
         date: now,
         time: now.toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Dubai' }),
         purpose: `Callback requested: ${reason || 'General'}`,

@@ -22,6 +22,7 @@ import {
     TrendingUp,
     Home,
     LayoutGrid,
+    BadgeCheck,
 } from 'lucide-react';
 import { getInventoryAnalytics } from '@/app/actions/properties';
 import type { InventoryAnalytics } from '@/lib/inventory';
@@ -37,6 +38,7 @@ export interface ProjectCardRow {
     photoUrl: string | null;
     unitCount: number;
     percentSold: number;
+    goldenVisaEligibleUnitCount: number;
 }
 
 interface AnalyticsRow extends InventoryAnalytics {
@@ -113,6 +115,12 @@ function ProjectCard({ project }: { project: ProjectCardRow }) {
                     {project.dldProjectRegNo && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">
                             <ShieldCheck className="w-3 h-3" /> DLD Registration
+                        </span>
+                    )}
+                    {project.goldenVisaEligibleUnitCount > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 text-[11px] font-medium">
+                            <BadgeCheck className="w-3 h-3" />
+                            {project.goldenVisaEligibleUnitCount} Golden Visa eligible
                         </span>
                     )}
                     <span className="text-[11px] text-muted flex items-center gap-1">

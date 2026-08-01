@@ -63,6 +63,7 @@ import {
 } from '@/lib/cost-sheet'
 import { assertMoneyRange, roundMoney } from '@/lib/money'
 import { formatCompactCurrency, formatCurrency } from '@/lib/currency'
+import { isGoldenVisaEligible } from '@/lib/golden-visa'
 import { uploadFile } from '@/lib/r2'
 import { sendEmail } from '@/lib/email'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
@@ -395,6 +396,7 @@ export interface ProjectCard {
     photoUrl: string | null
     unitCount: number
     percentSold: number
+    goldenVisaEligibleUnitCount: number
 }
 
 /**
@@ -408,7 +410,7 @@ export async function listProjects(): Promise<Result<ProjectCard[]>> {
             orderBy: { createdAt: 'desc' },
             include: {
                 towers: {
-                    include: { units: { select: { status: true } } },
+                    include: { units: { select: { status: true, totalPrice: true } } },
                 },
             },
         })
@@ -417,11 +419,15 @@ export async function listProjects(): Promise<Result<ProjectCard[]>> {
             let total = 0
             let booked = 0
             let sold = 0
+            let goldenVisaEligibleUnitCount = 0
             for (const tower of project.towers) {
                 for (const unit of tower.units) {
                     total += 1
                     if (unit.status === 'Booked') booked += 1
                     else if (unit.status === 'Sold') sold += 1
+                    if (unit.status === 'Available' && isGoldenVisaEligible(Number(unit.totalPrice))) {
+                        goldenVisaEligibleUnitCount += 1
+                    }
                 }
             }
 
@@ -435,6 +441,7 @@ export async function listProjects(): Promise<Result<ProjectCard[]>> {
                 photoUrl: project.photoUrls[0] ?? null,
                 unitCount: total,
                 percentSold: computePercentSold(booked, sold, total),
+                goldenVisaEligibleUnitCount,
             }
         })
 
@@ -1809,6 +1816,7 @@ function templateUnitDescription(facts: {
     netArea: number
     facingLabel: string
     priceLabel: string
+    goldenVisaEligible: boolean
     amenities: string[]
 }): string {
     const where = [facts.location, facts.city].filter(Boolean).join(', ')
@@ -1821,7 +1829,9 @@ function templateUnitDescription(facts: {
         `${where ? `, ${where}` : ''}. Set on floor ${facts.floorNumber}, this home offers ` +
         `${facts.builtUpArea} sq.ft. of built-up area (${facts.netArea} sq.ft. net area), ` +
         `thoughtfully planned for natural light and ventilation.${amenityLine} ` +
-        `Priced at ${facts.priceLabel}. Contact us today to schedule a site visit.`
+        `Priced at ${facts.priceLabel}.` +
+        `${facts.goldenVisaEligible ? ' This property meets the CRM Golden Visa investment threshold; final eligibility should be confirmed with an adviser.' : ''} ` +
+        `Contact us today to schedule a site visit.`
     ).replace(/\s+/g, ' ').trim()
 }
 
@@ -1858,6 +1868,7 @@ export async function generateUnitDescription(
         netArea: unit.netArea,
         facingLabel: FACING_LABELS[unit.facing] ?? unit.facing,
         priceLabel: formatDubaiPrice(Number(unit.totalPrice)),
+        goldenVisaEligible: isGoldenVisaEligible(Number(unit.totalPrice)),
         amenities: project?.amenities ?? [],
     }
 
@@ -1877,6 +1888,7 @@ export async function generateUnitDescription(
         `- Net / suite area: ${facts.netArea} sq.ft.\n` +
         `- Facing: ${facts.facingLabel}\n` +
         `- Price: ${facts.priceLabel}\n` +
+        `- Golden Visa indicator: ${facts.goldenVisaEligible ? 'Meets the AED 2M CRM threshold; describe this as an eligibility indicator only, never a guarantee.' : 'Does not meet the CRM threshold'}\n` +
         `- Amenities: ${facts.amenities.length ? facts.amenities.join(', ') : 'none listed'}\n` +
         `End with a brief call to action to book a site visit.`
 

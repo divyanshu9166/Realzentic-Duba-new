@@ -18,6 +18,7 @@
  */
 
 import { Prisma } from '@prisma/client'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { getSession } from '@/lib/auth-helpers'
@@ -45,6 +46,7 @@ import { sendEmail } from '@/lib/email'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { isValidE164, normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-utils'
+import { idSchema } from '@/lib/validations/common'
 
 const DEALS_PATH = '/deals'
 
@@ -72,6 +74,10 @@ async function resolvePerformedById(actorId?: number | null): Promise<number | n
 /** Convert a Prisma `Decimal` (or numeric) field to a plain number. */
 function toNumber(value: unknown): number {
     return value == null ? 0 : Number(value)
+}
+
+function firstIssue(error: z.ZodError): string {
+    return error.issues[0]?.message ?? 'Invalid input'
 }
 
 // ─── DealStage CRUD / reorder (Req 4.1) ──────────────
@@ -320,6 +326,11 @@ export async function getDealDetail(dealId: number) {
             assignedAgent: true,
             channelPartner: true,
             activities: { orderBy: { createdAt: 'desc' } },
+            appointments: {
+                where: { purpose: 'DLD Trustee Transfer' },
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+            },
             booking: {
                 include: {
                     milestones: {
@@ -354,8 +365,143 @@ export async function getDealDetail(dealId: number) {
             documents,
             milestones: deal.booking?.milestones ?? [],
             costSheet,
+            dldTrusteeAppointment: deal.appointments[0] ?? null,
         },
     }
+}
+
+// ─── Dubai DLD Trustee transfer workflow ──────────────────────────────────
+
+const dldWorkflowSchema = z.object({
+    developerNocStatus: z.enum(['NotRequested', 'Requested', 'Received', 'Rejected']),
+    dldTransferStatus: z.enum(['NotStarted', 'TrusteeAppointmentScheduled', 'TransferCompleted', 'Cancelled']),
+    dldTrusteeOffice: z.string().trim().max(180).optional().nullable(),
+    dldTransferNotes: z.string().trim().max(2000).optional().nullable(),
+})
+
+const dldAppointmentSchema = z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a valid appointment date'),
+    time: z.string().trim().min(1, 'Appointment time is required').max(40),
+    dldTrusteeOffice: z.string().trim().min(2, 'DLD Trustee office is required').max(180),
+    notes: z.string().trim().max(2000).optional().nullable(),
+})
+
+/** Update the NOC and DLD transfer state for a Dubai deal. */
+export async function updateDldTransferWorkflow(dealId: unknown, data: unknown) {
+    const parsedId = idSchema.safeParse(dealId)
+    if (!parsedId.success) return { success: false as const, error: firstIssue(parsedId.error) }
+    const parsed = dldWorkflowSchema.safeParse(data)
+    if (!parsed.success) return { success: false as const, error: firstIssue(parsed.error) }
+
+    const current = await prisma.deal.findUnique({
+        where: { id: parsedId.data },
+        select: { id: true, developerNocStatus: true, dldTransferStatus: true },
+    })
+    if (!current) return { success: false as const, error: 'Deal not found' }
+
+    if (parsed.data.dldTransferStatus === 'TransferCompleted') {
+        if (parsed.data.developerNocStatus !== 'Received') {
+            return { success: false as const, error: 'Record the developer NOC as received before completing the DLD transfer' }
+        }
+        const appointment = await prisma.appointment.findFirst({
+            where: { dealId: current.id, purpose: 'DLD Trustee Transfer', status: { not: 'Cancelled' } },
+            select: { id: true },
+        })
+        if (!appointment) {
+            return { success: false as const, error: 'Schedule a DLD Trustee appointment before completing the transfer' }
+        }
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+        const deal = await tx.deal.update({
+            where: { id: current.id },
+            data: parsed.data,
+        })
+
+        if (
+            current.developerNocStatus !== parsed.data.developerNocStatus
+            || current.dldTransferStatus !== parsed.data.dldTransferStatus
+        ) {
+            await tx.dealActivity.create({
+                data: {
+                    dealId: current.id,
+                    type: 'DLD_TRANSFER_UPDATED',
+                    description: `Developer NOC: ${parsed.data.developerNocStatus.replace(/([A-Z])/g, ' $1').trim()}; DLD transfer: ${parsed.data.dldTransferStatus.replace(/([A-Z])/g, ' $1').trim()}`,
+                },
+            })
+        }
+        return deal
+    })
+
+    revalidatePath(`${DEALS_PATH}/${current.id}`)
+    return { success: true as const, data: updated }
+}
+
+/** Create or reschedule the DLD Trustee appointment linked to a Dubai deal. */
+export async function scheduleDldTrusteeAppointment(dealId: unknown, data: unknown) {
+    const parsedId = idSchema.safeParse(dealId)
+    if (!parsedId.success) return { success: false as const, error: firstIssue(parsedId.error) }
+    const parsed = dldAppointmentSchema.safeParse(data)
+    if (!parsed.success) return { success: false as const, error: firstIssue(parsed.error) }
+
+    const deal = await prisma.deal.findUnique({
+        where: { id: parsedId.data },
+        select: { id: true, contactId: true, dldTransferStatus: true },
+    })
+    if (!deal) return { success: false as const, error: 'Deal not found' }
+    if (deal.dldTransferStatus === 'TransferCompleted') {
+        return { success: false as const, error: 'This transfer is already marked complete' }
+    }
+
+    const appointmentDate = new Date(`${parsed.data.date}T00:00:00`)
+    if (Number.isNaN(appointmentDate.getTime())) {
+        return { success: false as const, error: 'Choose a valid appointment date' }
+    }
+
+    const appointment = await prisma.$transaction(async (tx) => {
+        const existing = await tx.appointment.findFirst({
+            where: { dealId: deal.id, purpose: 'DLD Trustee Transfer' },
+            orderBy: { updatedAt: 'desc' },
+        })
+        const notes = [
+            `DLD Trustee office: ${parsed.data.dldTrusteeOffice}`,
+            parsed.data.notes ?? '',
+        ].filter(Boolean).join('\n')
+
+        const appointmentData = {
+            date: appointmentDate,
+            time: parsed.data.time,
+            purpose: 'DLD Trustee Transfer',
+            notes,
+            status: 'Scheduled',
+        }
+        const saved = existing
+            ? await tx.appointment.update({ where: { id: existing.id }, data: appointmentData })
+            : await tx.appointment.create({
+                data: { ...appointmentData, contactId: deal.contactId, dealId: deal.id },
+            })
+
+        await tx.deal.update({
+            where: { id: deal.id },
+            data: {
+                dldTransferStatus: 'TrusteeAppointmentScheduled',
+                dldTrusteeOffice: parsed.data.dldTrusteeOffice,
+                ...(parsed.data.notes !== undefined ? { dldTransferNotes: parsed.data.notes } : {}),
+            },
+        })
+        await tx.dealActivity.create({
+            data: {
+                dealId: deal.id,
+                type: existing ? 'DLD_TRUSTEE_APPOINTMENT_RESCHEDULED' : 'DLD_TRUSTEE_APPOINTMENT_SCHEDULED',
+                description: `DLD Trustee transfer appointment scheduled at ${parsed.data.dldTrusteeOffice} for ${parsed.data.date} ${parsed.data.time}`,
+            },
+        })
+        return saved
+    })
+
+    revalidatePath(`${DEALS_PATH}/${deal.id}`)
+    revalidatePath('/appointments')
+    return { success: true as const, data: appointment }
 }
 
 // ─── Deal analytics (Req 4.8) ────────────────────────

@@ -97,13 +97,11 @@ export default function CallDispatcher() {
                             <select
                                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500"
                                 name="voice"
-                                defaultValue="alloy"
+                                defaultValue="aura-2-andromeda-en"
                             >
-                                <option value="alloy">Alloy (US)</option>
-                                <option value="echo">Echo (US)</option>
-                                <option value="shimmer">Shimmer (US)</option>
-                                <option value="anushka">English voice (Sarvam)</option>
-                                <option value="aravind">English voice (Sarvam)</option>
+                                <option value="aura-2-andromeda-en">Andromeda (Deepgram Aura)</option>
+                                <option value="aura-2-thalia-en">Thalia (Deepgram Aura)</option>
+                                <option value="aura-2-helena-en">Helena (Deepgram Aura)</option>
                             </select>
                         </div>
                     </div>

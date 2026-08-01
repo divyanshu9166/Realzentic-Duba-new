@@ -1,11 +1,11 @@
-# LiveKit Vobiz Outbound Agent 📞
+# Realzentic Dubai Voice Agent 📞
 
-A production-ready voice agent capable of making outbound calls using **LiveKit**, **Deepgram**, and **Groq (Llama 3.3)**.  
-Designed for reliability, speed, and ease of deployment.
+A Dubai real-estate voice agent for inbound and outbound calls using **LiveKit**,
+**Deepgram** (Nova-3 STT + Aura English TTS), and **Groq/OpenAI** LLMs.
 
 ## 🚀 Features
 - **Ultra-Fast LLM**: Uses **Groq** running `llama-3.3-70b-versatile` for near-instant responses.
-- **High-Quality Audio**: Uses **Deepgram** for both Speech-to-Text (STT) and Text-to-Speech (TTS).
+- **English-first Dubai voice**: Uses Deepgram Nova-3 transcription and Aura English TTS.
 - **SIP Trunking**: Integrated with **Vobiz** for PSTN connectivity.
 - **Robust Configuration**: Centralized `config.py` for easy customization of prompts, models, and voices.
 
@@ -24,7 +24,7 @@ Designed for reliability, speed, and ease of deployment.
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd LiveKit-Vobiz-Outbound-main
+cd realzentic-dubai/ai-agent
 
 # Create a virtual environment
 python3 -m venv venv
@@ -46,6 +46,11 @@ nano .env  # Or open in your editor
 - `GROQ_API_KEY`
 - `VOBIZ_SIP_*` variables (for outbound calls)
 
+Optional voice configuration:
+- `TTS_PROVIDER=deepgram` (the supported launch provider)
+- `DEEPGRAM_TTS_MODEL=aura-2-andromeda-en`
+- `STT_LANGUAGE=en`
+
 ---
 
 ## 🏃‍♂️ Usage
@@ -56,12 +61,9 @@ This runs the agent process which listens for room connections.
 python agent.py start
 ```
 
-### 2. Make an Outbound Call
-In a **new terminal window** (ensure `venv` is active), run:
-```bash
-python make_call.py --to +971XXXXXXXXXX
-```
-*Note: The number must include the country code (e.g., +1 or +971).*
+Outbound calls are dispatched from the CRM Calls page. Use a normalized UAE
+number such as `+971501234567`; the agent schedules property viewings only
+after it confirms the caller's details.
 
 ---
 
@@ -71,7 +73,7 @@ python make_call.py --to +971XXXXXXXXXX
 **Cause:** The configured LLM model is no longer supported by Groq.  
 **Fix:**
 1. Open `config.py`.
-2. Update `GROQ_MODEL` to a supported model (e.g., `llama-3.3-70b-versatile` or `llama-3.1-8b-instant`).
+2. Update `GROQ_MODEL` to a currently supported Groq model.
 3. **Restart `agent.py`** to apply changes.
 
 ### ❌ Error: `404 Not Found` (SIP Trunk)
@@ -94,11 +96,11 @@ python make_call.py --to +971XXXXXXXXXX
 2. Run `pip install -r requirements.txt`.
 
 ### ❌ Call Connects but No Audio
-**Cause:** TTS (Text-to-Speech) failure or WebSocket issues.  
+**Cause:** Deepgram TTS credentials, model configuration, or WebSocket issues.
 **Fix:**
 1. Check terminal logs for `APIStatusError`.
-2. If using OpenAI TTS, ensure you have OpenAI credits.
-3. Recommended: Switch to Deepgram TTS (set `TTS_PROVIDER=deepgram` in `.env`).
+2. Confirm `DEEPGRAM_API_KEY` is set for the worker.
+3. Confirm `TTS_PROVIDER=deepgram` and a supported Aura English model are configured.
 
 ---
 

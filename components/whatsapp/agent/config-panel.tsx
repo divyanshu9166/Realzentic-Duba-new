@@ -78,7 +78,7 @@ export function ConfigPanel({ config, onConfigChange, onSave, saving, savedAt }:
             type="text"
             value={config.agent_name}
             onChange={(e) => set('agent_name', e.target.value)}
-            placeholder="e.g. Aria, Riya, Support"
+            placeholder="e.g. Maya, Property Concierge, Support"
             className="w-full px-3 py-2 rounded-lg border border-border bg-surface text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors"
           />
           <p className="text-[11px] text-muted mt-1">The name the AI signs off as in messages.</p>

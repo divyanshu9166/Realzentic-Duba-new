@@ -569,7 +569,7 @@ export default function WalkinsPage() {
         <div className="space-y-5">
           {/* Description */}
           <p className="text-sm text-muted">
-            Customers scan this QR code or visit the link below to register their walk-in visit at your showroom. Their details will appear in this dashboard in real-time.
+            Customers scan this QR code or visit the link below to register their property enquiry at your office or viewing event. Their details will appear in this dashboard in real-time.
           </p>
 
           {/* QR + Link side by side (desktop) or stacked (mobile) */}

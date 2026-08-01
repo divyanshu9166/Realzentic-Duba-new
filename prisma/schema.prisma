@@ -216,6 +216,8 @@ model Appointment {
   id        Int      @id @default(autoincrement())
   contactId Int
   contact   Contact  @relation(fields: [contactId], references: [id])
+  dealId    Int?
+  deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
   date      DateTime
   time      String
   purpose   String
@@ -226,6 +228,7 @@ model Appointment {
 
   @@index([date])
   @@index([status])
+  @@index([dealId])
 }
 
 // ─── WALK-INS ────────────────────────────────────────
@@ -1686,6 +1689,20 @@ enum SupportTicketStatus {
   Closed
 }
 
+enum DeveloperNocStatus {
+  NotRequested
+  Requested
+  Received
+  Rejected
+}
+
+enum DldTransferStatus {
+  NotStarted
+  TrusteeAppointmentScheduled
+  TransferCompleted
+  Cancelled
+}
+
 // ─── PHASE 1 MODELS ──────────────────────────────────
 
 model Project {
@@ -1882,6 +1899,10 @@ model Deal {
   aiScoredAt        DateTime?
   isHot             Boolean   @default(false)
   isAtRisk          Boolean   @default(false)
+  developerNocStatus DeveloperNocStatus @default(NotRequested)
+  dldTransferStatus DldTransferStatus @default(NotStarted)
+  dldTrusteeOffice  String?
+  dldTransferNotes  String?
   lostReason        String?
   wonDate           DateTime?
   metadata          Json? // EMI saved calculations (Req 10.4)
@@ -1892,6 +1913,7 @@ model Deal {
   booking     Booking?
   commissions CPCommission[]
   referrals   Referral[]
+  appointments Appointment[]
 
   @@index([stageId])
   @@index([contactId])

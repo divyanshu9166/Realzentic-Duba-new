@@ -124,20 +124,24 @@ export async function initiateAICall(phoneNumber: string, reason: string, custom
 
 export async function getAIAgentStatus() {
   const livekitConfigured = !!(process.env.LIVEKIT_URL && process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET)
-  const hasSarvam = !!process.env.SARVAM_API_KEY
-  const hasGemini = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)
+  const hasDeepgram = !!process.env.DEEPGRAM_API_KEY
+  const hasGroq = !!process.env.GROQ_API_KEY
+  const hasOpenAI = !!process.env.OPENAI_API_KEY
+  const hasLlm = hasGroq || hasOpenAI
   const hasSipTrunk = !!process.env.OUTBOUND_SIP_TRUNK_ID
-  const configured = livekitConfigured && hasSarvam && hasGemini
+  const configured = livekitConfigured && hasDeepgram && hasLlm
 
   return {
     success: true,
     data: {
       configured,
-      agentName: process.env.AI_AGENT_NAME || 'anushka',
+      agentName: process.env.AI_AGENT_NAME || 'Maya',
       livekitUrl: livekitConfigured ? process.env.LIVEKIT_URL : null,
       hasLiveKit: livekitConfigured,
-      hasSarvam,
-      hasGemini,
+      hasDeepgram,
+      hasGroq,
+      hasOpenAI,
+      hasLlm,
       hasVobiz: !!process.env.VOBIZ_SIP_DOMAIN || hasSipTrunk,
       hasSipTrunk,
     },

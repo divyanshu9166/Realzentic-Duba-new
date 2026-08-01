@@ -27,6 +27,7 @@ export default async function PropertiesPage() {
             photoUrl: p.photoUrl,
             unitCount: p.unitCount,
             percentSold: p.percentSold,
+            goldenVisaEligibleUnitCount: p.goldenVisaEligibleUnitCount,
         }))
         : [];
 

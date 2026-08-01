@@ -102,21 +102,23 @@ LOCATION: [Dubai community / emirate]
 CONTACT: +971-XXXXXXXXXX | email@domain.com
 
 ABOUT US:
-[2-3 sentences about your company, what you sell, and what makes you unique.]
+[2-3 sentences about your Dubai real-estate services and what makes your team unique.]
 
-PRODUCTS & PRICING:
-- [Category 1]: AED X,XXX – AED XX,XXX
-- [Category 2]: AED X,XXX – AED XX,XXX
+PROPERTY OPTIONS:
+- [Project / community]: apartments, villas, or commercial spaces from AED X,XXX,XXX
+- [Project / community]: off-plan payment-plan options from AED X,XXX,XXX
 
-DELIVERY:
-- Standard: X–Y business days
-- Free shipping above: AED XX,XXX
+VIEWINGS:
+- Viewing hours and appointment process
+- Communities or projects currently available for viewing
 
-PAYMENT TERMS:
-- [e.g. 50% advance, balance on delivery]
+PAYMENT & FINANCE:
+- [Developer payment-plan summary]
+- [Mortgage guidance and contact process]
 
-WARRANTY:
-- [e.g. 1-year manufacturing warranty]
+COMPLIANCE:
+- [DLD / RERA registration details]
+- [Golden Visa eligibility indicator wording, where relevant]
 
 FREQUENTLY ASKED QUESTIONS:
 Q: [Most common question]

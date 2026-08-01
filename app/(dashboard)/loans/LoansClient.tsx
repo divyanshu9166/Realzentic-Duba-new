@@ -6,8 +6,17 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Landmark, Plus, Loader2, Phone } from 'lucide-react'
-import { getLoans, createLoan, updateLoan, type LoanRow } from '@/app/actions/loans'
+import { Landmark, Plus, Loader2, Phone, ArrowLeftRight } from 'lucide-react'
+import {
+    getLoans,
+    createLoan,
+    updateLoan,
+    getLoanComparison,
+    listLoanDealOptions,
+    type LoanComparison,
+    type LoanDealOption,
+    type LoanRow,
+} from '@/app/actions/loans'
 import { getStaff } from '@/app/actions/staff'
 import { listContactsBrief } from '@/app/actions/contacts'
 
@@ -23,8 +32,8 @@ const STATUS_CLS: Record<string, string> = {
 
 function formatAed(amount: number | null): string {
     if (amount == null || !Number.isFinite(amount) || amount === 0) return '—'
-    if (amount >= 1e7) return `AED ${(amount / 1e7).toFixed(2)} Cr`
-    if (amount >= 1e5) return `AED ${(amount / 1e5).toFixed(1)} L`
+    if (amount >= 1e6) return `AED ${(amount / 1e6).toFixed(2)}M`
+    if (amount >= 1e3) return `AED ${(amount / 1e3).toFixed(1)}K`
     return `AED ${Math.round(amount).toLocaleString('en-AE')}`
 }
 
@@ -36,10 +45,15 @@ export default function LoansClient() {
     const [saving, setSaving] = useState(false)
     const [staff, setStaff] = useState<Array<{ id: number; name: string }>>([])
     const [contacts, setContacts] = useState<Array<{ id: number; name: string }>>([])
+    const [deals, setDeals] = useState<LoanDealOption[]>([])
+    const [view, setView] = useState<'applications' | 'comparison'>('applications')
+    const [comparisonDealId, setComparisonDealId] = useState('')
+    const [comparison, setComparison] = useState<LoanComparison | null>(null)
+    const [comparing, setComparing] = useState(false)
 
     const [form, setForm] = useState({
         contactId: '', bankName: '', loanAmount: '', interestRate: '', tenureYears: '',
-        status: 'Enquiry', applicationNo: '', assignedToId: '', notes: '',
+        status: 'Enquiry', applicationNo: '', assignedToId: '', notes: '', dealId: '',
     })
 
     const load = useCallback(async () => {
@@ -53,6 +67,7 @@ export default function LoansClient() {
     useEffect(() => {
         getStaff().then((r) => { if (r.success) setStaff(r.data.map((s: { id: number; name: string }) => ({ id: s.id, name: s.name }))) })
         listContactsBrief().then((r) => { if (r.success) setContacts(r.data.map((c) => ({ id: c.id, name: c.name }))) })
+        listLoanDealOptions().then((r) => { if (r.success) setDeals(r.data) })
     }, [])
 
     async function handleCreate() {
@@ -62,6 +77,7 @@ export default function LoansClient() {
         try {
             const res = await createLoan({
                 contactId: Number(form.contactId),
+                dealId: form.dealId ? Number(form.dealId) : undefined,
                 bankName: form.bankName.trim(),
                 loanAmount: form.loanAmount ? Math.round(Number(form.loanAmount)) : undefined,
                 interestRate: form.interestRate ? Number(form.interestRate) : undefined,
@@ -74,7 +90,7 @@ export default function LoansClient() {
             if (!res.success) { toast.error(res.error); return }
             toast.success('Mortgage application added')
             setShowModal(false)
-            setForm({ contactId: '', bankName: '', loanAmount: '', interestRate: '', tenureYears: '', status: 'Enquiry', applicationNo: '', assignedToId: '', notes: '' })
+            setForm({ contactId: '', bankName: '', loanAmount: '', interestRate: '', tenureYears: '', status: 'Enquiry', applicationNo: '', assignedToId: '', notes: '', dealId: '' })
             await load()
         } finally {
             setSaving(false)
@@ -88,6 +104,23 @@ export default function LoansClient() {
     }
 
     const sanctioned = loans.filter((l) => l.status === 'Sanctioned' || l.status === 'Disbursed').length
+
+    async function loadComparison() {
+        if (!comparisonDealId) { toast.error('Select a deal to compare bank offers'); return }
+        setComparing(true)
+        try {
+            const res = await getLoanComparison(Number(comparisonDealId))
+            if (!res.success) { toast.error(res.error); return }
+            setComparison(res.data)
+        } finally {
+            setComparing(false)
+        }
+    }
+
+    function selectDealForApplication(dealId: string) {
+        const deal = deals.find((item) => item.id === Number(dealId))
+        setForm((current) => ({ ...current, dealId, contactId: deal ? String(deal.contactId) : current.contactId }))
+    }
 
     return (
         <div className="space-y-5">
@@ -104,57 +137,67 @@ export default function LoansClient() {
                 </button>
             </div>
 
-            <div className="flex gap-1 flex-wrap">
-                {['All', ...STATUSES].map((s) => (
-                    <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${statusFilter === s ? 'bg-accent text-white' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}>{s}</button>
-                ))}
+            <div className="flex gap-1 flex-wrap rounded-xl border border-border bg-surface p-1 w-fit">
+                <button onClick={() => setView('applications')} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${view === 'applications' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}>Applications</button>
+                <button onClick={() => setView('comparison')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${view === 'comparison' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}><ArrowLeftRight className="size-3.5" /> Compare offers</button>
             </div>
 
-            <div className="glass-card overflow-hidden">
-                {loading ? (
-                    <div className="flex items-center justify-center py-12"><Loader2 className="size-6 animate-spin text-accent" /></div>
-                ) : loans.length === 0 ? (
-                    <div className="py-12 text-center text-sm text-muted">No mortgage applications</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="crm-table">
-                            <thead>
-                                <tr>
-                                    <th>Applicant</th>
-                                    <th>Bank</th>
-                                    <th>Mortgage Amount</th>
-                                    <th>Rate / Tenure</th>
-                                    <th>Sanctioned</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {loans.map((l) => (
-                                    <tr key={l.id}>
-                                        <td>
-                                            <p className="font-medium text-foreground">{l.contactName}</p>
-                                            {l.contactPhone && <p className="text-xs text-muted flex items-center gap-1"><Phone className="size-3" />{l.contactPhone}</p>}
-                                        </td>
-                                        <td className="text-foreground">{l.bankName}{l.applicationNo && <span className="block text-xs text-muted">#{l.applicationNo}</span>}</td>
-                                        <td className="text-foreground">{formatAed(l.loanAmount)}</td>
-                                        <td className="text-muted text-xs">{l.interestRate ? `${l.interestRate}%` : '—'}{l.tenureYears ? ` · ${l.tenureYears}y` : ''}</td>
-                                        <td className="text-emerald-600 font-medium">{formatAed(l.sanctionedAmount)}</td>
-                                        <td>
-                                            <select
-                                                value={l.status}
-                                                onChange={(e) => handleStatusChange(l.id, e.target.value)}
-                                                className={`px-2 py-1 rounded-full text-xs border bg-transparent ${STATUS_CLS[l.status] ?? 'border-border text-muted'}`}
-                                            >
-                                                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                                            </select>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {view === 'applications' ? (
+                <>
+                    <div className="flex gap-1 flex-wrap">
+                        {['All', ...STATUSES].map((s) => (
+                            <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${statusFilter === s ? 'bg-accent text-white' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}>{s}</button>
+                        ))}
                     </div>
-                )}
-            </div>
+                    <div className="glass-card overflow-hidden">
+                        {loading ? (
+                            <div className="flex items-center justify-center py-12"><Loader2 className="size-6 animate-spin text-accent" /></div>
+                        ) : loans.length === 0 ? (
+                            <div className="py-12 text-center text-sm text-muted">No mortgage applications</div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="crm-table">
+                                    <thead>
+                                        <tr><th>Applicant</th><th>Bank</th><th>Mortgage Amount</th><th>Rate / Tenure</th><th>Sanctioned</th><th>Status</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {loans.map((l) => (
+                                            <tr key={l.id}>
+                                                <td><p className="font-medium text-foreground">{l.contactName}</p>{l.contactPhone && <p className="text-xs text-muted flex items-center gap-1"><Phone className="size-3" />{l.contactPhone}</p>}</td>
+                                                <td className="text-foreground">{l.bankName}{l.applicationNo && <span className="block text-xs text-muted">#{l.applicationNo}</span>}</td>
+                                                <td className="text-foreground">{formatAed(l.loanAmount)}</td>
+                                                <td className="text-muted text-xs">{l.interestRate != null ? `${l.interestRate}%` : '—'}{l.tenureYears ? ` · ${l.tenureYears}y` : ''}</td>
+                                                <td className="text-emerald-600 font-medium">{formatAed(l.sanctionedAmount)}</td>
+                                                <td><select value={l.status} onChange={(e) => handleStatusChange(l.id, e.target.value)} className={`px-2 py-1 rounded-full text-xs border bg-transparent ${STATUS_CLS[l.status] ?? 'border-border text-muted'}`}>{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </>
+            ) : (
+                <div className="glass-card p-5 space-y-5">
+                    <div className="flex flex-wrap items-end gap-3">
+                        <label className="min-w-72 flex-1 text-xs text-muted">Deal
+                            <select value={comparisonDealId} onChange={(event) => { setComparisonDealId(event.target.value); setComparison(null) }} className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
+                                <option value="">Select a deal</option>
+                                {deals.map((deal) => <option key={deal.id} value={deal.id}>{deal.label}</option>)}
+                            </select>
+                        </label>
+                        <button onClick={loadComparison} disabled={comparing} className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{comparing && <Loader2 className="size-4 animate-spin" />} Compare saved offers</button>
+                    </div>
+                    {!comparison ? <p className="py-10 text-center text-sm text-muted">Choose a deal to compare its saved bank offers side by side.</p> : comparison.offers.length === 0 ? <p className="py-10 text-center text-sm text-muted">No mortgage applications are linked to this deal yet.</p> : (
+                        <div className="space-y-3">
+                            <div><p className="text-sm font-semibold text-foreground">{comparison.deal.buyerName}</p><p className="text-xs text-muted">{comparison.deal.projectName ?? 'No project'}{comparison.deal.unitNumber ? ` · Unit ${comparison.deal.unitNumber}` : ''}</p></div>
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                {comparison.offers.map((offer) => <div key={offer.id} className="rounded-xl border border-border bg-surface p-4 space-y-3"><div className="flex items-start justify-between gap-2"><div><p className="font-semibold text-foreground">{offer.bankName}</p><p className="text-xs text-muted">{offer.applicationNo ? `#${offer.applicationNo}` : 'No application number'}</p></div><span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_CLS[offer.status] ?? 'border-border text-muted'}`}>{offer.status}</span></div><dl className="space-y-1.5 text-xs"><div className="flex justify-between gap-3"><dt className="text-muted">Requested</dt><dd className="font-medium text-foreground">{formatAed(offer.loanAmount)}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted">Sanctioned</dt><dd className="font-medium text-emerald-600">{formatAed(offer.sanctionedAmount)}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted">Rate / tenure</dt><dd className="font-medium text-foreground">{offer.interestRate != null ? `${offer.interestRate}%` : '—'}{offer.tenureYears ? ` · ${offer.tenureYears}y` : ''}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted">Estimated monthly payment</dt><dd className="font-medium text-foreground">{formatAed(offer.monthlyPayment)}</dd></div></dl>{offer.notes && <p className="border-t border-border pt-2 text-xs text-muted">{offer.notes}</p>}</div>)}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowModal(false)}>
@@ -162,6 +205,13 @@ export default function LoansClient() {
                         <h2 className="text-lg font-semibold text-foreground">New Mortgage Application</h2>
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">
+                                <div className="col-span-2">
+                                    <label className="block text-xs text-muted mb-1">Link to deal (recommended for comparison)</label>
+                                    <select value={form.dealId} onChange={(e) => selectDealForApplication(e.target.value)} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
+                                        <option value="">No deal linked</option>
+                                        {deals.map((deal) => <option key={deal.id} value={deal.id}>{deal.label}</option>)}
+                                    </select>
+                                </div>
                                 <div>
                                     <label className="block text-xs text-muted mb-1">Applicant (contact) *</label>
                                     <select value={form.contactId} onChange={(e) => setForm((f) => ({ ...f, contactId: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
@@ -171,7 +221,7 @@ export default function LoansClient() {
                                 </div>
                                 <div>
                                     <label className="block text-xs text-muted mb-1">Bank *</label>
-                                    <input value={form.bankName} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} placeholder="e.g., HDFC, SBI" className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                                    <input value={form.bankName} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} placeholder="e.g., Emirates NBD, ADCB" className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-3 gap-3">

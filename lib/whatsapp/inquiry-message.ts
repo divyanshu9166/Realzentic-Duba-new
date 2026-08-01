@@ -138,6 +138,8 @@ export async function sendPropertyInfoMessage(
       `  • Retail, offices, warehouses, and investment opportunities\n\n` +
       `📅 *Property Viewings*\n` +
       `  • We will arrange a viewing once a consultant confirms availability.\n\n` +
+      `🏅 *Golden Visa indicator*\n` +
+      `  • Selected AED 2M+ investment options may meet the CRM eligibility threshold; final eligibility must be confirmed with an adviser.\n\n` +
       `Please share the location, property type, and your AED budget.`
 
     const result = await sendTextMessage({

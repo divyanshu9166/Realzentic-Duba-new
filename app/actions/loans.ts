@@ -11,6 +11,8 @@
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { createLoanSchema, updateLoanSchema } from '@/lib/validations/loans'
+import { idSchema } from '@/lib/validations/common'
+import { computeEmi } from '@/lib/emi'
 
 type Result<T> = { success: true; data: T } | { success: false; error: string }
 
@@ -33,6 +35,21 @@ export interface LoanRow {
     assignedToId: number | null
     assignedToName: string | null
     createdAt: string
+}
+
+export interface LoanDealOption {
+    id: number
+    contactId: number
+    label: string
+}
+
+export interface LoanComparisonRow extends LoanRow {
+    monthlyPayment: number | null
+}
+
+export interface LoanComparison {
+    deal: { id: number; buyerName: string; unitNumber: string | null; projectName: string | null }
+    offers: LoanComparisonRow[]
 }
 
 const loanInclude = {
@@ -94,6 +111,80 @@ export async function getLoans(filters: { status?: string } = {}): Promise<{ suc
     }
 }
 
+/** Deal choices used to attach mortgage applications and compare bank offers. */
+export async function listLoanDealOptions(): Promise<Result<LoanDealOption[]>> {
+    try {
+        const deals = await prisma.deal.findMany({
+            select: {
+                id: true,
+                contactId: true,
+                contact: { select: { name: true } },
+                unit: { select: { unitNumber: true, tower: { select: { project: { select: { name: true } } } } } },
+            },
+            orderBy: { updatedAt: 'desc' },
+            take: 500,
+        })
+        return {
+            success: true,
+            data: deals.map((deal) => ({
+                id: deal.id,
+                contactId: deal.contactId,
+                label: `${deal.contact.name} — ${deal.unit?.tower.project?.name ?? 'No project'}${deal.unit ? ` / Unit ${deal.unit.unitNumber}` : ''}`,
+            })),
+        }
+    } catch {
+        return { success: false, error: 'Failed to list deals for mortgage comparison' }
+    }
+}
+
+/** Return the saved bank applications for one deal as a side-by-side comparison. */
+export async function getLoanComparison(dealId: unknown): Promise<Result<LoanComparison>> {
+    const parsed = idSchema.safeParse(dealId)
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid deal' }
+
+    const deal = await prisma.deal.findUnique({
+        where: { id: parsed.data },
+        select: {
+            id: true,
+            contact: { select: { name: true } },
+            unit: { select: { unitNumber: true, tower: { select: { project: { select: { name: true } } } } } },
+        },
+    })
+    if (!deal) return { success: false, error: 'Deal not found' }
+
+    const loans = await prisma.loanApplication.findMany({
+        where: { dealId: deal.id },
+        include: loanInclude,
+        orderBy: [{ interestRate: 'asc' }, { createdAt: 'desc' }],
+    })
+    const offers = loans.map((loan) => {
+        const row = mapLoan(loan)
+        const principal = row.sanctionedAmount ?? row.loanAmount
+        let monthlyPayment: number | null = null
+        if (principal && row.interestRate != null && row.tenureYears != null) {
+            try {
+                monthlyPayment = computeEmi(principal, row.interestRate, row.tenureYears * 12)
+            } catch {
+                monthlyPayment = null
+            }
+        }
+        return { ...row, monthlyPayment }
+    })
+
+    return {
+        success: true,
+        data: {
+            deal: {
+                id: deal.id,
+                buyerName: deal.contact.name,
+                unitNumber: deal.unit?.unitNumber ?? null,
+                projectName: deal.unit?.tower.project?.name ?? null,
+            },
+            offers,
+        },
+    }
+}
+
 export async function createLoan(data: unknown): Promise<Result<LoanRow>> {
     const parsed = createLoanSchema.safeParse(data)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
@@ -101,6 +192,11 @@ export async function createLoan(data: unknown): Promise<Result<LoanRow>> {
     const d = parsed.data
     const contact = await prisma.contact.findUnique({ where: { id: d.contactId }, select: { id: true } })
     if (!contact) return { success: false, error: 'Contact not found' }
+    if (d.dealId != null) {
+        const deal = await prisma.deal.findUnique({ where: { id: d.dealId }, select: { contactId: true } })
+        if (!deal) return { success: false, error: 'Deal not found' }
+        if (deal.contactId !== d.contactId) return { success: false, error: 'The selected deal belongs to a different contact' }
+    }
     if (d.assignedToId != null) {
         const staff = await prisma.staff.findUnique({ where: { id: d.assignedToId }, select: { id: true } })
         if (!staff) return { success: false, error: 'Assigned staff member not found' }

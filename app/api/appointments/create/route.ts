@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db'
 
 /**
  * POST /api/appointments/create
- * Called by the AI agent (Anushka) to book callbacks, showroom visits, and appointments.
+ * Called by the AI agent to book Dubai property viewings and appointments.
  */
 export async function POST(req: NextRequest) {
   const apiSecret = req.headers.get('x-api-secret')
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         date: new Date(date),
         time: time,
         purpose: purpose || 'Site Visit',
-        notes: notes || 'Booked via AI Agent Anushka',
+        notes: notes || 'Booked via Realzentic Dubai AI Agent',
         status: 'Scheduled',
       },
     })

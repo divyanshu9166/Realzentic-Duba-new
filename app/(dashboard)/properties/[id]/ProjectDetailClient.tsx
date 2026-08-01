@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { getInventoryAnalytics } from '@/app/actions/properties';
 import type { InventoryAnalytics } from '@/lib/inventory';
+import { isGoldenVisaEligible } from '@/lib/golden-visa';
 import AddInventoryButton from './AddInventoryButton';
 import WaitlistPanel from './WaitlistPanel';
 
@@ -293,6 +294,9 @@ function UnitCell({ unit }: { unit: UnitRow }) {
                         <p>Status: <span className="text-foreground">{unit.status}</span></p>
                         <p>Area: <span className="text-foreground">{unit.builtUpArea} sq ft</span></p>
                         <p>Price: <span className="text-foreground">{formatAed(unit.totalPrice)}</span></p>
+                        {isGoldenVisaEligible(unit.totalPrice) && (
+                            <p className="font-medium text-amber-700">Golden Visa eligibility indicator</p>
+                        )}
                         <p>Facing: <span className="text-foreground">{unit.facing}</span></p>
                     </div>
                 </div>

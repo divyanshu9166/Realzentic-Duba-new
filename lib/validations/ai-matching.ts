@@ -41,8 +41,8 @@ export const buyerPreferencesSchema = z
         facing: oneOrMany(unitFacingEnum).optional(),
         minFloor: floorNumber('Minimum floor').optional(),
         maxFloor: floorNumber('Maximum floor').optional(),
-        minCarpetArea: netArea('Minimum net area').optional(),
-        maxCarpetArea: netArea('Maximum net area').optional(),
+        minNetArea: netArea('Minimum net area').optional(),
+        maxNetArea: netArea('Maximum net area').optional(),
         amenities: z.array(z.string().trim().min(1, 'Amenity must not be empty')).optional(),
     })
     .refine(
@@ -55,10 +55,10 @@ export const buyerPreferencesSchema = z
     )
     .refine(
         (p) =>
-            p.minCarpetArea === undefined ||
-            p.maxCarpetArea === undefined ||
-            p.minCarpetArea <= p.maxCarpetArea,
-        { message: 'minCarpetArea must not exceed maxCarpetArea', path: ['minCarpetArea'] }
+            p.minNetArea === undefined ||
+            p.maxNetArea === undefined ||
+            p.minNetArea <= p.maxNetArea,
+        { message: 'minNetArea must not exceed maxNetArea', path: ['minNetArea'] }
     )
 
 export type BuyerPreferencesInput = z.infer<typeof buyerPreferencesSchema>

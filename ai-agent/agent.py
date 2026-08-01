@@ -1,6 +1,6 @@
 """
 Realzentic Dubai AI Calling Agent (livekit-agents v1.5.x)
-Uses LiveKit + Deepgram STT/TTS + Groq LLM + Vobiz sip
+Uses LiveKit + Deepgram STT/TTS + Groq/OpenAI LLM + Vobiz SIP
 Handles both inbound and outbound calls for Dubai real-estate enquiries
 """
 
@@ -17,10 +17,12 @@ from livekit import api
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions, cli, llm
 from livekit.agents.voice import Agent, AgentSession
 from livekit.agents.voice.room_io import AudioInputOptions, AudioOutputOptions, RoomOptions
-from livekit.plugins import deepgram, noise_cancellation, openai, sarvam, silero
+from livekit.plugins import deepgram, noise_cancellation, openai, silero
 
 from config import (
-    DEFAULT_TTS_VOICE,
+    AGENT_NAME,
+    DEEPGRAM_TTS_MODEL,
+    DEEPGRAM_TTS_SAMPLE_RATE,
     GROQ_MAX_TOKENS,
     GROQ_MODEL,
     GROQ_TEMPERATURE,
@@ -30,10 +32,9 @@ from config import (
     OPENAI_FALLBACK_MODEL,
     OUTBOUND_GREETING_PROMPT,
     OUTBOUND_SYSTEM_PROMPT,
-    SARVAM_LANGUAGE,
-    SARVAM_MODEL,
     STT_LANGUAGE,
     STT_MODEL,
+    TTS_PROVIDER,
 )
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -47,26 +48,6 @@ CRM_API_SECRET = os.getenv("CRM_API_SECRET", "")
 MAX_CALL_DURATION = int(os.getenv("MAX_CALL_DURATION_SECONDS", "600"))
 DEFAULT_TRANSFER_NUMBER = os.getenv("DEFAULT_TRANSFER_NUMBER", "")
 OUTBOUND_SIP_TRUNK_ID = os.getenv("OUTBOUND_SIP_TRUNK_ID") or os.getenv("VOBIZ_SIP_TRUNK_ID", "")
-
-
-def _env_float(name: str, default: float) -> float:
-    raw = os.getenv(name)
-    if not raw:
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        return default
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return default
 
 
 # ─── Tools ───
@@ -83,7 +64,8 @@ class RealzenticDubaiTools(llm.ToolContext):
             "Call this tool in TWO situations: "
             "(1) The customer asks to speak to a person/human/manager, OR "
             "(2) The customer asks something you cannot answer (unknown price, policy, complaint, etc.). "
-            "Always say a brief goodbye sentence BEFORE calling this tool, e.g. 'जी, अभी हमारे टीम मेंबर से कनेक्ट करती हूँ।'"
+            "Always say a brief goodbye sentence BEFORE calling this tool, for example: "
+            "'I will connect you with a property consultant now.'"
         )
     )
     async def transfer_call(self, destination: Optional[str] = None) -> str:
@@ -192,7 +174,7 @@ class RealzenticDubaiTools(llm.ToolContext):
             "date": date,
             "time": time,
             "purpose": purpose or "Property Viewing",
-            "notes": notes or f"Booked via AI Agent (Aria) during call",
+            "notes": notes or f"Booked via AI Agent ({AGENT_NAME}) during call",
         }
         try:
             async with aiohttp.ClientSession() as http:
@@ -207,7 +189,7 @@ class RealzenticDubaiTools(llm.ToolContext):
                         logger.info("Appointment created: id=%s date=%s time=%s", appt_id, date, time)
                         return (
                             f"Appointment confirmed and saved successfully. "
-                            f"{purpose or 'Showroom Visit'} on {date} at {time} for {customer_name}."
+                            f"{purpose or 'Property Viewing'} on {date} at {time} for {customer_name}."
                         )
                     else:
                         text = await resp.text()
@@ -243,7 +225,7 @@ async def log_call_to_crm(
         "direction": "INBOUND" if call_type == "inbound" else "OUTBOUND",
         "status": "COMPLETED",
         "durationSec": round(duration_seconds),
-        "agent": "AI Agent - Aria",
+        "agent": f"AI Agent - {AGENT_NAME}",
         "purpose": purpose or f"AI {call_type} call",
         "outcome": outcome or "Completed",
         "notes": f"AI-handled {call_type} call",
@@ -338,10 +320,14 @@ async def entrypoint(ctx: JobContext) -> None:
         llm_instance = openai.LLM(model=OPENAI_FALLBACK_MODEL)
         logger.warning("GROQ_API_KEY missing — falling back to %s", OPENAI_FALLBACK_MODEL)
 
-    # Build agent — no VAD here; session owns VAD to avoid double processing
-    tts_language = os.getenv("SARVAM_TTS_LANGUAGE", SARVAM_LANGUAGE)
-    tts_model = os.getenv("SARVAM_TTS_MODEL", SARVAM_MODEL)
-    tts_speaker = os.getenv("SARVAM_TTS_SPEAKER", DEFAULT_TTS_VOICE)
+    # Build agent — no VAD here; session owns VAD to avoid double processing.
+    # English Deepgram Aura is the deliberate Dubai launch choice. A new TTS
+    # provider must be explicitly integrated and tested rather than inheriting
+    # the legacy provider through an environment variable.
+    if TTS_PROVIDER != "deepgram":
+        raise RuntimeError(
+            f"Unsupported TTS_PROVIDER '{TTS_PROVIDER}'. Realzentic Dubai currently supports deepgram."
+        )
 
     logger.info(
         "STT configured | provider=deepgram | model=%s | language=%s",
@@ -349,21 +335,14 @@ async def entrypoint(ctx: JobContext) -> None:
         STT_LANGUAGE,
     )
     logger.info(
-        "TTS configured | provider=sarvam | model=%s | speaker=%s | language=%s",
-        tts_model,
-        tts_speaker,
-        tts_language,
+        "TTS configured | provider=deepgram | model=%s | sample_rate=%s",
+        DEEPGRAM_TTS_MODEL,
+        DEEPGRAM_TTS_SAMPLE_RATE,
     )
 
-    tts_instance = sarvam.TTS(
-        target_language_code=tts_language,
-        model=tts_model,
-        speaker=tts_speaker,
-        speech_sample_rate=8000,
-        pace=_env_float("SARVAM_TTS_PACE", 1.0),
-        temperature=_env_float("SARVAM_TTS_TEMPERATURE", 0.6),
-        min_buffer_size=_env_int("SARVAM_TTS_MIN_BUFFER_SIZE", 50),
-        max_chunk_length=_env_int("SARVAM_TTS_MAX_CHUNK_LENGTH", 150),
+    tts_instance = deepgram.TTS(
+        model=DEEPGRAM_TTS_MODEL,
+        sample_rate=DEEPGRAM_TTS_SAMPLE_RATE,
     )
 
     agent = Agent(
@@ -399,7 +378,7 @@ async def entrypoint(ctx: JobContext) -> None:
             logger.info("Customer: %s", text)
         elif msg.role == "assistant":
             transcript_lines.append(f"Agent: {text}")
-            logger.info("Aria: %s", text)
+            logger.info("%s: %s", AGENT_NAME, text)
 
     session_closed = asyncio.Event()
 
@@ -458,7 +437,7 @@ async def entrypoint(ctx: JobContext) -> None:
         logger.info("Inbound/browser mode — waiting for participant...")
         await ctx.wait_for_participant()
         await session.say(
-            "नमस्ते! कॉस्मिक फर्नीचर में आपका स्वागत है, मैं अनुष्का बोल रही हूँ — कैसे मदद करूँ?",
+            f"Hello, you have reached Realzentic Dubai. This is {AGENT_NAME}. How may I help with your property enquiry today?",
             allow_interruptions=True,
         )
 

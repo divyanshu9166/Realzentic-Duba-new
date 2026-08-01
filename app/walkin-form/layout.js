@@ -4,7 +4,7 @@ const inter = Inter({ subsets: ['latin'], weight: ['300', '400', '500', '600', '
 
 export const metadata = {
   title: 'Welcome — Register Your Visit',
-  description: 'Register your visit at our showroom. Our team will assist you shortly.',
+  description: 'Register your Dubai property enquiry. Our team will assist you shortly.',
 };
 
 export const viewport = {

@@ -51,9 +51,9 @@ export interface BuyerPreferences {
     /** Maximum acceptable floor number. */
     maxFloor?: number
     /** Minimum acceptable net/suite area (sq ft). */
-    minCarpetArea?: number
+    minNetArea?: number
     /** Maximum acceptable net/suite area (sq ft). */
-    maxCarpetArea?: number
+    maxNetArea?: number
     /** Desired amenities (matched against the unit's project amenities). */
     amenities?: string[]
 }
@@ -252,14 +252,14 @@ export function scoreMatch(preferences: BuyerPreferences, unit: MatchableUnit): 
     }
 
     // Net/suite area range.
-    if (preferences.minCarpetArea !== undefined || preferences.maxCarpetArea !== undefined) {
+    if (preferences.minNetArea !== undefined || preferences.maxNetArea !== undefined) {
         totalWeight += WEIGHTS.netArea
         weighted +=
             WEIGHTS.netArea *
             relativeRangeSubscore(
                 unit.netArea,
-                preferences.minCarpetArea,
-                preferences.maxCarpetArea,
+                preferences.minNetArea,
+                preferences.maxNetArea,
                 0.2
             )
     }
