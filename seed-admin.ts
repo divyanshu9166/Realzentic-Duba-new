@@ -4,10 +4,10 @@ const prisma = new PrismaClient();
 async function main() {
   const hashedPassword = await bcrypt.hash('admin123', 12);
   await prisma.user.upsert({
-    where: { email: 'admin@realestatecrm.com' },
+    where: { email: 'admin@realzentic.com' },
     update: {},
-    create: { email: 'admin@realestatecrm.com', name: 'Admin', hashedPassword, role: 'ADMIN' },
+    create: { email: 'admin@realzentic.com', name: 'Realzentic Administrator', hashedPassword, role: 'ADMIN' },
   });
-  console.log('Admin user created: admin@realestatecrm.com / admin123');
+  console.log('Admin user created: admin@realzentic.com / admin123');
 }
 main().catch(console.error).finally(() => prisma.$disconnect());

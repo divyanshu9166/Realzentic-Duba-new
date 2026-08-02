@@ -81,7 +81,7 @@ Add-Content .gitignore "`nplink.exe`npscp.exe`n*.exe"
 
 git add .
 git commit -m "Production: realzentic.autozentic.com"
-git remote add origin https://github.com/YOUR_USERNAME/realzentic.git
+git remote add origin https://github.com/divyanshu9166/Realzentic-Duba-new.git
 git branch -M main
 git push -u origin main
 ```
@@ -93,7 +93,7 @@ git push -u origin main
 ```bash
 sudo mkdir -p /opt/realzentic
 sudo chown deploy:deploy /opt/realzentic
-git clone https://github.com/YOUR_USERNAME/realzentic.git /opt/realzentic
+git clone https://github.com/divyanshu9166/Realzentic-Duba-new.git /opt/realzentic
 cd /opt/realzentic
 ```
 
@@ -121,7 +121,7 @@ Fill in your `.env`:
 ```env
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=<generated above>
-POSTGRES_DB=realestatecrm
+POSTGRES_DB=realzentic_dubai
 
 DOMAIN=realzentic.autozentic.com
 NEXTAUTH_URL=https://realzentic.autozentic.com
@@ -335,7 +335,7 @@ curl -I https://realzentic.autozentic.com
 curl http://localhost:3001/health
 
 # Database has tables?
-docker compose exec db psql -U postgres -d realestatecrm -c "\dt" | head -20
+docker compose exec db psql -U postgres -d realzentic_dubai -c "\dt" | head -20
 ```
 
 Visit **https://realzentic.autozentic.com** → login with your admin credentials.
@@ -366,7 +366,7 @@ Prisma migrations run automatically via the `migrate` service on every deploy.
 
 ### Manual Backup
 ```bash
-docker compose exec -T db pg_dump -U postgres realestatecrm | gzip > /opt/backups/manual_$(date +%Y%m%d_%H%M%S).sql.gz
+docker compose exec -T db pg_dump -U postgres realzentic_dubai | gzip > /opt/backups/manual_$(date +%Y%m%d_%H%M%S).sql.gz
 ```
 
 ### Restore
@@ -374,8 +374,8 @@ docker compose exec -T db pg_dump -U postgres realestatecrm | gzip > /opt/backup
 # Stop app during restore
 docker compose stop app ws-server ai-agent
 
-gunzip -c /opt/backups/realestatecrm_20260629.sql.gz | \
-  docker compose exec -T db psql -U postgres realestatecrm
+gunzip -c /opt/backups/realzentic_dubai_20260629.sql.gz | \
+  docker compose exec -T db psql -U postgres realzentic_dubai
 
 docker compose start app ws-server ai-agent
 ```
