@@ -148,13 +148,14 @@ export default function LiveTrackingClient() {
             .catch(() => {
                 if (!cancelled) setMapError('Map could not be loaded. The roster below still shows live positions.');
             });
+        const markers = markersRef.current;
         return () => {
             cancelled = true;
             if (mapRef.current) {
                 mapRef.current.remove();
                 mapRef.current = null;
             }
-            markersRef.current.clear();
+            markers.clear();
         };
     }, []);
 
@@ -218,9 +219,12 @@ export default function LiveTrackingClient() {
     }, []);
 
     useEffect(() => {
-        refresh();
-        const id = setInterval(refresh, POLL_MS);
-        return () => clearInterval(id);
+        const initialRefresh = window.setTimeout(() => { void refresh(); }, 0);
+        const id = window.setInterval(() => { void refresh(); }, POLL_MS);
+        return () => {
+            window.clearTimeout(initialRefresh);
+            window.clearInterval(id);
+        };
     }, [refresh]);
 
     const onlineCount = agents.filter((a) => a.presence === 'online').length;

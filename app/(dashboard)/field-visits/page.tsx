@@ -3,9 +3,8 @@
  *
  * Server component: loads the reference data the agent workflow needs
  * (active field visits, staff, leads, deal stages, contacts) and hands it to
- * the client `SiteVisitClient`, which owns the geo check-in,
- * structured-feedback, and analytics interactions wired to the
- * `app/actions/field-visits.ts` server actions.
+ * the client `SiteVisitClient`. Managers get scheduling/status management and
+ * analytics; assigned staff get the geo check-in and feedback workflow.
  */
 
 import { MapPinned, ShieldAlert } from 'lucide-react';
@@ -52,6 +51,10 @@ export default async function FieldVisitsPage({
         getSiteVisitReferenceData(),
     ]);
     const references = referencesRes.success ? referencesRes.data : null;
+    // Keep the UI mode tied to the authenticated role, not to optional
+    // reference-data loading. An admin must never fall back to the staff
+    // check-in workflow just because a reference query failed.
+    const canManage = role === 'ADMIN' || role === 'MANAGER';
 
     const visits: VisitItem[] = (visitsRes.success ? visitsRes.data ?? [] : []).map((v) => ({
         id: v.id,
@@ -62,6 +65,10 @@ export default async function FieldVisitsPage({
         checkedIn: v.geoCheckinTime != null,
         buyerRating: v.buyerRating ?? null,
         followUpAction: v.followUpAction ?? null,
+        liveLinked: Boolean(v.liveLinked),
+        liveLocationAvailable: Boolean(v.liveLocationAvailable),
+        liveDistanceM: typeof v.liveDistanceM === 'number' ? v.liveDistanceM : null,
+        liveLocationAccuracyM: typeof v.liveLocationAccuracyM === 'number' ? v.liveLocationAccuracyM : null,
         projectId: v.projectId ?? null,
         staffId: v.staffId,
         staffName: v.staff?.name ?? null,
@@ -116,7 +123,9 @@ export default async function FieldVisitsPage({
                         <h1 className="text-xl md:text-2xl font-bold text-foreground">Site Visits</h1>
                     </div>
                     <p className="mt-1 text-xs md:text-sm text-muted">
-                        GPS-verified site visits with structured buyer feedback and analytics.
+                        {canManage
+                            ? 'Manage schedules, assignment, live-linked status, and visit outcomes.'
+                            : 'GPS-verified site visits with structured buyer feedback.'}
                     </p>
                 </div>
             </div>
@@ -128,9 +137,9 @@ export default async function FieldVisitsPage({
                 stages={stages}
                 contacts={contacts}
                 projects={projects}
-                canManage={Boolean(references?.canManage)}
-                currentStaffId={session.user.staffId}
-                initialVisitId={initialVisitId}
+                canManage={canManage}
+                currentStaffId={canManage ? null : session.user.staffId}
+                initialVisitId={canManage ? undefined : initialVisitId}
             />
         </div>
     );

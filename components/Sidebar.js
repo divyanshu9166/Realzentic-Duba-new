@@ -64,7 +64,9 @@ const navItems = [
   { href: '/staff', label: 'Staff', icon: UsersRound, roles: ['ADMIN', 'MANAGER'] },
   { href: '/appointments', label: 'Appointments', icon: Calendar },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { href: '/field-visits', label: 'Site Visits', icon: MapPinned },
+  // One canonical Site Visits workspace serves both roles: managers get
+  // scheduling/oversight and staff get only their assigned check-in workflow.
+  { href: '/field-visits', label: 'Site Visits', icon: MapPinned, roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { href: '/live-tracking', label: 'Live Tracking', icon: Navigation, roles: ['ADMIN', 'MANAGER'] },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/documents', label: 'Documents & KYC', icon: FileText, roles: ['ADMIN', 'MANAGER', 'STAFF'] },

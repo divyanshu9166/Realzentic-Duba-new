@@ -24,6 +24,7 @@ import {
     recordAgentLocation,
     stopAgentLocationSharing,
 } from '@/app/actions/agent-tracking'
+import { getFieldVisits } from '@/app/actions/field-visits'
 import { dubaiAttendanceDate } from '@/lib/agent-location'
 import { Cleanup, disconnect, makeProject, makeStaff, prisma, uid } from './harness'
 import { resetTestSession, setTestSession } from './_session'
@@ -100,6 +101,9 @@ describe('Live agent tracking role boundaries', () => {
 
         const recorded = await recordAgentLocation({ latitude: 25.0808, longitude: 55.1403, accuracyM: 8, visitId: visit.id })
         expect(recorded.success).toBe(true)
+        expect(recorded.visitCheckin).toMatchObject({ visitId: visit.id })
+        const checkedInVisit = await prisma.fieldVisit.findUnique({ where: { id: visit.id } })
+        expect(checkedInVisit).toMatchObject({ status: 'In Progress', geoCheckinTime: expect.any(Date) })
         const ping = await prisma.agentLocation.findFirst({ where: { staffId: staff.id }, orderBy: { recordedAt: 'desc' } })
         expect(ping).toMatchObject({ staffId: staff.id, visitId: visit.id, accuracyM: 8 })
         if (ping) cleanup.add(() => prisma.agentLocation.delete({ where: { id: ping.id } }))
@@ -111,6 +115,12 @@ describe('Live agent tracking role boundaries', () => {
         const managerRoster = await getLiveAgentLocations()
         expect(managerRoster.success).toBe(true)
         expect(managerRoster.data?.some((item) => item.staffId === staff.id && item.visitId === visit.id)).toBe(true)
+        const managerVisits = await getFieldVisits()
+        expect(managerVisits.success).toBe(true)
+        expect(managerVisits.data?.find((item) => item.id === visit.id)).toMatchObject({
+            geoCheckinTime: expect.any(String),
+            liveLinked: true,
+        })
 
         actAs('STAFF', staff.id)
         const ownTrail = await getAgentLocationTrail({ staffId: staff.id })
@@ -131,5 +141,29 @@ describe('Live agent tracking role boundaries', () => {
         actAs('STAFF', staff.id)
         const result = await recordAgentLocation({ latitude: 25.2048, longitude: 55.2708 })
         expect(result).toEqual({ success: false, error: 'Your staff profile is inactive' })
+    })
+
+    it('auto-links a sole active visit when the agent has no visit selector', async () => {
+        const [staff, project] = await Promise.all([
+            makeStaff(cleanup),
+            makeProject(cleanup, { latitude: 25.0808, longitude: 55.1403 }),
+        ])
+        await clockIn(staff.id)
+        const visit = await prisma.fieldVisit.create({
+            data: {
+                displayId: uid('FV'), staffId: staff.id, customer: 'Auto-link Buyer', address: 'Dubai Marina',
+                date: new Date(), time: '10:00 AM', status: 'Scheduled', type: 'Property Viewing',
+                projectId: project.id, buyerPhone: '+971501234582', unitIds: [], photoUrls: [],
+            },
+        })
+        cleanup.add(() => prisma.fieldVisit.delete({ where: { id: visit.id } }))
+
+        actAs('STAFF', staff.id)
+        const recorded = await recordAgentLocation({ latitude: 25.0808, longitude: 55.1403, accuracyM: 8 })
+        expect(recorded).toMatchObject({ success: true, visitCheckin: { visitId: visit.id } })
+        const savedVisit = await prisma.fieldVisit.findUnique({ where: { id: visit.id } })
+        expect(savedVisit).toMatchObject({ status: 'In Progress', geoCheckinTime: expect.any(Date) })
+        const ping = await prisma.agentLocation.findFirst({ where: { staffId: staff.id }, orderBy: { recordedAt: 'desc' } })
+        expect(ping).toMatchObject({ staffId: staff.id, visitId: visit.id })
     })
 })

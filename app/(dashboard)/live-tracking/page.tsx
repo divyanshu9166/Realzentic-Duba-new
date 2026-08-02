@@ -10,6 +10,11 @@ import { MapPinned, ShieldAlert } from 'lucide-react';
 import { getSession } from '@/lib/auth-helpers';
 import LiveTrackingClient from './LiveTrackingClient';
 
+// Authorization is resolved from the current database-backed session on every
+// request. Never let a previously rendered STAFF restriction be reused after
+// an administrator signs in or their role changes.
+export const dynamic = 'force-dynamic';
+
 export default async function LiveTrackingPage() {
     const session = await getSession();
     const role = session?.user?.role;

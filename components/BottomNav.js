@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, CheckSquare, Menu, KeyRound, MapPinned } from 'lucide-react';
+import { LayoutDashboard, Users, CheckSquare, Menu, KeyRound } from 'lucide-react';
 import { useSession } from '@/components/AuthProvider';
 import { useSidebarContext } from './SidebarContext';
 
@@ -15,7 +15,7 @@ const MANAGEMENT_NAV = [
 const STAFF_NAV = [
   { href: '/staff-portal', label: 'Portal', icon: KeyRound },
   { href: '/leads', label: 'Leads', icon: Users },
-  { href: '/field-visits', label: 'Visits', icon: MapPinned },
+  { href: '/tasks', label: 'Tasks', icon: CheckSquare },
 ];
 
 function isActivePath(pathname, href) {

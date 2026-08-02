@@ -82,6 +82,10 @@ function serializeVisit(visit: any) {
     geoCheckinLat: visit.geoCheckinLat,
     geoCheckinLng: visit.geoCheckinLng,
     geoCheckinTime: visit.geoCheckinTime?.toISOString() ?? null,
+    liveLinked: false,
+    liveLocationAvailable: false,
+    liveDistanceM: null,
+    liveLocationAccuracyM: null,
     buyerRating: visit.buyerRating,
     feedbackLiked: visit.feedbackLiked,
     feedbackDisliked: visit.feedbackDisliked,
@@ -362,7 +366,68 @@ export async function getFieldVisits(filters: {
       take: 100,
     })
 
-    return { success: true, data: visits.map(serializeVisit) }
+    const serialized = visits.map(serializeVisit)
+    if (isManagerRole(session.user.role) && visits.length > 0) {
+      const now = new Date()
+      const liveRows = await prisma.agentLocation.findMany({
+        where: {
+          staffId: { in: [...new Set(visits.map((visit) => visit.staffId))] },
+          recordedAt: { gte: new Date(now.getTime() - 2 * 60_000) },
+        },
+        select: {
+          staffId: true,
+          visitId: true,
+          latitude: true,
+          longitude: true,
+          accuracyM: true,
+          recordedAt: true,
+          staff: {
+            select: {
+              status: true,
+              locationSharingStoppedAt: true,
+              locationSharingExpiresAt: true,
+            },
+          },
+        },
+      })
+      const latestByStaff = new Map<number, (typeof liveRows)[number]>()
+      for (const row of liveRows.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())) {
+        if (!latestByStaff.has(row.staffId)) latestByStaff.set(row.staffId, row)
+      }
+      const projectIds = [...new Set(visits.map((visit) => visit.projectId).filter((id): id is number => id != null))]
+      const projects = projectIds.length > 0
+        ? await prisma.project.findMany({
+          where: { id: { in: projectIds } },
+          select: { id: true, latitude: true, longitude: true },
+        })
+        : []
+      const projectById = new Map(projects.map((project) => [project.id, project]))
+      const liveRowsForActiveStaff = [...latestByStaff.values()].filter((row) => (
+            row.staff.status === 'Active' &&
+            row.staff.locationSharingExpiresAt != null &&
+            row.staff.locationSharingExpiresAt > now &&
+            (row.staff.locationSharingStoppedAt == null || row.staff.locationSharingStoppedAt < row.recordedAt)
+      ))
+      return {
+        success: true,
+        data: serialized.map((visit) => {
+          const liveRow = liveRowsForActiveStaff.find((row) => row.staffId === visit.staffId)
+          const project = visit.projectId != null ? projectById.get(visit.projectId) : null
+          const liveDistanceM = liveRow && project?.latitude != null && project.longitude != null
+            ? haversineMeters(liveRow.latitude, liveRow.longitude, project.latitude, project.longitude)
+            : null
+          return {
+            ...visit,
+            liveLinked: liveRow?.visitId === visit.id,
+            liveLocationAvailable: Boolean(liveRow),
+            liveDistanceM,
+            liveLocationAccuracyM: liveRow?.accuracyM ?? null,
+          }
+        }),
+      }
+    }
+
+    return { success: true, data: serialized }
   } catch (error) {
     console.error('Error fetching field visits:', error)
     return { success: false, error: actionError(error, 'Failed to fetch field visits'), data: [] }

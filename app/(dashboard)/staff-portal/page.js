@@ -19,7 +19,6 @@ import Modal from '@/components/Modal';
 import { getStaffLoginOptions, getStaffPortalProfile, clockIn as serverClockIn, clockOut as serverClockOut, getMonthAttendance, verifyStaffPortalPassword } from '@/app/actions/staff';
 import { getStaffVisits, updateFieldVisit, logSelfVisit, getSelfVisits, updateSelfVisitPhotos } from '@/app/actions/field-visits';
 import { moveSelfVisitToDraft } from '@/app/actions/drafts';
-import LiveTrackingBeacon from '@/components/LiveTrackingBeacon';
 
 const activityIcons = {
   call: { icon: Phone, color: 'bg-blue-500/10 text-blue-700', label: 'Call' },
@@ -122,10 +121,10 @@ export default function StaffPortalPage() {
     return () => { active = false; clearTimeout(timer); };
   }, [session, loggedInStaff]);
 
-  // Re-fetch assigned visits when switching to assigned/dashboard tabs so manager updates are visible
+  // Refresh the compact dashboard summary when the staff portal is opened.
   useEffect(() => {
     if (!loggedInStaff) return;
-    if (tab === 'assigned' || tab === 'dashboard') {
+    if (tab === 'dashboard') {
       getStaffVisits(loggedInStaff.id).then(res => {
         if (res.success) setAssignedVisits(res.data);
       });
@@ -561,7 +560,6 @@ export default function StaffPortalPage() {
 
   const portalTabs = [
     { key: 'dashboard', label: 'Staff Portal', icon: Home },
-    { key: 'assigned', label: 'Assigned Visits', icon: MapPin },
     { key: 'self', label: 'Self Visits', icon: MapPinned },
     { key: 'attendance', label: 'My Attendance', icon: Calendar },
     { key: 'sales', label: 'My Property Sales', icon: ShoppingBag },
@@ -628,12 +626,16 @@ export default function StaffPortalPage() {
       {/* ===== MY DASHBOARD ===== */}
       {tab === 'dashboard' && (
         <div className="space-y-6">
-          {/* Live location sharing (agent-controlled) */}
-          <LiveTrackingBeacon
-            visitOptions={assignedVisits
-              .filter((visit) => visit.status === 'Scheduled' || visit.status === 'In Progress')
-              .map((visit) => ({ id: visit.id, label: `${visit.displayId} — ${visit.customer}` }))}
-          />
+          {/* Live sharing and geo check-in live together in the canonical Site Visits workspace. */}
+          <div className="glass-card p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Field work</p>
+              <p className="mt-1 text-xs text-muted">Open My Site Visits to share live location, check in at the project, and submit feedback.</p>
+            </div>
+            <button onClick={() => router.push('/field-visits')} className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-accent text-white text-xs font-semibold hover:bg-accent-hover transition-all">
+              Open Site Visits
+            </button>
+          </div>
           {/* Quick Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-card p-4 flex items-center gap-3">
@@ -760,7 +762,7 @@ export default function StaffPortalPage() {
             <div className="glass-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-foreground">Upcoming Visits</h3>
-                <button onClick={() => setTab('assigned')} className="text-xs text-accent font-medium hover:underline">View All</button>
+                <button onClick={() => router.push('/field-visits')} className="text-xs text-accent font-medium hover:underline">Open Site Visits</button>
               </div>
               <div className="space-y-3 max-h-[300px] overflow-y-auto">
                 {/* Assigned visits from custom orders */}
@@ -808,140 +810,6 @@ export default function StaffPortalPage() {
 
 
 
-
-      {/* ===== ASSIGNED VISITS TAB ===== */}
-      {tab === 'assigned' && (
-        <div className="space-y-4">
-          <h3 className="text-base font-semibold text-foreground">Assigned Visits</h3>
-
-          {/* Active assigned visits */}
-          {assignedVisits.filter(v => v.status !== 'Completed' && v.status !== 'Cancelled').length > 0 && (
-            <div className="space-y-3">
-              {assignedVisits.filter(v => v.status !== 'Completed' && v.status !== 'Cancelled').map(visit => (
-                <div key={visit.id} className="glass-card p-5 border-l-4 border-l-accent">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-xs text-accent">{visit.displayId}</span>
-                        {visit.customOrderDisplayId && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent-light text-accent border border-accent/20">
-                            Order: {visit.customOrderDisplayId}
-                          </span>
-                        )}
-                        {visit.customOrderStatus && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-surface-hover text-muted">
-                            {visit.customOrderStatus}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm font-semibold text-foreground">{visit.customer}</p>
-                      <p className="text-xs text-muted flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {visit.address}</p>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-medium ${visit.status === 'In Progress' ? 'bg-blue-500/10 text-blue-700' : 'bg-amber-500/10 text-amber-700'
-                      }`}>{visit.status}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-muted mb-2">
-                    <span><Calendar className="w-3 h-3 inline mr-1" />{visit.scheduledDate || visit.date}</span>
-                    {visit.scheduledTime && <span><Clock className="w-3 h-3 inline mr-1" />{visit.scheduledTime}</span>}
-                    <span className="px-2 py-0.5 rounded bg-surface-hover text-foreground">{visit.type}</span>
-                    {visit.customOrderType && <span className="text-muted">({visit.customOrderType})</span>}
-                  </div>
-                  {visit.notes && <p className="text-xs text-muted mb-2">{visit.notes}</p>}
-
-                  {/* Linked property / deal context */}
-                  {visit.customOrderId && (
-                    <div className="bg-surface rounded-xl p-3 mb-3 space-y-2.5">
-                      <p className="text-[10px] font-semibold text-muted uppercase tracking-wide">Property Viewing Details</p>
-                      <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-                        {visit.quotedPrice != null && (
-                          <span className="text-xs text-foreground"><span className="text-muted">Price:</span> {formatAed(visit.quotedPrice)}</span>
-                        )}
-                        {visit.advancePaid > 0 && (
-                          <span className="text-xs text-foreground"><span className="text-muted">Booking amount:</span> {formatAed(visit.advancePaid)}</span>
-                        )}
-                      </div>
-
-                      {/* Property reference images */}
-                      {visit.referenceImages && visit.referenceImages.length > 0 && (
-                        <div>
-                          <p className="text-[10px] text-muted mb-1.5">Reference Images</p>
-                          <div className="flex gap-2 flex-wrap">
-                            {visit.referenceImages.map((url, i) => (
-                              <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-14 h-14 rounded-lg overflow-hidden border border-border hover:border-accent/50 transition-colors">
-                                <img src={url} alt={`Ref ${i + 1}`} className="w-full h-full object-cover" />
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Measurements */}
-                  {visit.existingMeasurements && Object.values(visit.existingMeasurements).some(v => v) && (
-                    <div className="bg-surface rounded-lg p-2.5 mb-2">
-                      <p className="text-[10px] text-muted mb-1">Current Measurements</p>
-                      <div className="flex flex-wrap gap-3">
-                        {Object.entries(visit.existingMeasurements).filter(([k, v]) => v && k !== 'notes').map(([k, v]) => (
-                          <span key={k} className="text-xs text-foreground capitalize"><span className="text-muted">{k}:</span> {v}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 mt-3 pt-3 border-t border-border flex-wrap">
-                    {(visit.status === 'Scheduled' || visit.status === 'In Progress') && (
-                      <button onClick={() => router.push(`/field-visits?visit=${visit.id}`)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-700 border border-blue-500/20 hover:bg-blue-500/20 transition-colors">
-                        {visit.status === 'Scheduled' ? 'Verify & Check In' : 'Complete Feedback'}
-                      </button>
-                    )}
-                    <button onClick={() => { setEditingVisit(visit); setShowUpdateVisit(true); }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-500/10 text-purple-700 border border-purple-500/20 hover:bg-purple-500/20 transition-colors">
-                      <Ruler className="w-3 h-3 inline mr-1" /> Update Measurements
-                    </button>
-                    {visit.status === 'Scheduled' && (
-                      <button disabled={visitSaving} onClick={() => handleVisitStatusChange(visit, 'Cancelled')} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-700 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50">
-                        Cannot Visit
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Completed assigned visits */}
-          {assignedVisits.filter(v => v.status === 'Completed').length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Completed</h4>
-              <div className="space-y-2">
-                {assignedVisits.filter(v => v.status === 'Completed').map(visit => (
-                  <div key={visit.id} className="glass-card p-4 opacity-80">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-mono text-xs text-muted">{visit.displayId}</span>
-                          {visit.customOrderDisplayId && <span className="text-[10px] text-muted">({visit.customOrderDisplayId})</span>}
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-700">Completed</span>
-                        </div>
-                        <p className="text-sm font-medium text-foreground">{visit.customer}</p>
-                      </div>
-                      <div className="text-right text-xs text-muted">
-                        <p>{visit.completedAt || visit.date}</p>
-                        {visit.measurements && <p className="text-emerald-700 mt-0.5">Measurements recorded</p>}
-                      </div>
-                    </div>
-                    {visit.staffNotes && <p className="text-xs text-muted mt-1 bg-surface rounded-lg p-2">{visit.staffNotes}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {assignedVisits.length === 0 && (
-            <div className="glass-card p-8 text-center text-muted text-sm">No assigned visits</div>
-          )}
-        </div>
-      )}
 
       {/* ===== SELF VISITS TAB ===== */}
       {tab === 'self' && (

@@ -20,7 +20,7 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000', '*.github.dev', 'realzentic.autozentic.com']
+      allowedOrigins: ['localhost:3000', 'localhost:3001', '127.0.0.1:3000', '127.0.0.1:3001', '*.github.dev', 'realzentic.autozentic.com']
     }
   },
   // Rewrite /uploads/* → /api/uploads/* so images stored with old paths still work
@@ -38,6 +38,12 @@ const nextConfig = {
   // the running dev server.
   async headers() {
     const headers = [
+      ...(isProduction ? [] : [{
+        // Development action IDs are regenerated after a clean restart. Do
+        // not let a browser retain an old RSC/client bundle between runs.
+        source: '/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate' }],
+      }]),
       // Live location is needed only by pages served from this CRM origin.
       // Explicitly block third-party iframes from requesting staff GPS access.
       {

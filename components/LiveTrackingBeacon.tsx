@@ -36,7 +36,13 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
     const [error, setError] = useState<string | null>(null);
     const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
     const [sending, setSending] = useState(false);
-    const [selectedVisitId, setSelectedVisitId] = useState<number | null>(visitId ?? null);
+    const [visitCheckinMessage, setVisitCheckinMessage] = useState<string | null>(null);
+    // If exactly one active visit is assigned, link it automatically. This
+    // keeps live tracking and geo check-in in sync without guessing when an
+    // agent has multiple visits at the same time.
+    const [selectedVisitId, setSelectedVisitId] = useState<number | null>(
+        visitId ?? (visitOptions.length === 1 ? visitOptions[0].id : null),
+    );
 
     const watchIdRef = useRef<number | null>(null);
     const lastPingMsRef = useRef<number>(0);
@@ -75,6 +81,11 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
             if (res.success) {
                 setLastSentAt(new Date());
                 setError(null);
+                if (res.visitCheckin) {
+                    setVisitCheckinMessage(
+                        `Visit location verified (${Math.round(res.visitCheckin.distanceM)}m from the project). Check-in recorded.`,
+                    );
+                }
             } else {
                 // Roll back the throttle slot so the next callback retries.
                 lastPingMsRef.current = 0;
@@ -104,6 +115,7 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
             return;
         }
         setError(null);
+        setVisitCheckinMessage(null);
         setStatus('sharing');
         sharingRef.current = true;
         lastPingMsRef.current = 0; // allow an immediate first ping
@@ -135,6 +147,8 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
         void stopAgentLocationSharing();
     }, [stopWatch]);
 
+    const sharing = status === 'sharing';
+
     // A normal navigation away from the portal also ends sharing. A hard tab
     // close cannot be guaranteed by browsers, so the server-side 90-second
     // lease is the final stale-location safeguard.
@@ -143,7 +157,19 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
         if (sharingRef.current) void stopAgentLocationSharing();
     }, [stopWatch]);
 
-    const sharing = status === 'sharing';
+    // Re-read the current position when an agent links a visit during an
+    // active session. This avoids waiting for the next browser watch event
+    // and also bypasses the client-side 30-second throttle for this deliberate
+    // context change; the server still enforces its own write limit.
+    useEffect(() => {
+        if (!sharing || selectedVisitId == null || typeof navigator === 'undefined' || !navigator.geolocation) return;
+        lastPingMsRef.current = 0;
+        navigator.geolocation.getCurrentPosition(
+            (position) => { void pushPing(position); },
+            () => undefined,
+            { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
+        );
+    }, [pushPing, selectedVisitId, sharing]);
 
     return (
         <div className={`glass-card p-4 ${className ?? ''}`}>
@@ -187,22 +213,37 @@ export default function LiveTrackingBeacon({ visitId, visitOptions = [], classNa
 
             {visitOptions.length > 0 && (
                 <label className="mt-3 block text-[11px] text-muted">
-                    Link this live session to an assigned site visit (optional)
+                    {visitOptions.length === 1
+                        ? 'Live session linked to your only active site visit'
+                        : 'Link this live session to an assigned site visit (optional)'}
                     <select
                         value={selectedVisitId ?? ''}
-                        onChange={(event) => setSelectedVisitId(event.target.value ? Number(event.target.value) : null)}
-                        disabled={sharing}
+                        onChange={(event) => {
+                            setSelectedVisitId(event.target.value ? Number(event.target.value) : null);
+                            setVisitCheckinMessage(null);
+                        }}
+                        disabled={false}
                         className="mt-1.5 w-full rounded-lg border border-border bg-surface px-2.5 py-2 text-xs text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <option value="">No site visit selected</option>
                         {visitOptions.map((visit) => <option key={visit.id} value={visit.id}>{visit.label}</option>)}
                     </select>
+                    <p className="mt-1.5 text-[10px] text-muted">
+                        When linked, a GPS reading within the project geofence records this visit&apos;s check-in automatically. If you are testing from outside Dubai, the live map can work while geo check-in remains pending.
+                    </p>
                 </label>
             )}
 
             <p className="mt-3 text-[11px] text-muted">
-                Shared only while live and retained for {AGENT_LOCATION_RETENTION_DAYS} days for field-operations review.
+                Live sharing alone is not a visit check-in. Shared only while live and retained for {AGENT_LOCATION_RETENTION_DAYS} days for field-operations review.
             </p>
+
+            {visitCheckinMessage && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+                    {visitCheckinMessage}
+                </div>
+            )}
 
             {error && (
                 <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 text-red-700 text-xs">

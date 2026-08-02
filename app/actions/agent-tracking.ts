@@ -22,11 +22,15 @@
  */
 
 import { prisma } from '@/lib/db'
+import { revalidatePath } from 'next/cache'
 import { requireAuth, requireRole } from '@/lib/auth-helpers'
 import {
     classifyPresence,
     DEFAULT_AWAY_WITHIN_SEC,
     DEFAULT_ONLINE_WITHIN_SEC,
+    DEFAULT_GEOFENCE_RADIUS_M,
+    haversineMeters,
+    withinGeofence,
     type AgentPresence,
 } from '@/lib/geo'
 import {
@@ -74,7 +78,12 @@ export interface TrailPoint {
  */
 export async function recordAgentLocation(
     input: unknown,
-): Promise<{ success: boolean; error?: string; code?: 'NOT_CLOCKED_IN' | 'VISIT_NOT_ASSIGNED' }> {
+): Promise<{
+    success: boolean
+    error?: string
+    code?: 'NOT_CLOCKED_IN' | 'VISIT_NOT_ASSIGNED'
+    visitCheckin?: { visitId: number; distanceM: number }
+}> {
     let staffId: number | null
     try {
         const session = await requireAuth()
@@ -117,20 +126,54 @@ export async function recordAgentLocation(
             }
         }
 
+        let linkedVisit: { id: number; projectId: number | null; geoCheckinTime: Date | null } | null = null
         if (parsed.data.visitId != null) {
-            const visit = await prisma.fieldVisit.findFirst({
+            linkedVisit = await prisma.fieldVisit.findFirst({
                 where: {
                     id: parsed.data.visitId,
                     staffId,
                     status: { in: ['Scheduled', 'In Progress'] },
                 },
-                select: { id: true },
+                select: { id: true, projectId: true, geoCheckinTime: true },
             })
-            if (!visit) {
+            if (!linkedVisit) {
                 return {
                     success: false,
                     code: 'VISIT_NOT_ASSIGNED',
                     error: 'Only your assigned active site visits can be used for location tracking',
+                }
+            }
+        } else {
+            // Do not guess between multiple appointments. When the agent has
+            // exactly one active assigned visit, however, the safe default is
+            // to associate a GPS reading with that visit and let the same
+            // geofence/accuracy checks decide whether it can be checked in.
+            const activeVisits = await prisma.fieldVisit.findMany({
+                where: { staffId, status: { in: ['Scheduled', 'In Progress'] } },
+                select: { id: true, projectId: true, geoCheckinTime: true },
+                take: 2,
+            })
+            if (activeVisits.length === 1) linkedVisit = activeVisits[0]
+        }
+
+        // A live session is not a visit check-in unless the selected (or
+        // unambiguous single) visit satisfies the same accuracy and project
+        // geofence rules as the dedicated check-in workflow.
+        let visitCheckin: { visitId: number; distanceM: number } | undefined
+        if (
+            linkedVisit &&
+            linkedVisit.geoCheckinTime == null &&
+            linkedVisit.projectId != null &&
+            (parsed.data.accuracyM == null || parsed.data.accuracyM <= 250)
+        ) {
+            const project = await prisma.project.findUnique({
+                where: { id: linkedVisit.projectId },
+                select: { latitude: true, longitude: true },
+            })
+            if (project?.latitude != null && project.longitude != null) {
+                const distanceM = haversineMeters(parsed.data.latitude, parsed.data.longitude, project.latitude, project.longitude)
+                if (withinGeofence(parsed.data.latitude, parsed.data.longitude, project.latitude, project.longitude, DEFAULT_GEOFENCE_RADIUS_M)) {
+                    visitCheckin = { visitId: linkedVisit.id, distanceM }
                 }
             }
         }
@@ -146,18 +189,48 @@ export async function recordAgentLocation(
         if (!shouldRecordAgentLocation(previousPing?.recordedAt, now)) {
             // A user can stop and restart quickly. Make their most recent
             // in-window ping visible again without waiting for the next write.
-            await prisma.staff.updateMany({
-                where: { id: staffId, locationSharingStoppedAt: { not: null } },
-                data: {
-                    locationSharingStoppedAt: null,
-                    locationSharingExpiresAt: agentLocationSharingExpiresAt(now),
-                },
+            // A newly selected visit still gets checked in immediately even
+            // when the location stream itself is server-throttled.
+            await prisma.$transaction(async (tx) => {
+                await tx.staff.updateMany({
+                    where: { id: staffId, locationSharingStoppedAt: { not: null } },
+                    data: {
+                        locationSharingStoppedAt: null,
+                        locationSharingExpiresAt: agentLocationSharingExpiresAt(now),
+                    },
+                })
+                if (visitCheckin) {
+                    const updated = await tx.fieldVisit.updateMany({
+                        where: {
+                            id: visitCheckin.visitId,
+                            status: { in: ['Scheduled', 'In Progress'] },
+                            geoCheckinTime: null,
+                        },
+                        data: {
+                            geoCheckinLat: parsed.data.latitude,
+                            geoCheckinLng: parsed.data.longitude,
+                            geoCheckinTime: now,
+                            status: 'In Progress',
+                        },
+                    })
+                    if (updated.count !== 1) visitCheckin = undefined
+                }
             })
-            return { success: true }
+            if (visitCheckin) {
+                try {
+                    revalidatePath('/field-visits')
+                    revalidatePath('/staff-portal')
+                } catch {
+                    // The check-in write has already committed.
+                }
+            }
+            return { success: true, visitCheckin }
         }
 
-        await prisma.$transaction([
-            prisma.agentLocation.create({
+        const visitIdToStore = parsed.data.visitId ?? visitCheckin?.visitId ?? null
+
+        await prisma.$transaction(async (tx) => {
+            await tx.agentLocation.create({
                 data: {
                     staffId,
                     latitude: parsed.data.latitude,
@@ -165,19 +238,47 @@ export async function recordAgentLocation(
                     accuracyM: parsed.data.accuracyM ?? null,
                     speed: parsed.data.speed ?? null,
                     heading: parsed.data.heading ?? null,
-                    visitId: parsed.data.visitId ?? null,
+                    visitId: visitIdToStore,
                 },
-            }),
-            prisma.staff.update({
+            })
+            await tx.staff.update({
                 where: { id: staffId },
                 data: {
                     locationSharingStoppedAt: null,
                     locationSharingExpiresAt: agentLocationSharingExpiresAt(now),
                 },
-            }),
-        ])
-        return { success: true }
-    } catch {
+            })
+            if (visitCheckin) {
+                const updated = await tx.fieldVisit.updateMany({
+                    where: {
+                        id: visitCheckin.visitId,
+                        status: { in: ['Scheduled', 'In Progress'] },
+                        geoCheckinTime: null,
+                    },
+                    data: {
+                        geoCheckinLat: parsed.data.latitude,
+                        geoCheckinLng: parsed.data.longitude,
+                        geoCheckinTime: now,
+                        status: 'In Progress',
+                    },
+                })
+                if (updated.count !== 1) visitCheckin = undefined
+            }
+        })
+        if (visitCheckin) {
+            // Revalidation is best-effort here: the same action is also used
+            // by isolated integration tests outside a Next request context,
+            // while manager pages poll for the updated visit status.
+            try {
+                revalidatePath('/field-visits')
+                revalidatePath('/staff-portal')
+            } catch {
+                // The GPS write itself has already committed successfully.
+            }
+        }
+        return { success: true, visitCheckin }
+    } catch (error) {
+        console.error('Error recording agent location:', error)
         return { success: false, error: 'Failed to record location' }
     }
 }

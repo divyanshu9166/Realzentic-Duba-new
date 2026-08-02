@@ -14,7 +14,7 @@
  * actions; this component only collects input and renders results.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     MapPin, CheckCircle2, AlertTriangle, Star,
@@ -30,6 +30,7 @@ import {
     getVisitAnalytics,
 } from '@/app/actions/field-visits';
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
+import LiveTrackingBeacon from '@/components/LiveTrackingBeacon';
 
 export interface VisitItem {
     id: number;
@@ -38,6 +39,10 @@ export interface VisitItem {
     address: string;
     status: string;
     checkedIn: boolean;
+    liveLinked: boolean;
+    liveLocationAvailable: boolean;
+    liveDistanceM: number | null;
+    liveLocationAccuracyM: number | null;
     buyerRating: number | null;
     followUpAction: string | null;
     projectId: number | null;
@@ -123,8 +128,18 @@ function toDubaiDatetimeLocal(value: string | null): string {
 export default function SiteVisitClient({ visits, staff, leads, stages, contacts, projects, canManage, currentStaffId, initialVisitId }: Props) {
     const router = useRouter();
     const [tab, setTab] = useState<'visits' | 'checkin' | 'analytics'>(initialVisitId && currentStaffId != null ? 'checkin' : 'visits');
+    useEffect(() => {
+        if (!canManage) return;
+        const refreshTimer = window.setInterval(() => router.refresh(), 15_000);
+        return () => window.clearInterval(refreshTimer);
+    }, [canManage, router]);
+
     const workflowVisits = visits.filter((visit) =>
         (visit.status === 'Scheduled' || visit.status === 'In Progress') && visit.staffId === currentStaffId,
+    );
+    const liveVisitOptions = useMemo(
+        () => workflowVisits.map((visit) => ({ id: visit.id, label: `${visit.displayId} — ${visit.customer}` })),
+        [workflowVisits],
     );
 
     return (
@@ -132,9 +147,11 @@ export default function SiteVisitClient({ visits, staff, leads, stages, contacts
             {/* Tabs */}
             <div className="flex flex-wrap gap-1">
                 <TabButton active={tab === 'visits'} onClick={() => setTab('visits')} icon={CalendarClock} label={canManage ? 'Visit Management' : 'My Visits'} />
-                {currentStaffId != null && <TabButton active={tab === 'checkin'} onClick={() => setTab('checkin')} icon={MapPin} label="My Check-In & Feedback" />}
+                {!canManage && currentStaffId != null && <TabButton active={tab === 'checkin'} onClick={() => setTab('checkin')} icon={MapPin} label="My Check-In & Feedback" />}
                 <TabButton active={tab === 'analytics'} onClick={() => setTab('analytics')} icon={BarChart3} label="Analytics" />
             </div>
+
+            {!canManage && currentStaffId != null && <LiveTrackingBeacon visitOptions={liveVisitOptions} />}
 
             {tab === 'visits' ? (
                 <VisitsPanel
@@ -416,6 +433,20 @@ function VisitsPanel({
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                             <StatusPill ok={visit.checkedIn} label={visit.checkedIn ? 'Geo checked-in' : 'Geo pending'} />
+                            {visit.liveLinked && (
+                                <StatusPill
+                                    ok={visit.checkedIn}
+                                    label={visit.checkedIn ? 'Live location linked' : 'Live linked · awaiting geofence'}
+                                />
+                            )}
+                            {canManage && visit.liveLocationAvailable && !visit.checkedIn && !visit.liveLinked && (
+                                <StatusPill
+                                    ok={visit.liveDistanceM != null && visit.liveDistanceM <= 500}
+                                    label={visit.liveDistanceM == null
+                                        ? 'Agent live · select this visit'
+                                        : `Agent live · ${Math.round(visit.liveDistanceM)}m from project`}
+                                />
+                            )}
                             {visit.unitIds.length > 0 && <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] text-muted">{visit.unitIds.length} unit{visit.unitIds.length === 1 ? '' : 's'}</span>}
                         </div>
                         {canManage && visit.status === 'Scheduled' && (
