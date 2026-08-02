@@ -53,5 +53,12 @@ export const commissionSchema = z.object({
   basisAmount: nonNegativeMoney,
   rate: z.number().min(0).max(100),
   amount: nonNegativeMoney,
+  splits: z.array(z.object({
+    beneficiaryType: z.enum(['AGENT', 'COMPANY']).default('AGENT'),
+    staffId: z.number().int().positive().optional().nullable(),
+    amount: nonNegativeMoney,
+    rate: z.number().min(0).max(100).default(0),
+    notes: z.string().trim().max(500).optional().or(z.literal('')),
+  })).max(50).optional().default([]),
   notes: z.string().trim().max(2000).optional().or(z.literal('')),
 })

@@ -55,6 +55,8 @@ export interface BoardDealCard {
     expectedCloseDate: string | null;
     source: string | null;
     hasBooking: boolean;
+    daysInStage: number;
+    lastActivityAt: string;
 }
 
 export interface BoardColumn {
@@ -104,6 +106,9 @@ function DealCardBody({ deal }: { deal: BoardDealCard }) {
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${deal.daysInStage >= 14 ? 'bg-amber-500/10 text-amber-700' : 'bg-muted/10 text-muted'}`}>
+                    {deal.daysInStage}d in stage
+                </span>
                 {deal.isHot && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2 py-0.5 text-[10px] font-medium text-orange-600">
                         <Flame className="h-3 w-3" /> Hot
@@ -238,6 +243,7 @@ export default function DealsBoard({ initialColumns }: { initialColumns: BoardCo
     const [scoreSort, setScoreSort] = useState<ScoreSort>('default');
     const [scoreFilter, setScoreFilter] = useState<ScoreFilter>('all');
     const [minScoreInput, setMinScoreInput] = useState('');
+    const [staleOnly, setStaleOnly] = useState(false);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -265,6 +271,7 @@ export default function DealsBoard({ initialColumns }: { initialColumns: BoardCo
         } else if (typeof scoreFilter === 'number') {
             filtered = deals.filter((d) => d.aiScore !== null && d.aiScore >= scoreFilter);
         }
+        if (staleOnly) filtered = filtered.filter((d) => d.daysInStage >= 14);
 
         // 2. Sort
         if (scoreSort === 'score-asc') {
@@ -280,12 +287,13 @@ export default function DealsBoard({ initialColumns }: { initialColumns: BoardCo
     }
 
     /** Whether any sort/filter is active. */
-    const hasActiveControls = scoreSort !== 'default' || scoreFilter !== 'all';
+    const hasActiveControls = scoreSort !== 'default' || scoreFilter !== 'all' || staleOnly;
 
     function clearControls() {
         setScoreSort('default');
         setScoreFilter('all');
         setMinScoreInput('');
+        setStaleOnly(false);
     }
 
     function applyMinScore() {
@@ -450,6 +458,10 @@ export default function DealsBoard({ initialColumns }: { initialColumns: BoardCo
                         Apply
                     </button>
                 </div>
+
+                <button type="button" onClick={() => setStaleOnly((value) => !value)} className={`rounded-lg px-2 py-1 text-[11px] font-medium ${staleOnly ? 'bg-amber-500/15 text-amber-700' : 'border border-border text-muted'}`}>
+                    {staleOnly ? 'Showing stale (14d+)' : 'Show stale deals'}
+                </button>
 
                 {/* Clear */}
                 {hasActiveControls && (

@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { requireRole } from '@/lib/auth-helpers'
 import { leadAssignmentSchema, leadRoutingRuleSchema } from '@/lib/validations/lead-routing'
+import { addBusinessMinutes, businessHoursFromRule, DEFAULT_BUSINESS_HOURS } from '@/lib/lead-sla'
+import { notifyManagers } from '@/lib/notify'
 
 const OPEN_STATUSES = ['NEW', 'CONTACTED', 'SHOWROOM_VISIT', 'QUOTATION'] as const
 
@@ -21,6 +23,8 @@ function dateOrNull(value?: string | null) {
 function serializeRule(rule: {
   id: number; name: string; active: boolean; priority: number; source: string | null
   emirate: string | null; community: string | null; responseSlaMinutes: number
+  businessHoursEnabled: boolean; businessHoursStartMinute: number; businessHoursEndMinute: number; businessDays: number[]
+  escalationEnabled: boolean; escalationAfterMinutes: number
   mode: string; staffIds: number[]; fixedStaffId: number | null; roundRobinCursor: number
 }) {
   return { ...rule, staffIds: [...rule.staffIds] }
@@ -53,11 +57,11 @@ async function assertStaffIds(ids: number[]) {
 }
 
 function ruleMatches(rule: { source: string | null; emirate: string | null; community: string | null }, context: {
-  source?: string | null; emirate?: string | null; text?: string | null
+  source?: string | null; emirate?: string | null; community?: string | null
 }) {
   if (rule.source && clean(rule.source) !== clean(context.source)) return false
   if (rule.emirate && clean(rule.emirate) !== clean(context.emirate)) return false
-  if (rule.community && !clean(context.text).includes(clean(rule.community))) return false
+  if (rule.community && clean(rule.community) !== clean(context.community)) return false
   return true
 }
 
@@ -80,7 +84,7 @@ export async function autoAssignLeadForNewLead(leadId: number, context: {
     const data = await prisma.$transaction(async tx => {
       const lead = await tx.lead.findUnique({
         where: { id: leadId },
-        include: { contact: { select: { name: true, emirate: true, address: true } } },
+        include: { contact: { select: { name: true, emirate: true, address: true } }, project: { select: { location: true, city: true } } },
       })
       if (!lead) throw new Error('Lead not found')
       if (lead.assignedToId) {
@@ -98,11 +102,10 @@ export async function autoAssignLeadForNewLead(leadId: number, context: {
         where: { active: true },
         orderBy: [{ priority: 'asc' }, { id: 'asc' }],
       })
-      const text = [context.community, lead.interest, lead.notes, lead.contact.address].filter(Boolean).join(' ')
       const rule = rules.find(candidate => ruleMatches(candidate, {
         source: context.source ?? lead.source,
         emirate: context.emirate ?? lead.contact.emirate,
-        text,
+        community: context.community ?? lead.community ?? lead.project?.location ?? lead.project?.city,
       }))
       if (!rule) return { assigned: false, leadId, staffId: null, staffName: null, ruleId: null, responseDueAt: null }
 
@@ -137,7 +140,12 @@ export async function autoAssignLeadForNewLead(leadId: number, context: {
       }
 
       const assignedAt = new Date()
-      const responseDueAt = new Date(assignedAt.getTime() + lockedRule.responseSlaMinutes * 60_000)
+      const responseDueAt = addBusinessMinutes(assignedAt, lockedRule.responseSlaMinutes, businessHoursFromRule({
+        enabled: lockedRule.businessHoursEnabled,
+        startMinute: lockedRule.businessHoursStartMinute,
+        endMinute: lockedRule.businessHoursEndMinute,
+        businessDays: lockedRule.businessDays,
+      }))
       await tx.lead.update({
         where: { id: leadId },
         data: {
@@ -145,6 +153,8 @@ export async function autoAssignLeadForNewLead(leadId: number, context: {
           assignedAt,
           responseDueAt,
           assignmentReason: `Rule: ${lockedRule.name}`,
+          slaAlertedAt: null,
+          slaEscalatedAt: null,
         },
       })
       await tx.leadAssignmentEvent.create({
@@ -195,7 +205,14 @@ export async function saveLeadRoutingRule(data: unknown) {
     const rule = await prisma.leadRoutingRule.create({ data: {
       name: input.name, active: input.active, priority: input.priority,
       source: input.source || null, emirate: input.emirate || null, community: input.community || null,
-      responseSlaMinutes: input.responseSlaMinutes, mode: input.mode, staffIds: [...new Set(input.staffIds)], fixedStaffId: input.fixedStaffId ?? null,
+      responseSlaMinutes: input.responseSlaMinutes,
+      businessHoursEnabled: input.businessHoursEnabled,
+      businessHoursStartMinute: input.businessHoursStartMinute,
+      businessHoursEndMinute: input.businessHoursEndMinute,
+      businessDays: [...new Set(input.businessDays)],
+      escalationEnabled: input.escalationEnabled,
+      escalationAfterMinutes: input.escalationAfterMinutes,
+      mode: input.mode, staffIds: [...new Set(input.staffIds)], fixedStaffId: input.fixedStaffId ?? null,
     } })
     revalidatePath('/lead-routing')
     return { success: true, data: serializeRule(rule) }
@@ -218,7 +235,14 @@ export async function updateLeadRoutingRule(id: number, data: unknown) {
     const rule = await prisma.leadRoutingRule.update({ where: { id }, data: {
       name: input.name, active: input.active, priority: input.priority,
       source: input.source || null, emirate: input.emirate || null, community: input.community || null,
-      responseSlaMinutes: input.responseSlaMinutes, mode: input.mode, staffIds: [...new Set(input.staffIds)], fixedStaffId: input.fixedStaffId ?? null,
+      responseSlaMinutes: input.responseSlaMinutes,
+      businessHoursEnabled: input.businessHoursEnabled,
+      businessHoursStartMinute: input.businessHoursStartMinute,
+      businessHoursEndMinute: input.businessHoursEndMinute,
+      businessDays: [...new Set(input.businessDays)],
+      escalationEnabled: input.escalationEnabled,
+      escalationAfterMinutes: input.escalationAfterMinutes,
+      mode: input.mode, staffIds: [...new Set(input.staffIds)], fixedStaffId: input.fixedStaffId ?? null,
     } })
     revalidatePath('/lead-routing')
     return { success: true, data: serializeRule(rule) }
@@ -279,9 +303,9 @@ export async function assignLeadManually(data: unknown) {
     if (!lead) return { success: false, error: 'Lead not found' }
     if (!staff) return { success: false, error: 'Active staff member not found' }
     const assignedAt = new Date()
-    const responseDueAt = input.responseSlaMinutes ? new Date(assignedAt.getTime() + input.responseSlaMinutes * 60_000) : null
+    const responseDueAt = input.responseSlaMinutes ? addBusinessMinutes(assignedAt, input.responseSlaMinutes, DEFAULT_BUSINESS_HOURS) : null
     await prisma.$transaction([
-      prisma.lead.update({ where: { id: input.leadId }, data: { assignedToId: input.staffId, assignedAt, responseDueAt, assignmentReason: input.reason } }),
+      prisma.lead.update({ where: { id: input.leadId }, data: { assignedToId: input.staffId, assignedAt, responseDueAt, assignmentReason: input.reason, slaAlertedAt: null, slaEscalatedAt: null } }),
       prisma.leadAssignmentEvent.create({ data: { leadId: input.leadId, fromStaffId: lead.assignedToId, toStaffId: input.staffId, reason: input.reason, assignedAt, responseDueAt } }),
     ])
     revalidatePath('/leads'); revalidatePath('/lead-routing')
@@ -289,6 +313,84 @@ export async function assignLeadManually(data: unknown) {
   } catch {
     return { success: false, error: 'Administrator or manager access required' }
   }
+}
+
+/**
+ * Idempotent cron processor for unresponded leads. It alerts managers once at
+ * breach, then reassigns to the next eligible routing-pool member after the
+ * configured business-hours grace period.
+ */
+export async function processLeadSlaBreaches() {
+  const now = new Date()
+  const leads = await prisma.lead.findMany({
+    where: { status: { in: [...OPEN_STATUSES] }, assignedToId: { not: null }, responseDueAt: { lte: now }, firstResponseAt: null },
+    select: {
+      id: true, contactId: true, assignedToId: true, assignedAt: true, responseDueAt: true, slaAlertedAt: true, slaEscalatedAt: true,
+      contact: { select: { name: true, phone: true } },
+      assignmentEvents: { orderBy: { assignedAt: 'desc' }, take: 1, include: { rule: true, toStaff: { select: { name: true } } } },
+    },
+    take: 250,
+  })
+  let alerted = 0
+  let escalated = 0
+
+  for (const lead of leads) {
+    const event = lead.assignmentEvents[0]
+    const rule = event?.rule
+    if (!lead.slaAlertedAt) {
+      const claimed = await prisma.lead.updateMany({ where: { id: lead.id, slaAlertedAt: null }, data: { slaAlertedAt: now } })
+      if (claimed.count > 0) {
+        alerted += 1
+        await notifyManagers({
+          type: 'lead_sla', title: 'Lead response SLA breached',
+          subtitle: `${lead.contact.name} has not received a first response.`, href: '/lead-routing',
+          metadata: { leadId: lead.id, assignedToId: lead.assignedToId, responseDueAt: lead.responseDueAt?.toISOString() },
+          emailSubject: `Lead SLA breached: ${lead.contact.name}`,
+          emailHtml: `<p>Lead <strong>${lead.contact.name}</strong> (${lead.contact.phone}) has missed its first-response SLA.</p>`,
+          whatsappText: `Lead SLA breached: ${lead.contact.name} has not received a first response.`,
+        })
+      }
+    }
+
+    if (!rule?.escalationEnabled || !lead.responseDueAt || lead.slaEscalatedAt) continue
+    const escalationAt = addBusinessMinutes(lead.responseDueAt, rule.escalationAfterMinutes, businessHoursFromRule({
+      enabled: rule.businessHoursEnabled, startMinute: rule.businessHoursStartMinute,
+      endMinute: rule.businessHoursEndMinute, businessDays: rule.businessDays,
+    }))
+    if (now < escalationAt) continue
+
+    const didEscalate = await prisma.$transaction(async tx => {
+      const claimed = await tx.lead.updateMany({ where: { id: lead.id, firstResponseAt: null, slaEscalatedAt: null }, data: { slaEscalatedAt: now } })
+      if (claimed.count === 0) return false
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "LeadRoutingRule" WHERE "id" = ${rule.id} FOR UPDATE`)
+      const lockedRule = await tx.leadRoutingRule.findUnique({ where: { id: rule.id } })
+      if (!lockedRule) return false
+      const eligible = await tx.staff.findMany({ where: { id: { in: lockedRule.staffIds }, status: { not: 'Inactive' } }, select: { id: true, name: true } })
+      const alternates = eligible.filter(staff => staff.id !== lead.assignedToId)
+      if (alternates.length === 0) return false
+      let selected = alternates[0]
+      if (lockedRule.mode === 'FIXED') selected = alternates.find(staff => staff.id === lockedRule.fixedStaffId) ?? alternates[0]
+      else if (lockedRule.mode === 'LEAST_LOADED') {
+        const counts = await Promise.all(alternates.map(async staff => ({ staff, count: await tx.lead.count({ where: { assignedToId: staff.id, status: { in: [...OPEN_STATUSES] } } }) })))
+        counts.sort((a, b) => a.count - b.count || a.staff.id - b.staff.id)
+        selected = counts[0].staff
+      } else {
+        selected = alternates[lockedRule.roundRobinCursor % alternates.length]
+        await tx.leadRoutingRule.update({ where: { id: lockedRule.id }, data: { roundRobinCursor: (lockedRule.roundRobinCursor + 1) % alternates.length } })
+      }
+      const assignedAt = new Date()
+      const responseDueAt = addBusinessMinutes(assignedAt, lockedRule.responseSlaMinutes, businessHoursFromRule({ enabled: lockedRule.businessHoursEnabled, startMinute: lockedRule.businessHoursStartMinute, endMinute: lockedRule.businessHoursEndMinute, businessDays: lockedRule.businessDays }))
+      await tx.lead.update({ where: { id: lead.id }, data: { assignedToId: selected.id, assignedAt, responseDueAt, assignmentReason: `SLA escalation: ${lockedRule.name}`, slaAlertedAt: null, slaEscalatedAt: null } })
+      await tx.leadAssignmentEvent.create({ data: { leadId: lead.id, ruleId: lockedRule.id, fromStaffId: lead.assignedToId, toStaffId: selected.id, reason: `SLA escalation: ${lockedRule.name}`, assignedAt, responseDueAt } })
+      return true
+    })
+    if (didEscalate) {
+      escalated += 1
+      await notifyManagers({ type: 'lead_sla', title: 'Lead escalated after SLA breach', subtitle: `${lead.contact.name} was reassigned to the next available agent.`, href: '/lead-routing', metadata: { leadId: lead.id }, emailSubject: `Lead escalated: ${lead.contact.name}`, emailHtml: `<p>Lead <strong>${lead.contact.name}</strong> was automatically reassigned after its response SLA breach.</p>`, whatsappText: `Lead escalated: ${lead.contact.name} was reassigned after its SLA breach.` })
+    }
+  }
+  revalidatePath('/leads'); revalidatePath('/lead-routing')
+  return { alerted, escalated }
 }
 
 export async function markLeadResponded(leadId: number) {

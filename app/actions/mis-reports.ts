@@ -26,6 +26,7 @@ export type MisReportType =
     | 'lead-source-roi'
     | 'pending-bookings'
     | 'cancellations'
+    | 'lost-reasons'
     | 'custom'
 
 export interface MisParams {
@@ -388,6 +389,14 @@ async function cancellationsReport(params?: MisParams) {
     })
 }
 
+async function lostReasonsReport(params?: MisParams) {
+    const range = dateRange(params)
+    const deals = await prisma.deal.findMany({ where: { stage: { isLost: true }, lostReason: { not: null }, ...(Object.keys(range).length > 0 ? { updatedAt: range } : {}) }, select: { lostReason: true } })
+    const rows = new Map<string, number>()
+    for (const deal of deals) { const reason = deal.lostReason?.trim() || 'Unspecified'; rows.set(reason, (rows.get(reason) ?? 0) + 1) }
+    return [...rows.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count)
+}
+
 async function customReport(params?: MisParams) {
     const dimension = params?.dimension ?? 'agent'
     const range = dateRange(params)
@@ -428,6 +437,7 @@ const CSV_HEADERS: Record<MisReportType, string[]> = {
     'lead-source-roi': ['source', 'totalLeads', 'wonLeads', 'lostLeads', 'openLeads', 'conversionRate'],
     'pending-bookings': ['bookingId', 'buyerName', 'buyerPhone', 'project', 'tower', 'unit', 'unitType', 'agreementValue', 'outstandingAmount', 'nextMilestoneName', 'nextMilestoneDue', 'bookingDate'],
     'cancellations': ['bookingId', 'buyerName', 'buyerPhone', 'project', 'tower', 'unit', 'unitType', 'agreementValue', 'tokenAmount', 'amountCollected', 'cancellationReason', 'bookingDate', 'cancellationDate'],
+    'lost-reasons': ['reason', 'count'],
     'custom': ['agent', 'deals', 'wonDeals', 'value', 'project', 'bookings', 'agreementValue', 'emirate', 'leads', 'source', 'won', 'lost', 'portal', 'enquiries'],
 }
 
@@ -464,6 +474,9 @@ export async function getMisReport(
                 break
             case 'cancellations':
                 data = await cancellationsReport(params) as Record<string, unknown>[]
+                break
+            case 'lost-reasons':
+                data = await lostReasonsReport(params) as Record<string, unknown>[]
                 break
             case 'custom':
                 data = await customReport(params) as Record<string, unknown>[]

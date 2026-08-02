@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle2, GitBranch, Plus, RefreshCw, Users } from '
 import { assignLeadManually, getLeadAssignmentQueue, listLeadRoutingRules, markLeadResponded, saveLeadRoutingRule } from '@/app/actions/lead-routing'
 
 type Staff = { id: number; name: string; role?: string }
-type Rule = { id: number; name: string; active: boolean; priority: number; source: string | null; emirate: string | null; community: string | null; responseSlaMinutes: number; mode: string; staffIds: number[] }
+type Rule = { id: number; name: string; active: boolean; priority: number; source: string | null; emirate: string | null; community: string | null; responseSlaMinutes: number; businessHoursEnabled: boolean; businessHoursStartMinute: number; businessHoursEndMinute: number; escalationEnabled: boolean; escalationAfterMinutes: number; mode: string; staffIds: number[] }
 
 export default function LeadRoutingClient() {
   const [rules, setRules] = useState<Rule[]>([])
@@ -13,7 +13,7 @@ export default function LeadRoutingClient() {
   const [queue, setQueue] = useState<any[]>([])
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState({ name: '', source: '', emirate: 'Dubai', community: '', priority: 100, responseSlaMinutes: 15, mode: 'ROUND_ROBIN', staffIds: [] as number[] })
+  const [form, setForm] = useState({ name: '', source: '', emirate: 'Dubai', community: '', priority: 100, responseSlaMinutes: 15, businessHoursEnabled: true, businessHoursStartMinute: 540, businessHoursEndMinute: 1260, escalationEnabled: true, escalationAfterMinutes: 15, mode: 'ROUND_ROBIN', staffIds: [] as number[] })
 
   const load = useCallback(async () => {
     setBusy(true)
@@ -36,7 +36,7 @@ export default function LeadRoutingClient() {
     const result = await saveLeadRoutingRule(form)
     if (!result.success) { setMessage(result.error ?? 'Could not save the routing rule'); return }
     setMessage('Routing rule saved. New leads will use it immediately.')
-    setForm({ name: '', source: '', emirate: 'Dubai', community: '', priority: 100, responseSlaMinutes: 15, mode: 'ROUND_ROBIN', staffIds: [] })
+    setForm({ name: '', source: '', emirate: 'Dubai', community: '', priority: 100, responseSlaMinutes: 15, businessHoursEnabled: true, businessHoursStartMinute: 540, businessHoursEndMinute: 1260, escalationEnabled: true, escalationAfterMinutes: 15, mode: 'ROUND_ROBIN', staffIds: [] })
     await load()
   }
 
@@ -66,6 +66,7 @@ export default function LeadRoutingClient() {
           <input required placeholder="Rule name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="field" />
           <div className="grid grid-cols-2 gap-3"><input placeholder="Source (optional)" value={form.source} onChange={e => setForm({ ...form, source: e.target.value })} className="field" /><input placeholder="Community (optional)" value={form.community} onChange={e => setForm({ ...form, community: e.target.value })} className="field" /></div>
           <div className="grid grid-cols-3 gap-3"><input placeholder="Emirate" value={form.emirate} onChange={e => setForm({ ...form, emirate: e.target.value })} className="field" /><input type="number" min={0} value={form.priority} onChange={e => setForm({ ...form, priority: Number(e.target.value) })} className="field" /><input type="number" min={1} value={form.responseSlaMinutes} onChange={e => setForm({ ...form, responseSlaMinutes: Number(e.target.value) })} className="field" /></div>
+          <div className="grid grid-cols-2 gap-3 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={form.businessHoursEnabled} onChange={e => setForm({ ...form, businessHoursEnabled: e.target.checked })} /> Dubai business hours (09:00–21:00)</label><label className="flex items-center gap-2"><input type="checkbox" checked={form.escalationEnabled} onChange={e => setForm({ ...form, escalationEnabled: e.target.checked })} /> Auto-escalate after grace</label><input type="number" min={1} value={form.escalationAfterMinutes} onChange={e => setForm({ ...form, escalationAfterMinutes: Number(e.target.value) })} className="field" placeholder="Grace minutes" /></div>
           <select value={form.mode} onChange={e => setForm({ ...form, mode: e.target.value })} className="field"><option value="ROUND_ROBIN">Round robin</option><option value="LEAST_LOADED">Least loaded</option><option value="FIXED">Fixed staff member</option></select>
           <div className="rounded-lg border border-border p-3"><p className="mb-2 text-sm font-medium">Eligible staff</p><div className="grid gap-2 sm:grid-cols-2">{staff.map(person => <label key={person.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.staffIds.includes(person.id)} onChange={() => toggleStaff(person.id)} />{person.name}</label>)}</div></div>
           <button disabled={busy} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">Save rule</button>

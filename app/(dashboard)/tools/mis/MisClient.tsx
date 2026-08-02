@@ -76,6 +76,13 @@ const REPORTS: ReportDef[] = [
         color: 'text-rose-500',
     },
     {
+        type: 'lost-reasons',
+        title: 'Lost Reasons',
+        description: 'Aggregate pipeline loss reasons for coaching and source analysis',
+        icon: <XCircle className="size-5" />,
+        color: 'text-red-500',
+    },
+    {
         type: 'custom',
         title: 'Custom View',
         description: 'Filter operational data by agent, project, location, source or portal',

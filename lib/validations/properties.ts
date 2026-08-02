@@ -134,7 +134,6 @@ const projectSchema = z.object({
     trakheesiPermitNo: optionalString,
     saleType: z.enum(['Off-Plan (Primary)', 'Secondary / Resale', 'Rental']).optional(),
     isFreeholdZone: z.boolean().optional(),
-    reraExpiry: z.coerce.date().optional(),
     type: projectTypeEnum,
     status: projectStatusEnum,
     builderName: optionalString,

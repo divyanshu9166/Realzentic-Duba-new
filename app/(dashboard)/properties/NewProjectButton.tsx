@@ -177,10 +177,14 @@ export default function NewProjectButton() {
                                 </div>
                                 <label className="flex items-end gap-2 pb-2 text-sm text-muted"><input type="checkbox" checked={form.isFreeholdZone} onChange={(e) => setForm((f) => ({ ...f, isFreeholdZone: e.target.checked }))} /> Freehold zone</label>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
                                     <label className="block text-xs text-muted mb-1">DLD Registration Number</label>
                                     <input value={form.dldProjectRegNo} onChange={(e) => setForm((f) => ({ ...f, dldProjectRegNo: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-muted mb-1">DLD Registration Expiry</label>
+                                    <input type="date" value={form.dldProjectRegExpiry} onChange={(e) => setForm((f) => ({ ...f, dldProjectRegExpiry: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label className="block text-xs text-muted mb-1">Builder Name</label>

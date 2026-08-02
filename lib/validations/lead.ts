@@ -8,6 +8,7 @@ export const createLeadSchema = z.object({
   source: z.enum(LEAD_SOURCE_OPTIONS),
   interest: z.string().min(1, 'Product interest is required'),
   projectId: z.number().int().positive().optional().nullable(),
+  community: z.string().trim().max(120).optional().or(z.literal('')),
   budget: z.string().optional(),
   notes: z.string().optional(),
 })

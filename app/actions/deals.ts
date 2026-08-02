@@ -48,6 +48,7 @@ import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { isValidE164, normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-utils'
 import { idSchema } from '@/lib/validations/common'
+import { computeCommission } from '@/lib/commission'
 
 const DEALS_PATH = '/deals'
 
@@ -79,6 +80,54 @@ function toNumber(value: unknown): number {
 
 function firstIssue(error: z.ZodError): string {
     return error.issues[0]?.message ?? 'Invalid input'
+}
+
+/** Create the agent's commission once when a deal reaches a won stage. */
+async function createAutomaticDealCommission(tx: any, deal: { id: number; value: unknown; assignedAgentId: number | null }) {
+    if (!deal.assignedAgentId) return null
+    const staff = await tx.staff.findUnique({ where: { id: deal.assignedAgentId }, select: { id: true, commission: true, status: true } })
+    if (!staff || staff.status === 'Inactive') return null
+    const config = staff.commission && typeof staff.commission === 'object' && !Array.isArray(staff.commission) ? staff.commission as Record<string, unknown> : {}
+    const rate = Number(config.rate ?? config.percentage ?? 0)
+    if (!Number.isFinite(rate) || rate <= 0) return null
+    const basisAmount = Math.max(0, Math.round(toNumber(deal.value)))
+    const amount = Math.max(0, Math.round(computeCommission('Percentage', rate, 0, null, basisAmount)))
+    if (amount <= 0) return null
+    const sourceKey = `DEAL:${deal.id}:AGENT`
+    return tx.commissionLedger.upsert({
+        where: { sourceKey },
+        update: {},
+        create: {
+            displayId: `COM-DXB-${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
+            beneficiaryType: 'AGENT', staffId: staff.id, dealId: deal.id, basisAmount, rate, amount,
+            status: 'PENDING', sourceKey, notes: 'Automatically created when the deal was marked won.',
+            splits: { create: [{ beneficiaryType: 'AGENT', staffId: staff.id, amount, rate, notes: 'Primary agent share' }] },
+        },
+    })
+}
+
+type DealAutoAction = { type?: string; title?: string; description?: string; priority?: string; dueInDays?: number; taskType?: string }
+
+async function executeDealStageAutoActions(tx: any, stage: { id: number; name: string; autoActions: unknown }, deal: { id: number; contactId: number; assignedAgentId: number | null }) {
+    const actions = Array.isArray(stage.autoActions) ? stage.autoActions as DealAutoAction[] : []
+    for (let index = 0; index < actions.length; index += 1) {
+        const action = actions[index]
+        const type = String(action?.type ?? '').toUpperCase()
+        const key = `stage=${stage.id};action=${index};type=${type}`
+        const alreadyRun = await tx.dealActivity.findFirst({ where: { dealId: deal.id, type: 'AUTO_ACTION', description: { contains: key } }, select: { id: true } })
+        if (alreadyRun) continue
+        if (type === 'CREATE_TASK') {
+            const dueInDays = Number.isFinite(Number(action.dueInDays)) ? Math.max(0, Math.min(365, Math.round(Number(action.dueInDays)))) : 1
+            await tx.task.create({ data: {
+                title: String(action.title ?? `Follow up: ${stage.name}`).trim().slice(0, 160),
+                description: String(action.description ?? `Automatic action for deal ${deal.id}.`).trim().slice(0, 2000),
+                type: String(action.taskType ?? 'Follow-up').trim().slice(0, 60),
+                priority: ['Low', 'Medium', 'High'].includes(String(action.priority)) ? String(action.priority) : 'High',
+                status: 'Open', dueDate: new Date(Date.now() + dueInDays * 86_400_000), assignedToId: deal.assignedAgentId, contactId: deal.contactId, dealId: deal.id,
+            } })
+        }
+        await tx.dealActivity.create({ data: { dealId: deal.id, type: 'AUTO_ACTION', description: `${key}; ${type === 'CREATE_TASK' ? 'Task created' : 'Unsupported action recorded'}` } })
+    }
 }
 
 // ─── DealStage CRUD / reorder (Req 4.1) ──────────────
@@ -209,8 +258,9 @@ export async function createDeal(data: unknown) {
         return { success: false, error: 'A lost reason is required for a lost stage' }
     }
 
-    const deal = await prisma.deal.create({
-        data: {
+    const deal = await prisma.$transaction(async tx => {
+        const created = await tx.deal.create({
+          data: {
             contactId: input.contactId,
             stageId: input.stageId,
             value: input.value,
@@ -222,7 +272,11 @@ export async function createDeal(data: unknown) {
             notes: input.notes ?? null,
             lostReason: input.lostReason ?? null,
             wonDate: stage.isWon ? new Date() : null,
-        },
+          },
+        })
+        if (stage.isWon) await createAutomaticDealCommission(tx, created)
+        await executeDealStageAutoActions(tx, stage, created)
+        return created
     })
 
     revalidatePath(DEALS_PATH)
@@ -285,16 +339,16 @@ export async function moveDeal(
         ? String(parsed.data.lostReason ?? deal.lostReason ?? '').trim()
         : deal.lostReason
 
-    const [updated] = await prisma.$transaction([
-        prisma.deal.update({
+    const updated = await prisma.$transaction(async tx => {
+        const saved = await tx.deal.update({
             where: { id: deal.id },
             data: {
                 stageId: newStageId,
                 lostReason: resolvedLostReason,
                 wonDate: targetStage!.isWon ? deal.wonDate ?? new Date() : deal.wonDate,
             },
-        }),
-        prisma.dealActivity.create({
+        })
+        await tx.dealActivity.create({
             data: {
                 dealId: deal.id,
                 type: 'STAGE_CHANGE',
@@ -303,8 +357,11 @@ export async function moveDeal(
                 newStageId,
                 performedById,
             },
-        }),
-    ])
+        })
+        if (targetStage!.isWon && oldStageId !== newStageId) await createAutomaticDealCommission(tx, deal)
+        if (oldStageId !== newStageId) await executeDealStageAutoActions(tx, targetStage!, deal)
+        return saved
+    })
 
     if (targetStage!.isWon && oldStageId !== newStageId) {
         await dispatchAutomatedEmailCampaign('post_purchase', deal.contactId)
@@ -565,6 +622,7 @@ export async function listDealsForBoard() {
                 unit: { select: { unitNumber: true } },
                 assignedAgent: { select: { name: true } },
                 booking: { select: { id: true } },
+                activities: { where: { type: 'STAGE_CHANGE' }, orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
             },
         }),
     ])
@@ -583,6 +641,8 @@ export async function listDealsForBoard() {
         expectedCloseDate: d.expectedCloseDate ? d.expectedCloseDate.toISOString() : null,
         source: d.source ?? null,
         hasBooking: d.booking != null,
+        daysInStage: Math.max(0, Math.floor((Date.now() - (d.activities[0]?.createdAt ?? d.createdAt).getTime()) / 86_400_000)),
+        lastActivityAt: d.activities[0]?.createdAt?.toISOString() ?? d.updatedAt.toISOString(),
     }))
 
     const columns = stages.map((stage) => ({

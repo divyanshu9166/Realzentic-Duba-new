@@ -15,6 +15,8 @@ export const workOrderSchema = z.object({
   status: z.enum(['OPEN', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).default('OPEN'),
   vendorName: z.string().trim().max(160).optional().or(z.literal('')),
   vendorPhone: z.string().trim().max(40).optional().or(z.literal('')),
+  vendorId: optionalId,
+  attachments: z.array(z.string().url().max(2000)).max(20).default([]),
   scheduledAt: optionalDate,
   dueAt: optionalDate,
   estimatedCost: z.number().int().min(0).default(0),
@@ -26,4 +28,5 @@ export const workOrderStatusSchema = z.object({
   status: z.enum(['OPEN', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
   actualCost: z.number().int().min(0).optional(),
   resolutionNotes: z.string().trim().max(3000).optional().or(z.literal('')),
+  attachments: z.array(z.string().url().max(2000)).max(20).optional(),
 })

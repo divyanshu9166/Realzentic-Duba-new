@@ -23,6 +23,9 @@ import {
     Home,
     LayoutGrid,
     BadgeCheck,
+    AlertTriangle,
+    CheckCircle2,
+    Filter,
 } from 'lucide-react';
 import { getInventoryAnalytics } from '@/app/actions/properties';
 import type { InventoryAnalytics } from '@/lib/inventory';
@@ -35,9 +38,23 @@ export interface ProjectCardRow {
     city: string;
     emirate: string;
     dldProjectRegNo: string | null;
+    dldProjectRegExpiry: string | null;
+    escrowAccountNo: string | null;
+    trakheesiPermitNo: string | null;
+    saleType: string | null;
+    type: string;
+    status: string;
+    builderName: string | null;
+    locationConfirmed: boolean;
     photoUrl: string | null;
     unitCount: number;
     percentSold: number;
+    availableUnitCount: number;
+    blockedUnitCount: number;
+    bookedUnitCount: number;
+    soldUnitCount: number;
+    mortgagedUnitCount: number;
+    inventoryMismatch: boolean;
     goldenVisaEligibleUnitCount: number;
 }
 
@@ -75,6 +92,19 @@ function SoldPill({ pct }: { pct: number }) {
     );
 }
 
+function labelize(value: string | null | undefined): string {
+    if (!value) return 'Not set';
+    return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ');
+}
+
+function projectNeedsAttention(project: ProjectCardRow): boolean {
+    return !project.locationConfirmed
+        || !project.dldProjectRegNo
+        || !project.trakheesiPermitNo
+        || (project.saleType === 'Off-Plan (Primary)' && !project.escrowAccountNo)
+        || project.inventoryMismatch;
+}
+
 function ProjectCard({ project }: { project: ProjectCardRow }) {
     return (
         <Link
@@ -101,7 +131,15 @@ function ProjectCard({ project }: { project: ProjectCardRow }) {
                     <h3 className="text-sm font-semibold text-foreground leading-tight line-clamp-1">
                         {project.name}
                     </h3>
-                    <SoldPill pct={project.percentSold} />
+                    <div className="flex items-center gap-1.5">
+                        <SoldPill pct={project.percentSold} />
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                    <span className="rounded-md border border-accent/20 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">{labelize(project.type)}</span>
+                    <span className="rounded-md border border-border bg-surface-light px-2 py-0.5 text-[11px] font-medium text-muted">{labelize(project.status)}</span>
+                    {project.saleType && <span className="rounded-md border border-border bg-surface-light px-2 py-0.5 text-[11px] font-medium text-muted">{project.saleType}</span>}
                 </div>
 
                 <div className="flex items-center gap-1 text-xs text-muted">
@@ -127,6 +165,22 @@ function ProjectCard({ project }: { project: ProjectCardRow }) {
                         <Home className="w-3 h-3" />
                         {project.unitCount} unit{project.unitCount !== 1 ? 's' : ''}
                     </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 rounded-lg bg-surface-light/70 p-2 text-[10px]">
+                    <div><p className="text-muted">Available</p><p className="mt-0.5 text-sm font-semibold text-emerald-700">{project.availableUnitCount}</p></div>
+                    <div><p className="text-muted">On hold</p><p className="mt-0.5 text-sm font-semibold text-amber-700">{project.blockedUnitCount}</p></div>
+                    <div><p className="text-muted">Booked / sold</p><p className="mt-0.5 text-sm font-semibold text-blue-700">{project.bookedUnitCount + project.soldUnitCount}</p></div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                    {project.locationConfirmed ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-3 w-3" /> Location confirmed</span>
+                    ) : (
+                        <span className="inline-flex items-center gap-1 text-amber-700"><AlertTriangle className="h-3 w-3" /> Location needs setup</span>
+                    )}
+                    {project.trakheesiPermitNo ? <span className="text-muted">Permit recorded</span> : <span className="text-amber-700">Permit missing</span>}
+                    {project.inventoryMismatch && <span className="text-amber-700">Count mismatch</span>}
                 </div>
 
                 {/* Progress bar */}
@@ -319,17 +373,49 @@ function AnalyticsPanel({ projects }: { projects: ProjectCardRow[] }) {
 export default function PropertiesClient({ projects }: { projects: ProjectCardRow[] }) {
     const [tab, setTab] = useState<Tab>('grid');
     const [search, setSearch] = useState('');
+    const [emirate, setEmirate] = useState('');
+    const [projectStatus, setProjectStatus] = useState('');
+    const [saleType, setSaleType] = useState('');
+    const [needsAttention, setNeedsAttention] = useState(false);
+
+    const portfolio = projects.reduce((summary, project) => ({
+        units: summary.units + project.unitCount,
+        available: summary.available + project.availableUnitCount,
+        held: summary.held + project.blockedUnitCount,
+        closed: summary.closed + project.bookedUnitCount + project.soldUnitCount,
+        attention: summary.attention + (projectNeedsAttention(project) ? 1 : 0),
+    }), { units: 0, available: 0, held: 0, closed: 0, attention: 0 });
+
+    const emirates = Array.from(new Set(projects.map((project) => project.emirate).filter(Boolean))).sort();
+    const hasFilters = Boolean(search || emirate || projectStatus || saleType || needsAttention);
 
     const filtered = projects.filter(
         (p) =>
-            p.name.toLowerCase().includes(search.toLowerCase()) ||
-            p.city.toLowerCase().includes(search.toLowerCase()) ||
-            p.location.toLowerCase().includes(search.toLowerCase()) ||
-            (p.dldProjectRegNo ?? '').toLowerCase().includes(search.toLowerCase()),
+            (!search || [p.name, p.city, p.location, p.emirate, p.builderName ?? '', p.dldProjectRegNo ?? '', p.trakheesiPermitNo ?? '']
+                .some((value) => value.toLowerCase().includes(search.toLowerCase()))) &&
+            (!emirate || p.emirate === emirate) &&
+            (!projectStatus || p.status === projectStatus) &&
+            (!saleType || p.saleType === saleType) &&
+            (!needsAttention || projectNeedsAttention(p)),
     );
 
     return (
         <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+                {[
+                    { label: 'Projects', value: projects.length, tint: 'text-accent' },
+                    { label: 'Total units', value: portfolio.units, tint: 'text-foreground' },
+                    { label: 'Available', value: portfolio.available, tint: 'text-emerald-700' },
+                    { label: 'On hold', value: portfolio.held, tint: 'text-amber-700' },
+                    { label: 'Needs attention', value: portfolio.attention, tint: 'text-red-700' },
+                ].map((item) => (
+                    <div key={item.label} className="glass-card p-3">
+                        <p className="text-[10px] uppercase tracking-wide text-muted">{item.label}</p>
+                        <p className={`mt-1 text-xl font-bold ${item.tint}`}>{item.value}</p>
+                    </div>
+                ))}
+            </div>
+
             {/* Tab bar */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex bg-surface rounded-xl border border-border p-0.5 overflow-x-auto">
@@ -362,10 +448,37 @@ export default function PropertiesClient({ projects }: { projects: ProjectCardRo
                                 className="pl-10 pr-4 py-2.5 bg-surface rounded-xl border border-border text-sm w-64"
                             />
                         </div>
+                        <select aria-label="Filter by emirate" value={emirate} onChange={(e) => setEmirate(e.target.value)} className="hidden xl:block w-36 py-2.5 bg-surface rounded-xl border border-border text-xs">
+                            <option value="">All emirates</option>
+                            {emirates.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                        <select aria-label="Filter by project status" value={projectStatus} onChange={(e) => setProjectStatus(e.target.value)} className="hidden xl:block w-36 py-2.5 bg-surface rounded-xl border border-border text-xs">
+                            <option value="">All statuses</option>
+                            <option value="Upcoming">Upcoming</option>
+                            <option value="UnderConstruction">Under construction</option>
+                            <option value="ReadyToMove">Ready to move</option>
+                        </select>
+                        <select aria-label="Filter by sale type" value={saleType} onChange={(e) => setSaleType(e.target.value)} className="hidden xl:block w-36 py-2.5 bg-surface rounded-xl border border-border text-xs">
+                            <option value="">All sale types</option>
+                            <option value="Off-Plan (Primary)">Off-plan</option>
+                            <option value="Secondary / Resale">Resale</option>
+                            <option value="Rental">Rental</option>
+                        </select>
+                        <button type="button" onClick={() => setNeedsAttention((value) => !value)} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-medium ${needsAttention ? 'border-red-300 bg-red-50 text-red-700' : 'border-border bg-surface text-muted hover:text-foreground'}`}>
+                            <Filter className="h-3.5 w-3.5" /> Attention
+                        </button>
                         <NewProjectButton />
                     </div>
                 )}
             </div>
+
+            {tab === 'grid' && hasFilters && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                    <span>Showing {filtered.length} of {projects.length} projects</span>
+                    <button type="button" onClick={() => { setSearch(''); setEmirate(''); setProjectStatus(''); setSaleType(''); setNeedsAttention(false); }} className="text-accent hover:underline">Clear filters</button>
+                    <span className="xl:hidden">Use the filters on a wider screen for emirate, status and sale type.</span>
+                </div>
+            )}
 
             {/* Content */}
             {tab === 'grid' && (

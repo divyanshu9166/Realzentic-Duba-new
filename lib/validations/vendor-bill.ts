@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const vendorBillSchema = z.object({
+  vendorId: z.number().int().positive().optional().nullable(),
   vendorName: z.string().trim().min(1).max(200),
   vendorPhone: z.string().trim().max(30).optional().or(z.literal('')),
   description: z.string().trim().min(1).max(500),

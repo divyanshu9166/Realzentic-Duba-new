@@ -35,6 +35,8 @@ export const leaseSchema = z.object({
   securityDeposit: money.default(0),
   noticeDays: z.number().int().min(1).max(365).default(90),
   autoRenew: z.boolean().default(false),
+  landlordId: z.number().int().positive().optional().nullable(),
+  reraIndexRent: money.optional().nullable(),
   landlordName: z.string().trim().max(160).optional().or(z.literal('')),
   landlordPhone: z.string().trim().max(40).optional().or(z.literal('')),
   notes: z.string().trim().max(2000).optional().or(z.literal('')),
@@ -45,6 +47,7 @@ export const leaseRenewalSchema = z.object({
   proposedStart: date,
   proposedEnd: date,
   proposedRent: money,
+  reraIndexRent: money.optional().nullable(),
   status: z.enum(['DRAFT', 'OFFERED', 'ACCEPTED', 'DECLINED', 'COMPLETED']).default('DRAFT'),
   notes: z.string().trim().max(2000).optional().or(z.literal('')),
 })

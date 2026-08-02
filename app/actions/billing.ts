@@ -12,6 +12,15 @@ function displayId(prefix: string) {
   return `${prefix}-DXB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
 }
 
+async function nextInvoiceDisplayId(tx: any) {
+  const settings = await tx.storeSettings.findFirst({ select: { invoicePrefix: true, invoicePadding: true } })
+  const sequence = await tx.invoiceNumberSequence.upsert({ where: { id: 1 }, update: { nextNumber: { increment: 1 } }, create: { id: 1, nextNumber: 2 } })
+  const number = Math.max(1, sequence.nextNumber - 1)
+  const prefix = (settings?.invoicePrefix?.trim() || 'INV').replace(/-+$/, '')
+  const padding = Math.max(1, Math.min(12, settings?.invoicePadding ?? 6))
+  return `${prefix}-DXB-${new Date().getFullYear()}-${String(number).padStart(padding, '0')}`
+}
+
 function dateOrNull(value?: string | null) {
   if (!value) return null
   const date = new Date(value)
@@ -45,17 +54,20 @@ function mapCommission(commission: any) {
     rentalDealId: commission.rentalDealId, invoiceId: commission.invoiceId, basisAmount: commission.basisAmount,
     rate: commission.rate, amount: commission.amount, status: commission.status,
     approvedAt: commission.approvedAt?.toISOString() ?? null, paidAt: commission.paidAt?.toISOString() ?? null,
-    paymentReference: commission.paymentReference, notes: commission.notes,
+    paymentReference: commission.paymentReference, notes: commission.notes, sourceKey: commission.sourceKey ?? null,
+    reversalOfId: commission.reversalOfId ?? null,
+    splits: (commission.splits ?? []).map((split: any) => ({ id: split.id, beneficiaryType: split.beneficiaryType, staffId: split.staffId, amount: split.amount, rate: split.rate, notes: split.notes })),
   }
 }
 
 function mapVendorBill(bill: any) {
-  return { id: bill.id, displayId: bill.displayId, vendorName: bill.vendorName, vendorPhone: bill.vendorPhone, description: bill.description, category: bill.category, issueDate: bill.issueDate.toISOString(), dueDate: bill.dueDate?.toISOString() ?? null, status: bill.status, subtotal: bill.subtotal, vatAmount: bill.vatAmount, total: bill.total, balanceDue: bill.balanceDue, notes: bill.notes }
+  return { id: bill.id, displayId: bill.displayId, vendorId: bill.vendorId ?? null, vendorName: bill.vendor?.name ?? bill.vendorName, vendorPhone: bill.vendor?.phone ?? bill.vendorPhone, description: bill.description, category: bill.category, issueDate: bill.issueDate.toISOString(), dueDate: bill.dueDate?.toISOString() ?? null, status: bill.status, subtotal: bill.subtotal, vatAmount: bill.vatAmount, total: bill.total, balanceDue: bill.balanceDue, notes: bill.notes }
 }
 
 const invoiceInclude = { contact: { select: { name: true } } } as const
 const contractInclude = { contact: { select: { name: true } } } as const
-const commissionInclude = { staff: { select: { name: true } } } as const
+const commissionInclude = { staff: { select: { name: true } }, splits: true } as const
+const vendorBillInclude = { vendor: { select: { id: true, name: true, phone: true } } } as const
 
 async function validateInvoiceReferences(input: { contactId?: number | null; dealId?: number | null; rentalDealId?: number | null; leaseId?: number | null }) {
   if (input.contactId != null && !(await prisma.contact.findUnique({ where: { id: input.contactId }, select: { id: true } }))) return 'Contact not found'
@@ -68,15 +80,16 @@ async function validateInvoiceReferences(input: { contactId?: number | null; dea
 export async function getBillingWorkspace() {
   try {
     await requireRole('ADMIN', 'MANAGER')
-    const [invoices, contracts, commissions, vendorBills, contacts, staff] = await Promise.all([
+    const [invoices, contracts, commissions, vendorBills, contacts, staff, vendors] = await Promise.all([
       prisma.invoice.findMany({ include: invoiceInclude, orderBy: { issueDate: 'desc' }, take: 500 }),
       prisma.contract.findMany({ include: contractInclude, orderBy: { createdAt: 'desc' }, take: 500 }),
       prisma.commissionLedger.findMany({ include: commissionInclude, orderBy: { createdAt: 'desc' }, take: 500 }),
-      prisma.vendorBill.findMany({ orderBy: { issueDate: 'desc' }, take: 500 }),
+      prisma.vendorBill.findMany({ include: vendorBillInclude, orderBy: { issueDate: 'desc' }, take: 500 }),
       prisma.contact.findMany({ select: { id: true, name: true, phone: true }, orderBy: { name: 'asc' }, take: 1000 }),
       prisma.staff.findMany({ where: { status: { not: 'Inactive' } }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+      prisma.maintenanceVendor.findMany({ where: { active: true }, select: { id: true, name: true, phone: true }, orderBy: { name: 'asc' } }),
     ])
-    return { success: true, data: { invoices: invoices.map(mapInvoice), contracts: contracts.map(mapContract), commissions: commissions.map(mapCommission), vendorBills: vendorBills.map(mapVendorBill), contacts, staff } }
+    return { success: true, data: { invoices: invoices.map(mapInvoice), contracts: contracts.map(mapContract), commissions: commissions.map(mapCommission), vendorBills: vendorBills.map(mapVendorBill), contacts, staff, vendors } }
   } catch { return { success: false, error: 'Administrator or manager access required' } }
 }
 
@@ -88,7 +101,8 @@ export async function createVendorBill(data: unknown) {
     const input = parsed.data; const dueDate = dateOrNull(input.dueDate)
     if (input.dueDate && !dueDate) return { success: false, error: 'Due date is invalid' }
     const subtotal = Math.round(input.amount); const vatAmount = Math.round(subtotal * input.vatRate / 100); const total = subtotal + vatAmount
-    const bill = await prisma.vendorBill.create({ data: { displayId: displayId('BILL'), vendorName: input.vendorName, vendorPhone: input.vendorPhone || null, description: input.description, category: input.category || null, dueDate, status: input.status, subtotal, vatAmount, total, balanceDue: total, notes: input.notes || null, createdById: Number(session.user.id) } })
+    if (input.vendorId && !(await prisma.maintenanceVendor.findFirst({ where: { id: input.vendorId, active: true }, select: { id: true } }))) return { success: false, error: 'Vendor not found' }
+    const bill = await prisma.vendorBill.create({ data: { displayId: displayId('BILL'), vendorId: input.vendorId ?? null, vendorName: input.vendorName, vendorPhone: input.vendorPhone || null, description: input.description, category: input.category || null, dueDate, status: input.status, subtotal, vatAmount, total, balanceDue: total, notes: input.notes || null, createdById: Number(session.user.id) }, include: vendorBillInclude })
     revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapVendorBill(bill) }
   } catch (error) { console.error('[billing] create vendor bill failed', error); return { success: false, error: 'Could not create vendor bill' } }
 }
@@ -136,11 +150,11 @@ export async function createInvoice(data: unknown) {
     const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0)
     const vatAmount = Math.round(subtotal * input.vatRate / 100)
     const total = subtotal + vatAmount
-    const invoice = await prisma.invoice.create({ data: {
-      displayId: displayId('INV'), contactId: input.contactId ?? null, dealId: input.dealId ?? null, rentalDealId: input.rentalDealId ?? null,
+    const invoice = await prisma.$transaction(async tx => tx.invoice.create({ data: {
+      displayId: await nextInvoiceDisplayId(tx), contactId: input.contactId ?? null, dealId: input.dealId ?? null, rentalDealId: input.rentalDealId ?? null,
       leaseId: input.leaseId ?? null, type: input.type, status: input.status, dueDate, subtotal, vatAmount, total, balanceDue: total,
       lineItems, notes: input.notes || null, createdById: Number(session.user.id),
-    }, include: invoiceInclude })
+    }, include: invoiceInclude }))
     revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapInvoice(invoice) }
   } catch (error) { console.error('[billing] create invoice failed', error); return { success: false, error: 'Could not create invoice' } }
 }
@@ -265,10 +279,17 @@ export async function createCommission(data: unknown) {
     if (input.beneficiaryType === 'AGENT' && !input.staffId) return { success: false, error: 'An agent is required for an agent commission' }
     if (Math.abs(input.amount - Math.round(input.basisAmount * input.rate / 100)) > 1) return { success: false, error: 'Commission amount must equal basis amount multiplied by rate' }
     if (input.staffId && !(await prisma.staff.findFirst({ where: { id: input.staffId, status: { not: 'Inactive' } }, select: { id: true } }))) return { success: false, error: 'Staff member not found' }
+    const splitTotal = input.splits.reduce((sum, split) => sum + split.amount, 0)
+    if (input.splits.length > 0 && splitTotal !== input.amount) return { success: false, error: 'Commission splits must add up to the ledger amount' }
+    for (const split of input.splits) {
+      if (split.beneficiaryType === 'AGENT' && !split.staffId) return { success: false, error: 'Every agent split needs a staff member' }
+      if (split.staffId && !(await prisma.staff.findFirst({ where: { id: split.staffId, status: { not: 'Inactive' } }, select: { id: true } }))) return { success: false, error: 'Commission split staff member not found' }
+    }
     const commission = await prisma.commissionLedger.create({ data: {
       displayId: displayId('COM'), beneficiaryType: input.beneficiaryType, staffId: input.beneficiaryType === 'AGENT' ? input.staffId : null,
       dealId: input.dealId ?? null, rentalDealId: input.rentalDealId ?? null, invoiceId: input.invoiceId ?? null,
       basisAmount: input.basisAmount, rate: input.rate, amount: input.amount, status: 'PENDING', notes: input.notes || null,
+      splits: input.splits.length > 0 ? { create: input.splits.map(split => ({ beneficiaryType: split.beneficiaryType, staffId: split.beneficiaryType === 'AGENT' ? split.staffId : null, amount: split.amount, rate: split.rate, notes: split.notes || null })) } : undefined,
     }, include: commissionInclude })
     revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapCommission(commission) }
   } catch { return { success: false, error: 'Could not create commission' } }
@@ -285,4 +306,24 @@ export async function updateCommissionStatus(id: number, status: string, payment
     }, include: commissionInclude })
     revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapCommission(commission) }
   } catch { return { success: false, error: 'Could not update commission status' } }
+}
+
+/** Create a linked negative ledger entry instead of mutating paid history. */
+export async function createCommissionClawback(id: number, notes?: string) {
+  try {
+    await requireRole('ADMIN', 'MANAGER')
+    if (!Number.isInteger(id) || id <= 0) return { success: false, error: 'Invalid commission id' }
+    const result = await prisma.$transaction(async tx => {
+      const original = await tx.commissionLedger.findUnique({ where: { id }, include: commissionInclude })
+      if (!original) throw new Error('Commission not found')
+      if (original.status === 'VOID' || original.status === 'CLAWBACK') throw new Error('This commission cannot be clawed back')
+      return tx.commissionLedger.upsert({ where: { sourceKey: `CLAWBACK:${original.id}` }, update: {}, create: {
+        displayId: displayId('COM'), beneficiaryType: original.beneficiaryType, staffId: original.staffId, dealId: original.dealId,
+        rentalDealId: original.rentalDealId, invoiceId: original.invoiceId, basisAmount: -original.basisAmount, rate: original.rate,
+        amount: -original.amount, status: 'CLAWBACK', reversalOfId: original.id, sourceKey: `CLAWBACK:${original.id}`,
+        notes: notes?.trim() || `Clawback of ${original.displayId}`,
+      }, include: commissionInclude })
+    })
+    revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapCommission(result) }
+  } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Could not create commission clawback' } }
 }

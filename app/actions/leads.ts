@@ -87,7 +87,7 @@ export async function createLead(data: unknown) {
   const parsed = createLeadSchema.safeParse(data)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-  const { name, phone, email, source, interest, projectId: requestedProjectId, budget, notes } = parsed.data
+  const { name, phone, email, source, interest, projectId: requestedProjectId, community, budget, notes } = parsed.data
 
   // Find or create contact. Req 11.7: if the phone already exists on a Contact,
   // link the new lead to that existing Contact instead of creating a duplicate,
@@ -120,6 +120,7 @@ export async function createLead(data: unknown) {
       contactId: contact.id,
       projectId,
       interest,
+      community: community || null,
       budget,
       status: 'NEW',
       source,
@@ -130,7 +131,7 @@ export async function createLead(data: unknown) {
   // Apply the same routing pool used by portal webhooks and the lead-routing
   // workspace. If no active rule matches, the lead remains safely unassigned
   // in the manager queue instead of being silently lost.
-  await autoAssignLeadForNewLead(lead.id)
+  await autoAssignLeadForNewLead(lead.id, { community: community || null })
   await dispatchAutomatedEmailCampaign('new_lead', contact.id)
 
   revalidatePath('/leads')
@@ -147,10 +148,6 @@ export async function updateLeadStatus(data: unknown) {
     where: { id: parsed.data.id },
     data: { status: parsed.data.status },
   })
-
-  if (parsed.data.status === 'QUOTATION' && previous.status !== 'QUOTATION') {
-    await dispatchAutomatedEmailCampaign('abandoned_quote', previous.contactId)
-  }
 
   revalidatePath('/leads')
   return { success: true, data: lead }

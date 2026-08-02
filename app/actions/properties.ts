@@ -598,9 +598,23 @@ export interface ProjectCard {
     city: string
     emirate: string
     dldProjectRegNo: string | null
+    dldProjectRegExpiry: string | null
+    escrowAccountNo: string | null
+    trakheesiPermitNo: string | null
+    saleType: string | null
+    type: string
+    status: string
+    builderName: string | null
+    locationConfirmed: boolean
     photoUrl: string | null
     unitCount: number
     percentSold: number
+    availableUnitCount: number
+    blockedUnitCount: number
+    bookedUnitCount: number
+    soldUnitCount: number
+    mortgagedUnitCount: number
+    inventoryMismatch: boolean
     goldenVisaEligibleUnitCount: number
 }
 
@@ -611,6 +625,9 @@ export interface ProjectCard {
  */
 export async function listProjects(): Promise<Result<ProjectCard[]>> {
     try {
+        // A stale timed hold must never make the project list advertise less
+        // stock than is actually available.
+        await releaseExpiredHolds()
         const projects = await prisma.project.findMany({
             orderBy: { createdAt: 'desc' },
             include: {
@@ -622,14 +639,20 @@ export async function listProjects(): Promise<Result<ProjectCard[]>> {
 
         const cards: ProjectCard[] = projects.map((project) => {
             let total = 0
+            let available = 0
+            let blocked = 0
             let booked = 0
             let sold = 0
+            let mortgaged = 0
             let goldenVisaEligibleUnitCount = 0
             for (const tower of project.towers) {
                 for (const unit of tower.units) {
                     total += 1
-                    if (unit.status === 'Booked') booked += 1
+                    if (unit.status === 'Available') available += 1
+                    else if (unit.status === 'Blocked') blocked += 1
+                    else if (unit.status === 'Booked') booked += 1
                     else if (unit.status === 'Sold') sold += 1
+                    else if (unit.status === 'Mortgaged') mortgaged += 1
                     if (unit.status === 'Available' && isGoldenVisaEligible(Number(unit.totalPrice))) {
                         goldenVisaEligibleUnitCount += 1
                     }
@@ -643,9 +666,23 @@ export async function listProjects(): Promise<Result<ProjectCard[]>> {
                 city: project.city,
                 emirate: project.emirate,
                 dldProjectRegNo: project.dldProjectRegNo,
+                dldProjectRegExpiry: project.dldProjectRegExpiry?.toISOString() ?? null,
+                escrowAccountNo: project.escrowAccountNo,
+                trakheesiPermitNo: project.trakheesiPermitNo,
+                saleType: project.saleType,
+                type: project.type,
+                status: project.status,
+                builderName: project.builderName,
+                locationConfirmed: project.locationConfirmedAt != null,
                 photoUrl: project.photoUrls[0] ?? null,
                 unitCount: total,
                 percentSold: computePercentSold(booked, sold, total),
+                availableUnitCount: available,
+                blockedUnitCount: blocked,
+                bookedUnitCount: booked,
+                soldUnitCount: sold,
+                mortgagedUnitCount: mortgaged,
+                inventoryMismatch: project.totalUnits !== total,
                 goldenVisaEligibleUnitCount,
             }
         })
@@ -670,6 +707,7 @@ export async function getProjectDetail(projectId: unknown): Promise<Result<unkno
     if (!parsedId.success) return { success: false, error: firstIssue(parsedId.error) }
 
     try {
+        await releaseExpiredHolds()
         const project = await prisma.project.findUnique({
             where: { id: parsedId.data },
             include: {
@@ -685,12 +723,34 @@ export async function getProjectDetail(projectId: unknown): Promise<Result<unkno
         if (!project) return { success: false, error: 'Project not found' }
 
         const inventoryUnitCount = project.towers.reduce((count, tower) => count + tower.units.length, 0)
+        const inventoryStatusCounts = {
+            Available: 0,
+            Blocked: 0,
+            Booked: 0,
+            Sold: 0,
+            Mortgaged: 0,
+        }
+        let totalInventoryValue = 0
+        let availableStockValue = 0
+        for (const tower of project.towers) {
+            for (const unit of tower.units) {
+                inventoryStatusCounts[unit.status] += 1
+                const price = Number(unit.totalPrice)
+                totalInventoryValue += price
+                if (unit.status === 'Available') availableStockValue += price
+            }
+        }
 
         const detail = {
             ...project,
             inventoryUnitCount,
+            inventoryStatusCounts,
+            totalInventoryValue,
+            availableStockValue,
+            inventoryMismatch: project.totalUnits !== inventoryUnitCount,
             possessionDate: project.possessionDate?.toISOString() ?? null,
             dldProjectRegExpiry: project.dldProjectRegExpiry?.toISOString() ?? null,
+            dldProjectRegExpired: project.dldProjectRegExpiry != null && project.dldProjectRegExpiry.getTime() <= Date.now(),
             locationConfirmedAt: project.locationConfirmedAt?.toISOString() ?? null,
             towers: project.towers.map((tower) => ({
                 ...tower,
@@ -762,6 +822,7 @@ export async function getInventoryAnalytics(
     if (!parsedId.success) return { success: false, error: firstIssue(parsedId.error) }
 
     try {
+        await releaseExpiredHolds()
         const units = await prisma.unit.findMany({
             where: { tower: { projectId: parsedId.data } },
             select: { status: true, totalPrice: true },
@@ -1047,40 +1108,41 @@ export async function blockUnit(
  * @param now The reference time; defaults to the current time. Injectable so
  *   the sweep is deterministic under test.
  */
+async function releaseExpiredHolds(now: Date = new Date()): Promise<number> {
+    const expired = await prisma.unit.findMany({
+        where: {
+            status: 'Blocked',
+            holdExpiresAt: { not: null, lte: now },
+        },
+        select: { id: true },
+    })
+
+    if (expired.length === 0) return 0
+
+    return prisma.$transaction(async (tx) => {
+        let count = 0
+        for (const { id } of expired) {
+            // Re-check status inside the transaction so a unit that raced to
+            // Booked between the scan and the write is not reverted (Req 2.6).
+            const result = await tx.unit.updateMany({
+                where: { id, status: 'Blocked', holdExpiresAt: { not: null, lte: now } },
+                data: {
+                    status: 'Available',
+                    holdByStaffId: null,
+                    holdByPartnerId: null,
+                    holdCreatedAt: null,
+                    holdExpiresAt: null,
+                },
+            })
+            count += result.count
+        }
+        return count
+    })
+}
+
 export async function sweepExpiredHolds(now: Date = new Date()): Promise<Result<{ released: number }>> {
     try {
-        const expired = await prisma.unit.findMany({
-            where: {
-                status: 'Blocked',
-                holdExpiresAt: { not: null, lte: now },
-            },
-            select: { id: true },
-        })
-
-        if (expired.length === 0) {
-            return { success: true, data: { released: 0 } }
-        }
-
-        const released = await prisma.$transaction(async (tx) => {
-            let count = 0
-            for (const { id } of expired) {
-                // Re-check status inside the transaction so a unit that raced to
-                // Booked between the scan and the write is not reverted (Req 2.6).
-                const result = await tx.unit.updateMany({
-                    where: { id, status: 'Blocked', holdExpiresAt: { not: null, lte: now } },
-                    data: {
-                        status: 'Available',
-                        holdByStaffId: null,
-                        holdByPartnerId: null,
-                        holdCreatedAt: null,
-                        holdExpiresAt: null,
-                    },
-                })
-                count += result.count
-            }
-            return count
-        })
-
+        const released = await releaseExpiredHolds(now)
         if (released > 0) revalidatePath(PROPERTIES_PATH)
         return { success: true, data: { released } }
     } catch (err) {

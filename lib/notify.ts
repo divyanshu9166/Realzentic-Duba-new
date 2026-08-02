@@ -5,7 +5,7 @@ import { normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-utils'
 // ─── TYPES ──────────────────────────────────────────
 
 interface NotifyManagersOptions {
-  type: 'stock_alert' | 'field_visit' | 'financial_alert'
+  type: 'stock_alert' | 'field_visit' | 'financial_alert' | 'lead_sla' | 'maintenance_alert'
   title: string
   subtitle: string
   href: string

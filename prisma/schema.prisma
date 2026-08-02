@@ -144,6 +144,7 @@ model Lead {
   source            String?
   date              DateTime   @default(now())
   notes             String?
+  community         String?
   nationality       String?
   passportNumber    String?
   visaStatus        String?
@@ -156,6 +157,8 @@ model Lead {
   firstResponseAt   DateTime?
   responseDueAt     DateTime?
   assignmentReason  String?
+  slaAlertedAt      DateTime?
+  slaEscalatedAt    DateTime?
 
   followUps FollowUp[]
 
@@ -169,26 +172,33 @@ model Lead {
   @@index([date])
   @@index([assignedToId])
   @@index([responseDueAt])
+  @@index([status, responseDueAt, firstResponseAt])
   @@index([projectId])
 }
 
 // ─── LEAD ROUTING & RESPONSE SLA ─────────────────────
 
 model LeadRoutingRule {
-  id                 Int      @id @default(autoincrement())
-  name               String
-  active             Boolean  @default(true)
-  priority           Int      @default(100)
-  source             String?
-  emirate            String?
-  community          String?
-  responseSlaMinutes Int      @default(15)
-  mode               String   @default("ROUND_ROBIN") // ROUND_ROBIN | LEAST_LOADED | FIXED
-  staffIds           Int[]
-  fixedStaffId       Int?
-  roundRobinCursor   Int      @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                       Int      @id @default(autoincrement())
+  name                     String
+  active                   Boolean  @default(true)
+  priority                 Int      @default(100)
+  source                   String?
+  emirate                  String?
+  community                String?
+  responseSlaMinutes       Int      @default(15)
+  businessHoursEnabled     Boolean  @default(true)
+  businessHoursStartMinute Int      @default(540)
+  businessHoursEndMinute   Int      @default(1260)
+  businessDays             Int[]    @default([1, 2, 3, 4, 5, 6])
+  escalationEnabled        Boolean  @default(true)
+  escalationAfterMinutes   Int      @default(15)
+  mode                     String   @default("ROUND_ROBIN") // ROUND_ROBIN | LEAST_LOADED | FIXED
+  staffIds                 Int[]
+  fixedStaffId             Int?
+  roundRobinCursor         Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   assignments LeadAssignmentEvent[]
 
@@ -362,21 +372,23 @@ model Staff {
   receivedPayments DailyPayment[]
 
   // Real Estate CRM back-relations (additive)
-  agentScores         AgentScore[]
-  agentBadges         AgentBadge[]
-  deals               Deal[]
-  tasks               Task[]
-  loanApplications    LoanApplication[]
-  agentTargets        AgentTarget[]
-  snagReports         SnagReport[]
-  agentLocations      AgentLocation[]
-  followUpEntries     FollowUpEntry[]
-  leadAssignmentsFrom LeadAssignmentEvent[] @relation("LeadAssignmentFrom")
-  leadAssignmentsTo   LeadAssignmentEvent[] @relation("LeadAssignmentTo")
-  rentalDeals         RentalDeal[]
-  leases              Lease[]
-  workOrders          WorkOrder[]
-  commissions         CommissionLedger[]
+  agentScores          AgentScore[]
+  agentBadges          AgentBadge[]
+  deals                Deal[]
+  tasks                Task[]
+  loanApplications     LoanApplication[]
+  agentTargets         AgentTarget[]
+  snagReports          SnagReport[]
+  agentLocations       AgentLocation[]
+  followUpEntries      FollowUpEntry[]
+  leadAssignmentsFrom  LeadAssignmentEvent[] @relation("LeadAssignmentFrom")
+  leadAssignmentsTo    LeadAssignmentEvent[] @relation("LeadAssignmentTo")
+  rentalDeals          RentalDeal[]
+  leases               Lease[]
+  workOrders           WorkOrder[]
+  commissions          CommissionLedger[]
+  commissionSplits     CommissionSplit[]
+  maintenanceSchedules MaintenanceSchedule[]
 
   @@index([email])
 }
@@ -2618,37 +2630,43 @@ model RentalDeal {
 }
 
 model Lease {
-  id                    Int        @id @default(autoincrement())
-  contractNumber        String     @unique
-  rentalDealId          Int        @unique
-  rentalDeal            RentalDeal @relation(fields: [rentalDealId], references: [id], onDelete: Cascade)
-  contactId             Int
-  contact               Contact    @relation(fields: [contactId], references: [id])
-  assignedAgentId       Int?
-  assignedAgent         Staff?     @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
-  unitId                Int?
-  unit                  Unit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
-  ejariNumber           String?    @unique
-  ejariStatus           String     @default("PENDING") // PENDING | SUBMITTED | ACTIVE | EXPIRED | NOT_REQUIRED
-  status                String     @default("ACTIVE") // DRAFT | ACTIVE | EXPIRED | TERMINATED
-  startDate             DateTime
-  endDate               DateTime
-  renewalNoticeDate     DateTime
-  annualRent            Int
-  securityDeposit       Int        @default(0)
-  noticeDays            Int        @default(90)
-  autoRenew             Boolean    @default(false)
-  renewalReminderSentAt DateTime?
-  landlordName          String?
-  landlordPhone         String?
-  notes                 String?
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  id                     Int        @id @default(autoincrement())
+  contractNumber         String     @unique
+  rentalDealId           Int        @unique
+  rentalDeal             RentalDeal @relation(fields: [rentalDealId], references: [id], onDelete: Cascade)
+  contactId              Int
+  contact                Contact    @relation(fields: [contactId], references: [id])
+  assignedAgentId        Int?
+  assignedAgent          Staff?     @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  unitId                 Int?
+  unit                   Unit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  ejariNumber            String?    @unique
+  ejariStatus            String     @default("PENDING") // PENDING | SUBMITTED | ACTIVE | EXPIRED | NOT_REQUIRED
+  status                 String     @default("ACTIVE") // DRAFT | ACTIVE | EXPIRED | TERMINATED
+  startDate              DateTime
+  endDate                DateTime
+  renewalNoticeDate      DateTime
+  annualRent             Int
+  reraIndexRent          Int?
+  securityDeposit        Int        @default(0)
+  noticeDays             Int        @default(90)
+  autoRenew              Boolean    @default(false)
+  renewalReminderSentAt  DateTime?
+  landlordName           String?
+  landlordPhone          String?
+  landlordId             Int?
+  landlord               Landlord?  @relation(fields: [landlordId], references: [id], onDelete: SetNull)
+  notes                  String?
+  maintenanceAccessToken String?    @unique
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
 
-  renewals   LeaseRenewal[]
-  invoices   Invoice[]
-  contracts  Contract[]
-  workOrders WorkOrder[]
+  renewals             LeaseRenewal[]
+  invoices             Invoice[]
+  contracts            Contract[]
+  workOrders           WorkOrder[]
+  maintenanceSchedules MaintenanceSchedule[]
+  depositSettlement    SecurityDepositSettlement?
 
   @@index([contactId])
   @@index([status])
@@ -2657,50 +2675,91 @@ model Lease {
 }
 
 model LeaseRenewal {
-  id             Int       @id @default(autoincrement())
-  leaseId        Int
-  lease          Lease     @relation(fields: [leaseId], references: [id], onDelete: Cascade)
-  proposedStart  DateTime
-  proposedEnd    DateTime
-  proposedRent   Int
-  status         String    @default("DRAFT") // DRAFT | OFFERED | ACCEPTED | DECLINED | COMPLETED
-  reminderSentAt DateTime?
-  notes          String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                 Int       @id @default(autoincrement())
+  leaseId            Int
+  lease              Lease     @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  proposedStart      DateTime
+  proposedEnd        DateTime
+  proposedRent       Int
+  reraIndexRent      Int?
+  maxIncreasePercent Float?
+  maxPermittedRent   Int?
+  complianceWarning  String?
+  status             String    @default("DRAFT") // DRAFT | OFFERED | ACCEPTED | DECLINED | COMPLETED
+  reminderSentAt     DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([leaseId])
+  @@index([status])
+}
+
+model Landlord {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  email     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leases Lease[]
+
+  @@index([name])
+  @@index([phone])
+}
+
+model SecurityDepositSettlement {
+  id              Int       @id @default(autoincrement())
+  leaseId         Int       @unique
+  lease           Lease     @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  status          String    @default("DRAFT") // DRAFT | PARTIALLY_REFUNDED | REFUNDED | FORFEITED
+  originalDeposit Int
+  refundAmount    Int       @default(0)
+  deductions      Json
+  refundDate      DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
   @@index([status])
 }
 
 // ─── MAINTENANCE WORK ORDERS ─────────────────────────
 
 model WorkOrder {
-  id              Int       @id @default(autoincrement())
-  displayId       String    @unique
-  leaseId         Int?
-  lease           Lease?    @relation(fields: [leaseId], references: [id], onDelete: SetNull)
-  bookingId       Int?
-  booking         Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-  contactId       Int?
-  contact         Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  assignedToId    Int?
-  assignedTo      Staff?    @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
-  title           String
-  description     String?
-  category        String    @default("GENERAL") // GENERAL | PLUMBING | ELECTRICAL | HVAC | CIVIL | CLEANING | OTHER
-  priority        String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
-  status          String    @default("OPEN") // OPEN | SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
-  vendorName      String?
-  vendorPhone     String?
-  scheduledAt     DateTime?
-  dueAt           DateTime?
-  completedAt     DateTime?
-  estimatedCost   Int       @default(0)
-  actualCost      Int       @default(0)
-  resolutionNotes String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                    Int                  @id @default(autoincrement())
+  displayId             String               @unique
+  leaseId               Int?
+  lease                 Lease?               @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  bookingId             Int?
+  booking               Booking?             @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  contactId             Int?
+  contact               Contact?             @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignedToId          Int?
+  assignedTo            Staff?               @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  title                 String
+  description           String?
+  category              String               @default("GENERAL") // GENERAL | PLUMBING | ELECTRICAL | HVAC | CIVIL | CLEANING | OTHER
+  priority              String               @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status                String               @default("OPEN") // OPEN | SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
+  vendorName            String?
+  vendorPhone           String?
+  vendorId              Int?
+  vendor                MaintenanceVendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  maintenanceScheduleId Int?
+  maintenanceSchedule   MaintenanceSchedule? @relation(fields: [maintenanceScheduleId], references: [id], onDelete: SetNull)
+  scheduledAt           DateTime?
+  dueAt                 DateTime?
+  completedAt           DateTime?
+  estimatedCost         Int                  @default(0)
+  actualCost            Int                  @default(0)
+  resolutionNotes       String?
+  attachments           String[]             @default([])
+  breachAlertedAt       DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
 
   expenses Expense[]
 
@@ -2709,6 +2768,53 @@ model WorkOrder {
   @@index([dueAt])
   @@index([leaseId])
   @@index([bookingId])
+  @@index([status, dueAt, breachAlertedAt])
+}
+
+model MaintenanceVendor {
+  id         Int      @id @default(autoincrement())
+  name       String
+  phone      String?
+  email      String?
+  categories String[] @default([])
+  rating     Float?
+  notes      String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  workOrders  WorkOrder[]
+  schedules   MaintenanceSchedule[]
+  vendorBills VendorBill[]
+
+  @@index([active])
+  @@index([name])
+}
+
+model MaintenanceSchedule {
+  id            Int                @id @default(autoincrement())
+  title         String
+  description   String?
+  category      String             @default("GENERAL")
+  priority      String             @default("MEDIUM")
+  leaseId       Int?
+  lease         Lease?             @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  vendorId      Int?
+  vendor        MaintenanceVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  assignedToId  Int?
+  assignedTo    Staff?             @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  frequency     String             @default("MONTHLY") // WEEKLY | MONTHLY | QUARTERLY | SEMI_ANNUAL | ANNUAL
+  nextDueAt     DateTime
+  active        Boolean            @default(true)
+  lastSpawnedAt DateTime?
+  estimatedCost Int                @default(0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  workOrders WorkOrder[]
+
+  @@index([active, nextDueAt])
+  @@index([leaseId])
 }
 
 // ─── BILLING / DOCUMENTS ────────────────────────────
@@ -2786,58 +2892,88 @@ model Contract {
 // ─── VENDOR BILLS / ACCOUNTS PAYABLE ─────────────────
 
 model VendorBill {
-  id          Int       @id @default(autoincrement())
-  displayId   String    @unique
+  id          Int                @id @default(autoincrement())
+  displayId   String             @unique
+  vendorId    Int?
+  vendor      MaintenanceVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   vendorName  String
   vendorPhone String?
   description String
   category    String?
-  issueDate   DateTime  @default(now())
+  issueDate   DateTime           @default(now())
   dueDate     DateTime?
-  status      String    @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
+  status      String             @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
   subtotal    Int
-  vatAmount   Int       @default(0)
+  vatAmount   Int                @default(0)
   total       Int
   balanceDue  Int
   notes       String?
   createdById Int?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   payments DailyPayment[]
 
   @@index([status])
   @@index([dueDate])
   @@index([vendorName])
+  @@index([vendorId])
 }
 
 model CommissionLedger {
-  id               Int         @id @default(autoincrement())
-  displayId        String      @unique
-  beneficiaryType  String      @default("AGENT") // AGENT | COMPANY
+  id               Int                @id @default(autoincrement())
+  displayId        String             @unique
+  beneficiaryType  String             @default("AGENT") // AGENT | COMPANY
   staffId          Int?
-  staff            Staff?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  staff            Staff?             @relation(fields: [staffId], references: [id], onDelete: SetNull)
   dealId           Int?
-  deal             Deal?       @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  deal             Deal?              @relation(fields: [dealId], references: [id], onDelete: SetNull)
   rentalDealId     Int?
-  rentalDeal       RentalDeal? @relation(fields: [rentalDealId], references: [id], onDelete: SetNull)
+  rentalDeal       RentalDeal?        @relation(fields: [rentalDealId], references: [id], onDelete: SetNull)
   invoiceId        Int?
-  invoice          Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoice          Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   basisAmount      Int
-  rate             Float       @default(0)
+  rate             Float              @default(0)
   amount           Int
-  status           String      @default("PENDING") // PENDING | APPROVED | PAID | VOID
+  status           String             @default("PENDING") // PENDING | APPROVED | PAID | VOID
   approvedAt       DateTime?
   paidAt           DateTime?
   paymentReference String?
   notes            String?
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  sourceKey        String?            @unique
+  reversalOfId     Int?
+  reversalOf       CommissionLedger?  @relation("CommissionReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversals        CommissionLedger[] @relation("CommissionReversal")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  splits           CommissionSplit[]
 
   @@index([staffId, status])
   @@index([beneficiaryType, status])
   @@index([dealId])
   @@index([rentalDealId])
+}
+
+model CommissionSplit {
+  id              Int              @id @default(autoincrement())
+  commissionId    Int
+  commission      CommissionLedger @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+  beneficiaryType String           @default("AGENT")
+  staffId         Int?
+  staff           Staff?           @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  amount          Int
+  rate            Float            @default(0)
+  notes           String?
+  createdAt       DateTime         @default(now())
+
+  @@index([commissionId])
+  @@index([staffId])
+}
+
+model InvoiceNumberSequence {
+  id         Int      @id @default(1)
+  nextNumber Int      @default(1)
+  updatedAt  DateTime @updatedAt
 }
 
 // ─── LISTING PUBLICATION TRACKING ────────────────────

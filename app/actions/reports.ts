@@ -49,9 +49,10 @@ export interface CrmReports {
         conversionRate: number // Won / total (%)
     }
     deals: {
-        total: number
-        openValue: number
-        byStage: Array<{ stage: string; count: number; value: number; isWon: boolean; isLost: boolean }>
+      total: number
+      openValue: number
+      byStage: Array<{ stage: string; count: number; value: number; isWon: boolean; isLost: boolean }>
+      lostReasons: Array<{ reason: string; count: number }>
     }
     bookings: {
         count: number
@@ -93,6 +94,7 @@ export async function getCrmReports(): Promise<Result<CrmReports>> {
             unitGroups,
             availableAgg,
             wonDealGroups,
+            lostReasonGroups,
         ] = await Promise.all([
             prisma.lead.groupBy({ by: ['status'], _count: { _all: true } }),
             prisma.lead.groupBy({ by: ['source'], _count: { _all: true } }),
@@ -109,6 +111,11 @@ export async function getCrmReports(): Promise<Result<CrmReports>> {
                 where: { stage: { isWon: true }, assignedAgentId: { not: null } },
                 _count: { _all: true },
                 _sum: { value: true },
+            }),
+            prisma.deal.groupBy({
+                by: ['lostReason'],
+                where: { stage: { isLost: true }, lostReason: { not: null } },
+                _count: { _all: true },
             }),
         ])
 
@@ -187,7 +194,7 @@ export async function getCrmReports(): Promise<Result<CrmReports>> {
             data: {
                 generatedAt: new Date().toISOString(),
                 leads: { total: leadTotal, funnel, bySource, conversionRate },
-                deals: { total: dealTotal, openValue, byStage },
+                deals: { total: dealTotal, openValue, byStage, lostReasons: lostReasonGroups.map((row) => ({ reason: row.lostReason ?? 'Unspecified', count: row._count._all })).sort((a, b) => b.count - a.count) },
                 bookings: {
                     count: bookingAgg._count._all,
                     agreementValue: toNum(bookingAgg._sum.agreementValue),

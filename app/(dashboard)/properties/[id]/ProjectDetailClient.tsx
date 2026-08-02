@@ -19,6 +19,7 @@ import { useState, useMemo } from 'react';
 import {
     Building2, MapPin, ShieldCheck, SlidersHorizontal,
     BarChart3, ChevronDown, ChevronUp, Home, X, Clock, ExternalLink,
+    AlertTriangle, CheckCircle2,
 } from 'lucide-react';
 import { getInventoryAnalytics } from '@/app/actions/properties';
 import type { InventoryAnalytics } from '@/lib/inventory';
@@ -71,7 +72,12 @@ export interface ProjectDetail {
     city: string;
     emirate: string;
     dldProjectRegNo: string | null;
-    reraExpiry: string | null;
+    dldProjectRegExpiry: string | null;
+    dldProjectRegExpired: boolean;
+    escrowAccountNo: string | null;
+    trakheesiPermitNo: string | null;
+    saleType: string | null;
+    isFreeholdZone: boolean;
     type: string;
     status: string;
     builderName: string | null;
@@ -83,6 +89,10 @@ export interface ProjectDetail {
     longitude: number | null;
     geofenceRadiusM: number | null;
     locationConfirmedAt: string | null;
+    inventoryStatusCounts: Record<'Available' | 'Blocked' | 'Booked' | 'Sold' | 'Mortgaged', number>;
+    totalInventoryValue: number;
+    availableStockValue: number;
+    inventoryMismatch: boolean;
     possessionDate: string | null;
     towers: TowerRow[];
 }
@@ -564,6 +574,75 @@ function TowerView({ tower, projectId, canManage }: { tower: TowerRow; projectId
     );
 }
 
+function ReadinessItem({ label, ready, detail, neutral = false }: { label: string; ready: boolean; detail: string; neutral?: boolean }) {
+    return (
+        <div className="flex items-start gap-2 rounded-lg border border-border bg-surface/60 px-3 py-2">
+            {neutral ? <span className="mt-0.5 h-3.5 w-3.5 rounded-full border border-border" /> : ready ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />}
+            <div className="min-w-0">
+                <p className="text-[11px] font-medium text-foreground">{label}</p>
+                <p className={`truncate text-[10px] ${neutral || ready ? 'text-muted' : 'text-amber-700'}`}>{detail}</p>
+            </div>
+        </div>
+    );
+}
+
+function ProjectReadiness({ project }: { project: ProjectDetail }) {
+    const offPlan = project.saleType === 'Off-Plan (Primary)';
+    const dldExpiry = project.dldProjectRegExpiry ? new Date(project.dldProjectRegExpiry) : null;
+    const dldExpired = project.dldProjectRegExpired;
+    const counts = project.inventoryStatusCounts;
+    const readinessItems = [
+        { label: 'DLD project record', ready: Boolean(project.dldProjectRegNo) && !dldExpired, detail: project.dldProjectRegNo ? (dldExpired ? 'Registration expiry has passed' : `${project.dldProjectRegNo}${dldExpiry ? ` · expires ${formatDate(project.dldProjectRegExpiry)}` : ''}`) : 'Registration number not recorded' },
+        { label: 'Escrow record', ready: Boolean(project.escrowAccountNo), neutral: !offPlan, detail: project.escrowAccountNo ? project.escrowAccountNo : (offPlan ? 'Required for off-plan project setup' : 'Not required for this sale type') },
+        { label: 'Trakheesi permit record', ready: Boolean(project.trakheesiPermitNo), detail: project.trakheesiPermitNo ?? 'Add before publishing marketing material' },
+        { label: 'Site-visit arrival point', ready: Boolean(project.locationConfirmedAt), detail: project.locationConfirmedAt ? 'Map pin confirmed for geo check-in' : 'Map pin still needs confirmation' },
+    ];
+
+    return (
+        <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_1fr]">
+            <section className="rounded-xl border border-border bg-surface/50 p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                        <h3 className="text-sm font-semibold text-foreground">Inventory health</h3>
+                        <p className="mt-0.5 text-[11px] text-muted">Live counts from the unit register</p>
+                    </div>
+                    {project.inventoryMismatch && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700"><AlertTriangle className="h-3.5 w-3.5" /> Setup count differs</span>}
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {([
+                        ['Available', counts.Available, 'text-emerald-700'],
+                        ['On hold', counts.Blocked, 'text-amber-700'],
+                        ['Booked', counts.Booked, 'text-blue-700'],
+                        ['Sold', counts.Sold, 'text-red-700'],
+                        ['Mortgaged', counts.Mortgaged, 'text-purple-700'],
+                    ] as const).map(([label, value, tint]) => (
+                        <div key={label} className="rounded-lg bg-surface-light/70 px-2.5 py-2">
+                            <p className="text-[10px] text-muted">{label}</p>
+                            <p className={`mt-0.5 text-lg font-bold ${tint}`}>{value}</p>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-muted">
+                    <span>Total inventory value: <strong className="text-foreground">{formatAed(project.totalInventoryValue)}</strong></span>
+                    <span>Available stock: <strong className="text-foreground">{formatAed(project.availableStockValue)}</strong></span>
+                </div>
+            </section>
+            <section className="rounded-xl border border-border bg-surface/50 p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                        <h3 className="text-sm font-semibold text-foreground">Dubai records checklist</h3>
+                        <p className="mt-0.5 text-[11px] text-muted">Internal readiness before sharing inventory</p>
+                    </div>
+                    <ShieldCheck className="h-4 w-4 text-accent" />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                    {readinessItems.map((item) => <ReadinessItem key={item.label} {...item} />)}
+                </div>
+            </section>
+        </div>
+    );
+}
+
 // ─── Root exported component ──────────────────────────────────────────────────
 
 type ViewTab = 'floors' | 'analytics' | 'waitlist';
@@ -639,6 +718,7 @@ export default function ProjectDetailClient({ project, canManage = false }: { pr
                             locationConfirmedAt={project.locationConfirmedAt}
                             canManage={canManage}
                         />
+                        <ProjectReadiness project={project} />
                     </div>
                 </div>
             </div>

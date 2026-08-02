@@ -447,6 +447,21 @@ export async function processDueAutomatedEmailRecipients() {
   return { processed: due.length, sent }
 }
 
+/** Queue abandoned-quote nurture only after a real inactivity window. */
+export async function processAbandonedQuoteCampaigns() {
+  const campaigns = await prisma.emailCampaign.count({ where: { isAutomated: true, triggerType: 'abandoned_quote', status: { in: ['DRAFT', 'SCHEDULED'] } } })
+  if (campaigns === 0) return { scanned: 0, queued: 0 }
+  const hours = Math.max(1, Number(process.env.ABANDONED_QUOTE_AFTER_HOURS ?? 24))
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000)
+  const leads = await prisma.lead.findMany({ where: { status: 'QUOTATION', updatedAt: { lte: cutoff } }, select: { contactId: true }, distinct: ['contactId'], take: 250 })
+  let queued = 0
+  for (const lead of leads) {
+    const result = await dispatchAutomatedEmailCampaign('abandoned_quote', lead.contactId)
+    if (result.success && result.data) queued += result.data.queued
+  }
+  return { scanned: leads.length, queued }
+}
+
 // ─── CAMPAIGN ANALYTICS ─────────────────────────────
 
 export async function getCampaignAnalytics(campaignId: number) {

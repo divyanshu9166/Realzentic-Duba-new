@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { requireRole } from '@/lib/auth-helpers'
 import { leaseRenewalSchema, leaseSchema, rentalDealSchema } from '@/lib/validations/rental'
+import { assessRentIncrease } from '@/lib/rental-compliance'
 
 function parsedDate(value: string | undefined | null) {
   if (!value) return null
@@ -26,12 +27,15 @@ function mapLease(lease: any) {
     ejariNumber: lease.ejariNumber, ejariStatus: lease.ejariStatus, status: lease.status,
     startDate: lease.startDate.toISOString(), endDate: lease.endDate.toISOString(),
     renewalNoticeDate: lease.renewalNoticeDate.toISOString(), annualRent: lease.annualRent,
+    reraIndexRent: lease.reraIndexRent ?? null,
     securityDeposit: lease.securityDeposit, noticeDays: lease.noticeDays, autoRenew: lease.autoRenew,
     renewalReminderSentAt: lease.renewalReminderSentAt?.toISOString() ?? null,
     landlordName: lease.landlordName, landlordPhone: lease.landlordPhone, notes: lease.notes,
     renewals: (lease.renewals ?? []).map((renewal: any) => ({
       id: renewal.id, proposedStart: renewal.proposedStart.toISOString(), proposedEnd: renewal.proposedEnd.toISOString(),
-      proposedRent: renewal.proposedRent, status: renewal.status, reminderSentAt: renewal.reminderSentAt?.toISOString() ?? null, notes: renewal.notes,
+      proposedRent: renewal.proposedRent, reraIndexRent: renewal.reraIndexRent ?? null, maxIncreasePercent: renewal.maxIncreasePercent ?? null,
+      maxPermittedRent: renewal.maxPermittedRent ?? null, complianceWarning: renewal.complianceWarning ?? null,
+      status: renewal.status, reminderSentAt: renewal.reminderSentAt?.toISOString() ?? null, notes: renewal.notes,
     })),
   }
 }
@@ -49,7 +53,7 @@ function mapRentalDeal(deal: any) {
   }
 }
 
-async function validateReferences(input: { contactId: number; assignedAgentId?: number | null; projectId?: number | null; unitId?: number | null }) {
+async function validateReferences(input: { contactId: number; assignedAgentId?: number | null; projectId?: number | null; unitId?: number | null; landlordId?: number | null }) {
   const contact = await prisma.contact.findUnique({ where: { id: input.contactId }, select: { id: true } })
   if (!contact) return 'Contact not found'
   if (input.assignedAgentId != null) {
@@ -65,19 +69,21 @@ async function validateReferences(input: { contactId: number; assignedAgentId?: 
     if (!unit) return 'Unit not found'
     if (input.projectId != null && unit.tower.projectId !== input.projectId) return 'Selected unit does not belong to the selected project'
   }
+  if (input.landlordId != null && !(await prisma.landlord.findUnique({ where: { id: input.landlordId }, select: { id: true } }))) return 'Landlord not found'
   return null
 }
 
 export async function getRentalReferenceData() {
   try {
     await requireRole('ADMIN', 'MANAGER')
-    const [contacts, staff, projects, units] = await Promise.all([
+    const [contacts, staff, projects, units, landlords] = await Promise.all([
       prisma.contact.findMany({ select: { id: true, name: true, phone: true }, orderBy: { name: 'asc' }, take: 1000 }),
       prisma.staff.findMany({ where: { status: { not: 'Inactive' } }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
       prisma.project.findMany({ select: { id: true, name: true, city: true }, orderBy: { name: 'asc' } }),
       prisma.unit.findMany({ where: { status: { in: ['Available', 'Booked'] } }, select: { id: true, unitNumber: true, tower: { select: { projectId: true, project: { select: { name: true } } } } }, orderBy: { unitNumber: 'asc' }, take: 2000 }),
+      prisma.landlord.findMany({ where: { }, select: { id: true, name: true, phone: true }, orderBy: { name: 'asc' } }),
     ])
-    return { success: true, data: { contacts, staff, projects, units: units.map(unit => ({ id: unit.id, unitNumber: unit.unitNumber, projectId: unit.tower.projectId, projectName: unit.tower.project.name })) } }
+    return { success: true, data: { contacts, staff, projects, landlords, units: units.map(unit => ({ id: unit.id, unitNumber: unit.unitNumber, projectId: unit.tower.projectId, projectName: unit.tower.project.name })) } }
   } catch { return { success: false, error: 'Administrator or manager access required' } }
 }
 
@@ -136,8 +142,8 @@ export async function createLease(data: unknown) {
         contractNumber: input.contractNumber, rentalDealId: input.rentalDealId, contactId: input.contactId,
         assignedAgentId: input.assignedAgentId ?? deal.assignedAgentId ?? null, unitId: input.unitId ?? deal.unitId ?? null,
         ejariNumber: input.ejariNumber || null, ejariStatus: input.ejariStatus, status: input.status, startDate, endDate,
-        renewalNoticeDate, annualRent: input.annualRent, securityDeposit: input.securityDeposit, noticeDays: input.noticeDays,
-        autoRenew: input.autoRenew, landlordName: input.landlordName || null, landlordPhone: input.landlordPhone || null, notes: input.notes || null,
+        renewalNoticeDate, annualRent: input.annualRent, reraIndexRent: input.reraIndexRent ?? null, securityDeposit: input.securityDeposit, noticeDays: input.noticeDays,
+        autoRenew: input.autoRenew, landlordId: input.landlordId ?? null, landlordName: input.landlordName || null, landlordPhone: input.landlordPhone || null, notes: input.notes || null,
         contact: undefined,
       }, include: { contact: { select: { name: true } }, assignedAgent: { select: { name: true } }, unit: { select: { unitNumber: true } }, renewals: true } })
       await tx.rentalDeal.update({ where: { id: input.rentalDealId }, data: { status: 'ACTIVE', startDate, endDate, annualRent: input.annualRent, monthlyRent: Math.round(input.annualRent / 12) } })
@@ -167,9 +173,11 @@ export async function createLeaseRenewal(data: unknown) {
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid renewal' }
     const input = parsed.data; const start = parsedDate(input.proposedStart); const end = parsedDate(input.proposedEnd)
     if (!start || !end || end <= start) return { success: false, error: 'Renewal dates are invalid' }
-    const lease = await prisma.lease.findUnique({ where: { id: input.leaseId }, select: { id: true, endDate: true } })
+    const lease = await prisma.lease.findUnique({ where: { id: input.leaseId }, select: { id: true, endDate: true, annualRent: true, reraIndexRent: true } })
     if (!lease) return { success: false, error: 'Lease not found' }
-    const renewal = await prisma.leaseRenewal.create({ data: { leaseId: input.leaseId, proposedStart: start, proposedEnd: end, proposedRent: input.proposedRent, status: input.status, notes: input.notes || null } })
+    const compliance = assessRentIncrease(lease.annualRent, input.proposedRent, input.reraIndexRent ?? lease.reraIndexRent)
+    if (!compliance.compliant) return { success: false, error: compliance.warning ?? `Proposed rent cannot exceed AED ${compliance.maxPermittedRent.toLocaleString()}` }
+    const renewal = await prisma.leaseRenewal.create({ data: { leaseId: input.leaseId, proposedStart: start, proposedEnd: end, proposedRent: input.proposedRent, reraIndexRent: input.reraIndexRent ?? lease.reraIndexRent, maxIncreasePercent: compliance.maxIncreasePercent, maxPermittedRent: compliance.maxPermittedRent, complianceWarning: compliance.warning, status: input.status, notes: input.notes || null } })
     revalidatePath('/rentals'); return { success: true, data: { ...renewal, proposedStart: renewal.proposedStart.toISOString(), proposedEnd: renewal.proposedEnd.toISOString() } }
   } catch { return { success: false, error: 'Could not create lease renewal' } }
 }
@@ -197,7 +205,8 @@ async function processLeaseRenewalReminders() {
         if (claimed.count === 0) return false
         const existingRenewal = await tx.leaseRenewal.findFirst({ where: { leaseId: lease.id, status: { in: ['OFFERED', 'ACCEPTED', 'COMPLETED'] } }, select: { id: true } })
         if (existingRenewal) return false
-        await tx.leaseRenewal.create({ data: { leaseId: lease.id, proposedStart, proposedEnd, proposedRent: lease.annualRent, status: 'OFFERED', reminderSentAt: now, notes: 'Automatically opened from the lease renewal notice schedule.' } })
+        const compliance = assessRentIncrease(lease.annualRent, lease.annualRent, lease.reraIndexRent)
+        await tx.leaseRenewal.create({ data: { leaseId: lease.id, proposedStart, proposedEnd, proposedRent: lease.annualRent, reraIndexRent: lease.reraIndexRent, maxIncreasePercent: compliance.maxIncreasePercent, maxPermittedRent: compliance.maxPermittedRent, complianceWarning: compliance.warning, status: 'OFFERED', reminderSentAt: now, notes: 'Automatically opened from the lease renewal notice schedule.' } })
         const existingTask = await tx.task.findFirst({ where: { title: { contains: lease.contractNumber }, type: 'Lease Renewal', status: 'Open' }, select: { id: true } })
         if (!existingTask) await tx.task.create({ data: { title: `Lease renewal: ${lease.contractNumber}`, description: `Renewal discussion required for ${lease.contact.name}.`, type: 'Lease Renewal', priority: 'High', status: 'Open', dueDate: lease.endDate, assignedToId: lease.assignedAgent?.id ?? null, contactId: lease.contact.id } })
         return true
@@ -218,4 +227,46 @@ export async function runLeaseRenewalReminders() {
 /** Secret-protected cron entry point; no browser session is expected here. */
 export async function processDueLeaseRenewalReminders() {
   return processLeaseRenewalReminders()
+}
+
+export async function createLandlord(data: { name?: string; phone?: string; email?: string; notes?: string }) {
+  try {
+    await requireRole('ADMIN', 'MANAGER')
+    const name = data?.name?.trim()
+    if (!name || name.length < 2 || name.length > 160) return { success: false, error: 'Landlord name is required' }
+    const landlord = await prisma.landlord.create({ data: { name, phone: data.phone?.trim() || null, email: data.email?.trim() || null, notes: data.notes?.trim() || null } })
+    revalidatePath('/rentals'); return { success: true, data: landlord }
+  } catch { return { success: false, error: 'Could not create landlord' } }
+}
+
+export async function saveSecurityDepositSettlement(data: unknown) {
+  try {
+    await requireRole('ADMIN', 'MANAGER')
+    if (!data || typeof data !== 'object') return { success: false, error: 'Settlement data is invalid' }
+    const input = data as { leaseId?: number; status?: string; refundAmount?: number; deductions?: Array<{ reason?: string; amount?: number }>; refundDate?: string; notes?: string }
+    if (!Number.isInteger(input.leaseId) || (input.leaseId as number) <= 0) return { success: false, error: 'Lease is required' }
+    const allowed = ['DRAFT', 'PARTIALLY_REFUNDED', 'REFUNDED', 'FORFEITED']
+    if (!input.status || !allowed.includes(input.status)) return { success: false, error: 'Invalid settlement status' }
+    const lease = await prisma.lease.findUnique({ where: { id: input.leaseId }, select: { id: true, securityDeposit: true } })
+    if (!lease) return { success: false, error: 'Lease not found' }
+    const deductions = (input.deductions ?? []).map(item => ({ reason: String(item.reason ?? '').trim().slice(0, 240), amount: Math.max(0, Math.round(Number(item.amount) || 0)) })).filter(item => item.amount > 0)
+    const deducted = deductions.reduce((sum, item) => sum + item.amount, 0)
+    const refundAmount = Math.max(0, Math.round(Number(input.refundAmount) || 0))
+    if (refundAmount + deducted > lease.securityDeposit) return { success: false, error: 'Refund plus deductions cannot exceed the security deposit' }
+    if (['REFUNDED', 'FORFEITED'].includes(input.status) && refundAmount + deducted !== lease.securityDeposit) return { success: false, error: 'Final settlement must account for the full security deposit' }
+    const refundDate = input.refundDate ? parsedDate(input.refundDate) : null
+    if (input.refundDate && !refundDate) return { success: false, error: 'Refund date is invalid' }
+    const settlement = await prisma.securityDepositSettlement.upsert({ where: { leaseId: lease.id }, create: { leaseId: lease.id, status: input.status, originalDeposit: lease.securityDeposit, refundAmount, deductions, refundDate, notes: input.notes?.trim() || null }, update: { status: input.status, originalDeposit: lease.securityDeposit, refundAmount, deductions, refundDate, notes: input.notes?.trim() || null } })
+    revalidatePath('/rentals'); revalidatePath('/financials')
+    return { success: true, data: { ...settlement, deductions: settlement.deductions } }
+  } catch { return { success: false, error: 'Could not save security-deposit settlement' } }
+}
+
+export async function getSecurityDepositSettlement(leaseId: number) {
+  try {
+    await requireRole('ADMIN', 'MANAGER')
+    if (!Number.isInteger(leaseId) || leaseId <= 0) return { success: false, error: 'Invalid lease id' }
+    const settlement = await prisma.securityDepositSettlement.findUnique({ where: { leaseId } })
+    return { success: true, data: settlement }
+  } catch { return { success: false, error: 'Could not load security-deposit settlement' } }
 }
