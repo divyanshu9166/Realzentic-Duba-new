@@ -1,26 +1,26 @@
-# ──────────────────────────────────────────────────────────
-#  Realzentic Dubai — Local Development Startup Script (Windows)
+# ----------------------------------------------------------
+#  Realzentic Dubai - Local Development Startup Script (Windows)
 #  Run this once instead of remembering all the steps.
 #  Usage: powershell -ExecutionPolicy Bypass -File scripts\start-local.ps1
-# ──────────────────────────────────────────────────────────
+# ----------------------------------------------------------
 
 $ErrorActionPreference = "Stop"
 
-# ─── 1. Prefer the bundled Node.js path when it exists ──
+# --- 1. Prefer the bundled Node.js path when it exists ---
 $nodePath = "C:\nodejs-new\node-v22.15.0-win-x64"
 if (Test-Path -LiteralPath $nodePath) { $env:Path = "$nodePath;$env:Path" }
 
 Write-Host ""
 Write-Host "======================================" -ForegroundColor Cyan
-Write-Host "  Realzentic Dubai — Starting Dev Env" -ForegroundColor Cyan
+Write-Host "  Realzentic Dubai - Starting Dev Env" -ForegroundColor Cyan
 Write-Host "======================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ─── 2. Check Node.js version ────────────────────────────
+# --- 2. Check Node.js version -----------------------------
 $nodeVersion = node --version
 Write-Host "[1/6] Node.js $nodeVersion" -ForegroundColor Green
 
-# ─── 3. Start PostgreSQL (if not already running) ────────
+# --- 3. Start PostgreSQL (if not already running) ---------
 $pgRunning = $false
 $pgReadyCommand = Get-Command pg_isready.exe -ErrorAction SilentlyContinue
 if ($pgReadyCommand) {
@@ -42,7 +42,7 @@ if (-not $pgRunning) {
     Write-Host "[2/6] PostgreSQL already running" -ForegroundColor Green
 }
 
-# ─── 4. Set the isolated testing DATABASE_URL ─────────────
+# --- 4. Set the isolated testing DATABASE_URL -------------
 # Preserve the local credentials from .env, but never reuse its database name.
 $envFile = Join-Path (Get-Location) ".env"
 $sourceDatabaseUrl = ((Get-Content $envFile | Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } | Select-Object -First 1) -replace '^\s*DATABASE_URL\s*=\s*', '').Trim().Trim('"').Trim("'")
@@ -58,7 +58,7 @@ Write-Host "[3/6] Testing DATABASE_URL set" -ForegroundColor Green
 # testing. Production and Docker continue to start them normally.
 $env:DISABLE_BACKGROUND_WORKERS = "1"
 
-# ─── 5. Check if node_modules exists, install if not ─────
+# --- 5. Check if node_modules exists, install if not ------
 if (-not (Test-Path "node_modules")) {
     Write-Host "[4/6] Installing dependencies..." -ForegroundColor Yellow
     npm install
@@ -66,11 +66,11 @@ if (-not (Test-Path "node_modules")) {
     Write-Host "[4/6] Dependencies already installed" -ForegroundColor Green
 }
 
-# ─── 6. Keep the isolated test database schema current ───
+# --- 6. Keep the isolated test database schema current ----
 Write-Host "[5/6] Applying schema to test database..." -ForegroundColor Green
 npx prisma db push --skip-generate
 
-# ─── 7. Start Next.js dev server ─────────────────────────
+# --- 7. Start Next.js dev server ---------------------------
 Write-Host "[6/6] Starting Next.js..." -ForegroundColor Green
 Write-Host ""
 Write-Host "  Admin Login:  admin@realzentic.com / TestOnly2026!" -ForegroundColor Magenta
@@ -90,13 +90,50 @@ if ($env:NODE_OPTIONS -notmatch "--max-old-space-size") {
 # causing hydration errors and dead buttons. A local dev cache is disposable,
 # so start every scripted session from a clean bundle.
 $projectRoot = (Resolve-Path (Get-Location)).Path
+
+# If this project is already running on the development port, stop only that
+# project's Next process before cleaning its cache. This makes `npm run dev`
+# safe to use as a restart command and avoids deleting `.next` while a watcher
+# is still recreating files.
+$existingListeners = @(Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue)
+foreach ($listener in $existingListeners) {
+    $owner = Get-CimInstance Win32_Process -Filter "ProcessId=$($listener.OwningProcess)" -ErrorAction SilentlyContinue
+    $ownerCommandLine = if ($owner) { [string]$owner.CommandLine } else { "" }
+    if ($ownerCommandLine.IndexOf($projectRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        $pidsToStop = @([int]$listener.OwningProcess)
+        if ($owner.ParentProcessId) {
+            $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$($owner.ParentProcessId)" -ErrorAction SilentlyContinue
+            if ($parent -and ([string]$parent.CommandLine).IndexOf($projectRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $pidsToStop += [int]$parent.ProcessId
+            }
+        }
+        Write-Host "[6/6] Existing Realzentic dev server detected; restarting it..." -ForegroundColor Yellow
+        $pidsToStop | Sort-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Milliseconds 800
+    } else {
+        throw "Port 3001 is already in use by another application. Stop that application or change the local port before starting Realzentic."
+    }
+}
+
 $nextCache = Join-Path $projectRoot ".next"
 if (Test-Path -LiteralPath $nextCache) {
     $resolvedCache = (Resolve-Path -LiteralPath $nextCache).Path
     if (-not $resolvedCache.StartsWith($projectRoot + [IO.Path]::DirectorySeparatorChar)) {
         throw "Refusing to clean Next.js cache outside the project: $resolvedCache"
     }
-    Remove-Item -LiteralPath $resolvedCache -Recurse -Force
+    $cacheRemoved = $false
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            Remove-Item -LiteralPath $resolvedCache -Recurse -Force -ErrorAction Stop
+            $cacheRemoved = -not (Test-Path -LiteralPath $resolvedCache)
+            if ($cacheRemoved) { break }
+        } catch {
+            if ($attempt -eq 5) {
+                throw "Could not clear the Next.js cache at $resolvedCache. Close any other Realzentic terminal/server windows and try again."
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    }
 }
 
 # Webpack dev mode is more stable on this Windows workstation for the first
