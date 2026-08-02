@@ -2,6 +2,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
+const isProduction = process.env.NODE_ENV === 'production';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -31,24 +32,32 @@ const nextConfig = {
       },
     ];
   },
-  // Aggressive caching for static assets (_next/static)
+  // Aggressive caching is safe for immutable production assets, but it must
+  // be disabled during local development. Otherwise the browser can reuse an
+  // older client bundle containing Server Action IDs that no longer exist in
+  // the running dev server.
   async headers() {
-    return [
+    const headers = [
       // Live location is needed only by pages served from this CRM origin.
       // Explicitly block third-party iframes from requesting staff GPS access.
       {
         source: '/:path*',
         headers: [{ key: 'Permissions-Policy', value: 'geolocation=(self)' }],
       },
-      {
-        source: '/_next/static/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
-      },
-      {
-        source: '/api/uploads/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
-      },
     ];
+    if (isProduction) {
+      headers.push(
+        {
+          source: '/_next/static/:path*',
+          headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+        },
+        {
+          source: '/api/uploads/:path*',
+          headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+        },
+      );
+    }
+    return headers;
   },
 };
 
