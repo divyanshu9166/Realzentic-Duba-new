@@ -16,7 +16,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/components/AuthProvider';
 import Modal from '@/components/Modal';
-import { getStaff, getStaffPortalProfile, clockIn as serverClockIn, clockOut as serverClockOut, getMonthAttendance, verifyStaffPortalPassword } from '@/app/actions/staff';
+import { getStaffLoginOptions, getStaffPortalProfile, clockIn as serverClockIn, clockOut as serverClockOut, getMonthAttendance, verifyStaffPortalPassword } from '@/app/actions/staff';
 import { getStaffVisits, updateFieldVisit, logSelfVisit, getSelfVisits, updateSelfVisitPhotos } from '@/app/actions/field-visits';
 import { moveSelfVisitToDraft } from '@/app/actions/drafts';
 import LiveTrackingBeacon from '@/components/LiveTrackingBeacon';
@@ -36,6 +36,12 @@ const attendanceColors = {
 const formatAed = (value) => new Intl.NumberFormat('en-AE', {
   style: 'currency', currency: 'AED', maximumFractionDigits: 0,
 }).format(Number(value || 0))
+
+const formatDubaiVisitTime = (value, fallback) => value
+  ? new Date(value).toLocaleString('en-AE', {
+    timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short',
+  })
+  : fallback
 
 const dubaiDateKey = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -79,7 +85,7 @@ export default function StaffPortalPage() {
   const [deletingVisitId, setDeletingVisitId] = useState(null);
 
   useEffect(() => {
-    getStaff().then((staffRes) => {
+    getStaffLoginOptions().then((staffRes) => {
       if (staffRes.success) setStaff(staffRes.data);
       setStaffLoading(false);
     });
@@ -200,7 +206,12 @@ export default function StaffPortalPage() {
         return;
       }
 
-      applyStaffLogin(found);
+      const profile = await getStaffPortalProfile(found.id);
+      if (!profile.success) {
+        setLoginError(profile.error || 'Could not load staff profile');
+        return;
+      }
+      applyStaffLogin(profile.data);
     } finally {
       setLoginSubmitting(false);
     }
@@ -229,7 +240,7 @@ export default function StaffPortalPage() {
         setIsClockedIn(true);
         setClockInTime(time);
         if (res.data.isLate) setClockInMsg('Marked as Late');
-        if (res.data.distance != null) setClockInMsg(prev => (prev ? prev + ' Â· ' : '') + `${res.data.distance}m from store`);
+        if (res.data.distance != null) setClockInMsg(prev => (prev ? prev + ' · ' : '') + `${res.data.distance}m from store`);
       } else {
         setGpsError(res.error || 'Clock-in failed');
       }
@@ -536,8 +547,17 @@ export default function StaffPortalPage() {
   const commission = me.commission || {};
   const recentSales = me.recentSales || [];
   const targetPct = target.monthly > 0 ? Math.round(((target.achieved || 0) / target.monthly) * 100) : 0;
+  const conversionRate = Number.isFinite(Number(stats.conversionRate))
+    ? Number(stats.conversionRate)
+    : Number(stats.leadsAssigned) > 0
+      ? Math.round((Number(stats.conversions || 0) / Number(stats.leadsAssigned)) * 100)
+      : 0;
+  const staffRating = Number.isFinite(Number(stats.rating)) ? Number(stats.rating) : 0;
   const todayActivities = me.activities.filter(a => a.date === dubaiDateKey());
-  const upcomingVisits = me.fieldVisits.filter(v => v.status === 'Scheduled' || v.status === 'In Progress');
+  const assignedDisplayIds = new Set(assignedVisits.map(visit => visit.displayId));
+  const upcomingVisits = me.fieldVisits.filter(v =>
+    (v.status === 'Scheduled' || v.status === 'In Progress') && !assignedDisplayIds.has(v.id),
+  );
 
   const portalTabs = [
     { key: 'dashboard', label: 'Staff Portal', icon: Home },
@@ -626,11 +646,11 @@ export default function StaffPortalPage() {
             </div>
             <div className="glass-card p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-info-light"><Target className="w-5 h-5 text-info" /></div>
-              <div><p className="text-xs text-muted">Conversion Rate</p><p className="text-lg font-bold text-foreground">{stats.conversionRate}%</p></div>
+              <div><p className="text-xs text-muted">Conversion Rate</p><p className="text-lg font-bold text-foreground">{conversionRate}%</p></div>
             </div>
             <div className="glass-card p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-amber-500/10"><Star className="w-5 h-5 text-amber-700" /></div>
-              <div><p className="text-xs text-muted">My Rating</p><p className="text-lg font-bold text-amber-700">{stats.rating} / 5</p></div>
+              <div><p className="text-xs text-muted">My Rating</p><p className="text-lg font-bold text-amber-700">{staffRating} / 5</p></div>
             </div>
           </div>
 
@@ -725,7 +745,7 @@ export default function StaffPortalPage() {
                       <div className="flex-1">
                         <p className="text-xs text-foreground">{act.text}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] text-muted">{act.date} Â· {act.time}</span>
+                          <span className="text-[10px] text-muted">{act.date} · {act.time}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${config.color}`}>{config.label}</span>
                         </div>
                       </div>
@@ -749,12 +769,12 @@ export default function StaffPortalPage() {
                     <div className="flex items-start justify-between mb-1">
                       <div>
                         <p className="text-sm font-semibold text-foreground">{visit.customer}</p>
-                        {visit.customOrderDisplayId && <span className="text-[10px] text-accent font-medium">{visit.customOrderDisplayId} Â· {visit.customOrderType}</span>}
+                        {visit.customOrderDisplayId && <span className="text-[10px] text-accent font-medium">{visit.customOrderDisplayId} · {visit.customOrderType}</span>}
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${visit.status === 'In Progress' ? 'bg-blue-500/10 text-blue-700' : 'bg-amber-500/10 text-amber-700'}`}>{visit.status}</span>
                     </div>
                     <p className="text-xs text-muted flex items-center gap-1"><MapPin className="w-3 h-3" /> {visit.address}</p>
-                    <p className="text-xs text-muted mt-1">{visit.scheduledDate || visit.date} Â· {visit.scheduledTime || visit.time} Â· {visit.type}</p>
+                    <p className="text-xs text-muted mt-1">{formatDubaiVisitTime(visit.scheduledDate, `${visit.date} · ${visit.time}`)} · {visit.type}</p>
                   </div>
                 ))}
                 {/* Self-logged visits */}
@@ -765,7 +785,7 @@ export default function StaffPortalPage() {
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${visit.status === 'In Progress' ? 'bg-blue-500/10 text-blue-700' : 'bg-amber-500/10 text-amber-700'}`}>{visit.status}</span>
                     </div>
                     <p className="text-xs text-muted flex items-center gap-1"><MapPin className="w-3 h-3" /> {visit.address}</p>
-                    <p className="text-xs text-muted mt-1">{visit.date} Â· {visit.time} Â· {visit.type}</p>
+                    <p className="text-xs text-muted mt-1">{visit.date} · {visit.time} · {visit.type}</p>
                   </div>
                 ))}
                 {upcomingVisits.length === 0 && assignedVisits.filter(v => v.status === 'Scheduled' || v.status === 'In Progress').length === 0 && (
@@ -955,7 +975,7 @@ export default function StaffPortalPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted mb-2">
-                    <span>{visit.date} Â· {visit.time}</span>
+                    <span>{visit.date} · {visit.time}</span>
                     <span className="px-2 py-0.5 rounded bg-surface-hover text-foreground">{visit.type}</span>
                   </div>
                   {visit.notes && <p className="text-xs text-muted mb-2">{visit.notes}</p>}
@@ -963,7 +983,7 @@ export default function StaffPortalPage() {
                     {visit.measurements && (
                       <div className="flex items-center gap-1 text-xs text-indigo-700">
                         <Ruler className="w-3 h-3" />
-                        {Object.entries(visit.measurements).map(([k, v]) => `${k}: ${v}`).join(' Â· ')}
+                        {Object.entries(visit.measurements).map(([k, v]) => `${k}: ${v}`).join(' · ')}
                       </div>
                     )}
                     {visit.photos > 0 && <span className="flex items-center gap-1 text-xs text-purple-700"><Camera className="w-3 h-3" /> {visit.photos} photo{visit.photos > 1 ? 's' : ''}</span>}

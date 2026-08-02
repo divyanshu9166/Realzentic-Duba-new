@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\start-local.ps1",
+    "dev:next": "next dev",
     "dev:webpack": "next dev --webpack",
     "dev:clean": "if exist .next rmdir /s /q .next && next dev --webpack",
     "build": "next build",

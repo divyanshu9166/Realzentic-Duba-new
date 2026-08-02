@@ -31,13 +31,16 @@ vi.mock('@/lib/auth-helpers', async () => {
 
 import { sendCheckinOtp, verifyCheckinOtp } from '@/app/actions/field-visits'
 import { Cleanup, disconnect, makeStaff, prisma, uid } from './harness'
+import { resetTestSession, setTestStaffId } from './_session'
 
 let cleanup: Cleanup
 beforeEach(() => {
+    resetTestSession()
     cleanup = new Cleanup()
 })
 afterEach(async () => {
     await cleanup.run()
+    resetTestSession()
 })
 afterAll(async () => {
     await disconnect()
@@ -48,6 +51,7 @@ const BUYER_PHONE = '+971512345678'
 /** Create a FieldVisit row with the required columns. */
 async function makeFieldVisit() {
     const staff = await makeStaff(cleanup)
+    setTestStaffId(staff.id)
     const visit = await prisma.fieldVisit.create({
         data: {
             displayId: uid('FV'),

@@ -2,11 +2,23 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getStaff } from '@/app/actions/staff';
+import { getStaffLoginOptions } from '@/app/actions/staff';
 import { getStoreSettings } from '@/app/actions/settings';
 import Image from 'next/image';
 import MagicCard from '@/components/MagicCard';
 import { Shield, Users, Eye, EyeOff, Loader2, ArrowLeft, LogIn, ArrowRight } from 'lucide-react';
+
+function LoginLogo({ storeProfile, size = 56 }) {
+  return (
+    <div className="rounded-2xl flex items-center justify-center overflow-hidden bg-accent/10 ring-1 ring-accent/20" style={{ width: size, height: size }}>
+      {storeProfile.logo ? (
+        <Image src={storeProfile.logo} alt="Store Logo" width={size} height={size} unoptimized className="w-full h-full object-contain bg-white" />
+      ) : (
+        <span className="text-2xl">🪑</span>
+      )}
+    </div>
+  );
+}
 
 export default function LoginPage() {
   return (
@@ -39,13 +51,17 @@ function LoginContent() {
   const [staffPassword, setStaffPassword] = useState('');
 
   useEffect(() => {
-    if (mode === 'staff' && staffList.length === 0) {
+    if (mode !== 'staff' || staffList.length > 0) return;
+    let active = true;
+    const timer = setTimeout(() => {
       setStaffLoading(true);
-      getStaff().then(res => {
+      getStaffLoginOptions().then(res => {
+        if (!active) return;
         if (res.success) setStaffList(res.data);
         setStaffLoading(false);
       });
-    }
+    }, 0);
+    return () => { active = false; clearTimeout(timer); };
   }, [mode, staffList.length]);
 
   useEffect(() => {
@@ -108,16 +124,6 @@ function LoginContent() {
     }
   };
 
-  const Logo = ({ size = 56 }) => (
-    <div className="rounded-2xl flex items-center justify-center overflow-hidden bg-accent/10 ring-1 ring-accent/20" style={{ width: size, height: size }}>
-      {storeProfile.logo ? (
-        <Image src={storeProfile.logo} alt="Store Logo" width={size} height={size} unoptimized className="w-full h-full object-contain bg-white" />
-      ) : (
-        <span className="text-2xl">🪑</span>
-      )}
-    </div>
-  );
-
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background px-4 py-10">
       {/* Ambient background */}
@@ -127,7 +133,7 @@ function LoginContent() {
       <MagicCard className="glass-card relative z-10 w-full max-w-md p-8 md:p-9 rounded-3xl" gradientSize={300}>
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-7">
-          <Logo />
+          <LoginLogo storeProfile={storeProfile} />
           <h1 className="mt-4 text-xl md:text-2xl font-bold text-foreground tracking-tight">
             {mode === null ? storeProfile.name : mode === 'admin' ? 'Admin sign in' : 'Staff sign in'}
           </h1>
@@ -215,7 +221,7 @@ function LoginContent() {
                 <select value={selectedStaffId} onChange={(e) => setSelectedStaffId(e.target.value)} required
                   className="w-full px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all">
                   <option value="">Choose your name</option>
-                  {staffList.filter(s => s.status === 'Active' && s.hasLogin && s.loginActive).map(s => (
+                  {staffList.filter(s => s.hasLogin).map(s => (
                     <option key={s.id} value={s.id}>{s.name} — {s.role}</option>
                   ))}
                 </select>

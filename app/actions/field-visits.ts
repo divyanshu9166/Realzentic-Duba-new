@@ -19,8 +19,10 @@ import {
   submitVisitFeedbackSchema,
   visitAnalyticsSchema,
   createFieldVisitSchema,
+  rescheduleFieldVisitSchema,
   updateFieldVisitSchema,
   updateVisitPhotosSchema,
+  type CreateFieldVisitInput,
 } from '@/lib/validations/field-visits'
 import {
   generateSecureOtp,
@@ -30,7 +32,7 @@ import {
 } from '@/lib/site-visit-otp'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { normalizePhoneForMetaUae, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { normalizePhoneForMetaUae, isValidE164, phonesMatch } from '@/lib/whatsapp/phone-utils'
 
 const ACTIVE_VISIT_STATUSES = ['Scheduled', 'In Progress'] as const
 const SITE_VISIT_OTP_SECRET = process.env.SITE_VISIT_OTP_SECRET || process.env.SESSION_SECRET || (() => {
@@ -55,6 +57,14 @@ function assertVisitAccess(
   visit: { staffId: number },
 ) {
   if (!isManagerRole(session.user.role) && session.user.staffId !== visit.staffId) throw new Error('Forbidden')
+}
+
+/** Field execution is never an administrative impersonation capability. */
+function assertVisitExecutionAccess(
+  session: Awaited<ReturnType<typeof requireAuth>>,
+  visit: { staffId: number },
+) {
+  if (session.user.staffId !== visit.staffId) throw new Error('Forbidden')
 }
 
 function actionError(error: unknown, fallback: string): string {
@@ -97,6 +107,64 @@ function serializeVisit(visit: any) {
     followUpAction: visit.followUpAction,
     visitDurationMin: visit.visitDurationMin,
   }
+}
+
+async function validateScheduledVisit(
+  data: CreateFieldVisitInput,
+  excludeVisitId?: number,
+): Promise<
+  | { ok: true; buyerPhone: string; scheduledAt: Date }
+  | { ok: false; error: string }
+> {
+  const buyerPhone = normalizePhoneForMetaUae(data.buyerPhone)
+  if (!isValidE164(buyerPhone)) return { ok: false, error: 'Enter a valid buyer phone number' }
+
+  const scheduledAt = new Date(data.scheduledAt)
+  if (scheduledAt.getTime() < Date.now() - 15 * 60_000) {
+    return { ok: false, error: 'Scheduled time cannot be in the past' }
+  }
+
+  const conflictStart = new Date(scheduledAt.getTime() - 60 * 60_000)
+  const conflictEnd = new Date(scheduledAt.getTime() + 60 * 60_000)
+  const [staff, project, units, conflict] = await Promise.all([
+    prisma.staff.findUnique({ where: { id: data.staffId }, select: { status: true } }),
+    prisma.project.findUnique({
+      where: { id: data.projectId },
+      select: { id: true, latitude: true, longitude: true },
+    }),
+    data.unitIds.length > 0
+      ? prisma.unit.findMany({
+        where: { id: { in: data.unitIds } },
+        select: { id: true, status: true, tower: { select: { projectId: true } } },
+      })
+      : Promise.resolve([]),
+    prisma.fieldVisit.findFirst({
+      where: {
+        id: excludeVisitId ? { not: excludeVisitId } : undefined,
+        staffId: data.staffId,
+        status: { in: ['Scheduled', 'In Progress'] },
+        scheduledDate: { gte: conflictStart, lte: conflictEnd },
+      },
+      select: { displayId: true },
+    }),
+  ])
+
+  if (!staff || staff.status !== 'Active') return { ok: false, error: 'Assign an active staff member' }
+  if (!project) return { ok: false, error: 'Project not found' }
+  if (project.latitude == null || project.longitude == null) {
+    return { ok: false, error: 'Add latitude and longitude to the project before scheduling a geo-verified visit' }
+  }
+  if (
+    units.length !== data.unitIds.length ||
+    units.some((unit) => unit.tower.projectId !== data.projectId || unit.status === 'Sold' || unit.status === 'Mortgaged')
+  ) {
+    return { ok: false, error: 'One or more selected units are unavailable or do not belong to this project' }
+  }
+  if (conflict) {
+    return { ok: false, error: `The assigned agent already has ${conflict.displayId} within 60 minutes of this time` }
+  }
+
+  return { ok: true, buyerPhone, scheduledAt }
 }
 
 // ─── GET FIELD VISITS FOR A STAFF MEMBER ─────────────────
@@ -327,37 +395,9 @@ export async function createFieldVisit(input: unknown) {
     const parsed = createFieldVisitSchema.safeParse(input)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
     const data = parsed.data
-    const buyerPhone = normalizePhoneForMetaUae(data.buyerPhone)
-    if (!isValidE164(buyerPhone)) return { success: false, error: 'Enter a valid UAE buyer phone number' }
-    const scheduledAt = new Date(data.scheduledAt)
-    if (scheduledAt.getTime() < Date.now() - 15 * 60_000) {
-      return { success: false, error: 'Scheduled time cannot be in the past' }
-    }
-
-    const [staff, project, units] = await Promise.all([
-      prisma.staff.findUnique({ where: { id: data.staffId }, select: { status: true } }),
-      prisma.project.findUnique({
-        where: { id: data.projectId },
-        select: { id: true, latitude: true, longitude: true },
-      }),
-      data.unitIds.length > 0
-        ? prisma.unit.findMany({
-          where: { id: { in: data.unitIds } },
-          select: { id: true, status: true, tower: { select: { projectId: true } } },
-        })
-        : Promise.resolve([]),
-    ])
-    if (!staff || staff.status !== 'Active') return { success: false, error: 'Assign an active staff member' }
-    if (!project) return { success: false, error: 'Project not found' }
-    if (project.latitude == null || project.longitude == null) {
-      return { success: false, error: 'Add latitude and longitude to the project before scheduling a geo-verified visit' }
-    }
-    if (
-      units.length !== data.unitIds.length ||
-      units.some((unit) => unit.tower.projectId !== data.projectId || unit.status === 'Sold' || unit.status === 'Mortgaged')
-    ) {
-      return { success: false, error: 'One or more selected units are unavailable or do not belong to this project' }
-    }
+    const validation = await validateScheduledVisit(data)
+    if (!validation.ok) return { success: false, error: validation.error }
+    const { buyerPhone, scheduledAt } = validation
 
     const displayId = `FV-${scheduledAt.toISOString().slice(0, 10).replace(/-/g, '')}-${randomUUID().slice(0, 6).toUpperCase()}`
     const dubaiTime = new Intl.DateTimeFormat('en-AE', {
@@ -390,6 +430,60 @@ export async function createFieldVisit(input: unknown) {
   } catch (error) {
     console.error('Error creating field visit:', error)
     return { success: false, error: actionError(error, 'Failed to create field visit') }
+  }
+}
+
+// ─── RESCHEDULE / REASSIGN A VISIT (Manager/Admin) ─────
+
+export async function rescheduleFieldVisit(input: unknown) {
+  try {
+    await requireRole('ADMIN', 'MANAGER')
+    const parsed = rescheduleFieldVisitSchema.safeParse(input)
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
+    const { visitId, ...data } = parsed.data
+
+    const existing = await prisma.fieldVisit.findUnique({ where: { id: visitId }, select: { status: true } })
+    if (!existing) return { success: false, error: 'Visit not found' }
+    if (existing.status !== 'Scheduled') {
+      return { success: false, error: 'Only a scheduled visit can be rescheduled or reassigned' }
+    }
+
+    const validation = await validateScheduledVisit(data, visitId)
+    if (!validation.ok) return { success: false, error: validation.error }
+    const { buyerPhone, scheduledAt } = validation
+    const dubaiTime = new Intl.DateTimeFormat('en-AE', {
+      timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit', hour12: true,
+    }).format(scheduledAt)
+
+    const visit = await prisma.fieldVisit.update({
+      where: { id: visitId },
+      data: {
+        staffId: data.staffId,
+        customer: data.customer,
+        address: data.address,
+        date: scheduledAt,
+        time: dubaiTime,
+        scheduledDate: scheduledAt,
+        scheduledTime: dubaiTime,
+        type: data.type,
+        notes: data.notes || null,
+        buyerPhone,
+        projectId: data.projectId,
+        unitIds: data.unitIds,
+        otpCode: null,
+        otpVerified: false,
+        geoCheckinLat: null,
+        geoCheckinLng: null,
+        geoCheckinTime: null,
+      },
+    })
+
+    revalidateVisitPaths()
+    revalidatePath('/calendar')
+    return { success: true, data: { id: visit.id, displayId: visit.displayId } }
+  } catch (error) {
+    console.error('Error rescheduling field visit:', error)
+    return { success: false, error: actionError(error, 'Failed to reschedule field visit') }
   }
 }
 
@@ -626,7 +720,7 @@ export async function sendCheckinOtp(
   const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
   try {
-    assertVisitAccess(session, visit)
+    assertVisitExecutionAccess(session, visit)
   } catch {
     return { success: false, error: 'Forbidden' }
   }
@@ -696,7 +790,7 @@ export async function verifyCheckinOtp(
   const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
   try {
-    assertVisitAccess(session, visit)
+    assertVisitExecutionAccess(session, visit)
   } catch {
     return { success: false, error: 'Forbidden' }
   }
@@ -764,7 +858,7 @@ export async function geoCheckin(input: unknown) {
   const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
   try {
-    assertVisitAccess(session, visit)
+    assertVisitExecutionAccess(session, visit)
   } catch {
     return { success: false, error: 'Forbidden' }
   }
@@ -840,7 +934,7 @@ export async function submitVisitFeedback(input: unknown) {
   const visit = await prisma.fieldVisit.findUnique({ where: { id: data.visitId } })
   if (!visit) return { success: false, error: 'Visit not found' }
   try {
-    assertVisitAccess(session, visit)
+    assertVisitExecutionAccess(session, visit)
   } catch {
     return { success: false, error: 'Forbidden' }
   }
@@ -861,22 +955,31 @@ export async function submitVisitFeedback(input: unknown) {
   if (data.followUpAction === 'Deal') {
     const [stage, contact, unit] = await Promise.all([
       prisma.dealStage.findUnique({ where: { id: data.stageId! } }),
-      prisma.contact.findUnique({ where: { id: data.contactId! } }),
+      prisma.contact.findUnique({ where: { id: data.contactId! }, select: { id: true, phone: true } }),
       data.unitId != null
         ? prisma.unit.findUnique({ where: { id: data.unitId }, select: { status: true } })
         : Promise.resolve(null),
     ])
     if (!stage) return { success: false, error: 'Target deal stage does not exist' }
     if (!contact) return { success: false, error: 'Contact not found' }
+    if (!visit.buyerPhone || !contact.phone || !phonesMatch(contact.phone, visit.buyerPhone)) {
+      return { success: false, error: 'The deal contact must match the buyer verified for this visit' }
+    }
     if (stage.isLost) return { success: false, error: 'Cannot create a visit deal directly into a lost stage' }
     if (data.unitId != null && (!unit || unit.status === 'Sold' || unit.status === 'Mortgaged')) {
       return { success: false, error: 'Selected unit is no longer available for a deal' }
     }
   } else if (data.followUpAction === 'FollowUp') {
-    const lead = await prisma.lead.findUnique({ where: { id: data.leadId! }, select: { assignedToId: true } })
+    const lead = await prisma.lead.findUnique({
+      where: { id: data.leadId! },
+      select: { assignedToId: true, contact: { select: { phone: true } } },
+    })
     if (!lead) return { success: false, error: 'Lead not found' }
-    if (!isManagerRole(session.user.role) && lead.assignedToId !== visit.staffId) {
-      return { success: false, error: 'Staff can only schedule follow-ups for their assigned leads' }
+    if (lead.assignedToId !== visit.staffId) {
+      return { success: false, error: 'The follow-up lead must be assigned to the visit agent' }
+    }
+    if (!visit.buyerPhone || !lead.contact.phone || !phonesMatch(lead.contact.phone, visit.buyerPhone)) {
+      return { success: false, error: 'The follow-up lead must belong to the buyer verified for this visit' }
     }
   }
 

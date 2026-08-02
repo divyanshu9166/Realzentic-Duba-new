@@ -20,10 +20,11 @@ import { useRouter } from 'next/navigation';
 import {
     MapPin, Fingerprint, Send, CheckCircle2, AlertTriangle, Star,
     ClipboardList, BarChart3, Loader2, Crosshair, Navigation, Plus,
-    CalendarClock, Building2, Phone, UserRound,
+    CalendarClock, Building2, Phone, UserRound, Pencil,
 } from 'lucide-react';
 import {
     createFieldVisit,
+    rescheduleFieldVisit,
     updateFieldVisit,
     sendCheckinOtp,
     verifyCheckinOtp,
@@ -31,6 +32,7 @@ import {
     submitVisitFeedback,
     getVisitAnalytics,
 } from '@/app/actions/field-visits';
+import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 
 export interface VisitItem {
     id: number;
@@ -49,6 +51,8 @@ export interface VisitItem {
     scheduledTime: string | null;
     buyerPhone: string | null;
     unitIds: number[];
+    type: string;
+    notes: string | null;
 }
 
 export interface StaffItem {
@@ -106,20 +110,33 @@ interface Props {
     contacts: ContactItem[];
     projects: ProjectItem[];
     canManage: boolean;
+    currentStaffId: number | null;
     initialVisitId?: number;
 }
 
-export default function SiteVisitClient({ visits, staff, leads, stages, contacts, projects, canManage, initialVisitId }: Props) {
+function toDubaiDatetimeLocal(value: string | null): string {
+    if (!value) return '';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date(value));
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+export default function SiteVisitClient({ visits, staff, leads, stages, contacts, projects, canManage, currentStaffId, initialVisitId }: Props) {
     const router = useRouter();
-    const [tab, setTab] = useState<'visits' | 'checkin' | 'analytics'>(initialVisitId ? 'checkin' : 'visits');
-    const workflowVisits = visits.filter((visit) => visit.status === 'Scheduled' || visit.status === 'In Progress');
+    const [tab, setTab] = useState<'visits' | 'checkin' | 'analytics'>(initialVisitId && currentStaffId != null ? 'checkin' : 'visits');
+    const workflowVisits = visits.filter((visit) =>
+        (visit.status === 'Scheduled' || visit.status === 'In Progress') && visit.staffId === currentStaffId,
+    );
 
     return (
         <div className="space-y-5">
             {/* Tabs */}
             <div className="flex flex-wrap gap-1">
-                <TabButton active={tab === 'visits'} onClick={() => setTab('visits')} icon={CalendarClock} label="Visits & Scheduling" />
-                <TabButton active={tab === 'checkin'} onClick={() => setTab('checkin')} icon={MapPin} label="Check-In & Feedback" />
+                <TabButton active={tab === 'visits'} onClick={() => setTab('visits')} icon={CalendarClock} label={canManage ? 'Visit Management' : 'My Visits'} />
+                {currentStaffId != null && <TabButton active={tab === 'checkin'} onClick={() => setTab('checkin')} icon={MapPin} label="My Check-In & Feedback" />}
                 <TabButton active={tab === 'analytics'} onClick={() => setTab('analytics')} icon={BarChart3} label="Analytics" />
             </div>
 
@@ -139,11 +156,12 @@ export default function SiteVisitClient({ visits, staff, leads, stages, contacts
                     stages={stages}
                     contacts={contacts}
                     staff={staff}
+                    projects={projects}
                     initialVisitId={initialVisitId}
                     onChanged={() => router.refresh()}
                 />
             ) : (
-                <AnalyticsPanel staff={staff} />
+                <AnalyticsPanel staff={staff} projects={projects} />
             )}
         </div>
     );
@@ -169,6 +187,8 @@ function VisitsPanel({
     const [address, setAddress] = useState('');
     const [scheduledAt, setScheduledAt] = useState('');
     const [notes, setNotes] = useState('');
+    const [visitType, setVisitType] = useState('Property Viewing');
+    const [editingVisitId, setEditingVisitId] = useState<number | null>(null);
     const [busy, setBusy] = useState(false);
     const [banner, setBanner] = useState<Banner | null>(null);
 
@@ -200,6 +220,37 @@ function VisitsPanel({
         setUnitIds((current) => current.includes(unitId) ? current.filter((id) => id !== unitId) : [...current, unitId]);
     }
 
+    function resetForm() {
+        setStaffId('');
+        setContactId('');
+        setCustomer('');
+        setBuyerPhone('');
+        setProjectId('');
+        setUnitIds([]);
+        setAddress('');
+        setScheduledAt('');
+        setNotes('');
+        setVisitType('Property Viewing');
+        setEditingVisitId(null);
+    }
+
+    function startEdit(visit: VisitItem) {
+        setEditingVisitId(visit.id);
+        setStaffId(visit.staffId);
+        setCustomer(visit.customer);
+        setBuyerPhone(visit.buyerPhone ?? '');
+        setProjectId(visit.projectId ?? '');
+        setUnitIds(visit.unitIds);
+        setAddress(visit.address);
+        setScheduledAt(toDubaiDatetimeLocal(visit.scheduledDate));
+        setNotes(visit.notes ?? '');
+        setVisitType(visit.type || 'Property Viewing');
+        const contact = contacts.find((item) => item.phone && visit.buyerPhone && phonesMatch(item.phone, visit.buyerPhone));
+        setContactId(contact?.id ?? '');
+        setShowCreate(true);
+        setBanner(null);
+    }
+
     async function handleCreate() {
         setBusy(true);
         setBanner(null);
@@ -208,7 +259,7 @@ function VisitsPanel({
             setBusy(false);
             return;
         }
-        const res = await createFieldVisit({
+        const payload = {
             staffId: staffId === '' ? undefined : staffId,
             customer,
             buyerPhone,
@@ -216,20 +267,16 @@ function VisitsPanel({
             unitIds,
             address,
             scheduledAt: new Date(`${scheduledAt}:00+04:00`).toISOString(),
-            type: 'Property Viewing',
+            type: visitType,
             notes,
-        });
+        };
+        const res = editingVisitId == null
+            ? await createFieldVisit(payload)
+            : await rescheduleFieldVisit({ ...payload, visitId: editingVisitId });
         if (res.success && res.data) {
-            setBanner({ type: 'success', text: `Visit ${res.data.displayId} scheduled successfully.` });
-            setStaffId('');
-            setContactId('');
-            setCustomer('');
-            setBuyerPhone('');
-            setProjectId('');
-            setUnitIds([]);
-            setAddress('');
-            setScheduledAt('');
-            setNotes('');
+            setBanner({ type: 'success', text: `Visit ${res.data.displayId} ${editingVisitId == null ? 'scheduled' : 'updated'} successfully.` });
+            resetForm();
+            setShowCreate(false);
             onChanged();
         } else {
             setBanner({ type: 'error', text: res.error ?? 'Could not schedule visit' });
@@ -272,7 +319,7 @@ function VisitsPanel({
                         <p className="mt-1 text-xs text-muted">Assign an agent, buyer, project and inventory before check-in.</p>
                     </div>
                     {canManage && (
-                        <button onClick={() => setShowCreate((value) => !value)} className="flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white">
+                        <button onClick={() => { if (showCreate) resetForm(); setShowCreate((value) => !value); }} className="flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white">
                             <Plus className="h-4 w-4" /> {showCreate ? 'Close form' : 'Schedule visit'}
                         </button>
                     )}
@@ -280,6 +327,7 @@ function VisitsPanel({
 
                 {showCreate && (
                     <div className="mt-5 space-y-4 border-t border-border pt-5">
+                        <p className="text-sm font-semibold text-foreground">{editingVisitId == null ? 'New site visit' : 'Reschedule or reassign visit'}</p>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <Field label="Assigned agent">
                                 <select value={staffId} onChange={(event) => setStaffId(event.target.value ? Number(event.target.value) : '')} className="feedback-input">
@@ -312,6 +360,15 @@ function VisitsPanel({
                             <Field label="Dubai visit date & time">
                                 <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="feedback-input" />
                             </Field>
+                            <Field label="Visit type">
+                                <select value={visitType} onChange={(event) => setVisitType(event.target.value)} className="feedback-input">
+                                    <option>Property Viewing</option>
+                                    <option>Property Inspection</option>
+                                    <option>Valuation Visit</option>
+                                    <option>Key Handover</option>
+                                    <option>Documentation Meeting</option>
+                                </select>
+                            </Field>
                         </div>
 
                         {selectedProject && selectedProject.units.length > 0 && (
@@ -339,7 +396,7 @@ function VisitsPanel({
                         </Field>
                         <BannerView banner={banner} />
                         <button onClick={handleCreate} disabled={busy} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
-                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />} Schedule site visit
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />} {editingVisitId == null ? 'Schedule site visit' : 'Save visit changes'}
                         </button>
                     </div>
                 )}
@@ -368,6 +425,7 @@ function VisitsPanel({
                         </div>
                         {canManage && visit.status === 'Scheduled' && (
                             <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                                <button onClick={() => startEdit(visit)} className="rounded-lg border border-blue-500/30 px-2.5 py-1.5 text-xs text-blue-700 hover:bg-blue-500/10"><Pencil className="mr-1 inline h-3 w-3" />Edit / reschedule</button>
                                 <button onClick={() => handleStatus(visit, 'No Show')} className="rounded-lg border border-amber-500/30 px-2.5 py-1.5 text-xs text-amber-700 hover:bg-amber-500/10">Mark no-show</button>
                                 <button onClick={() => handleStatus(visit, 'Cancelled')} className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-500/10">Cancel visit</button>
                             </div>
@@ -404,13 +462,14 @@ function TabButton({
 // ─────────────────────────────────────────────────────────
 
 function CheckinPanel({
-    visits, leads, stages, contacts, staff, initialVisitId, onChanged,
+    visits, leads, stages, contacts, staff, projects, initialVisitId, onChanged,
 }: {
     visits: VisitItem[];
     leads: LeadItem[];
     stages: StageItem[];
     contacts: ContactItem[];
     staff: StaffItem[];
+    projects: ProjectItem[];
     initialVisitId?: number;
     onChanged: () => void;
 }) {
@@ -490,6 +549,7 @@ function CheckinPanel({
                             stages={stages}
                             contacts={contacts}
                             staff={staff}
+                            projects={projects}
                             onSubmitted={onChanged}
                         />
                     </>
@@ -727,7 +787,7 @@ function GeoStep({
 // ── Step 3: Structured feedback ──────────────────────────
 
 function FeedbackStep({
-    visit, enabled, leads, stages, contacts, staff, onSubmitted,
+    visit, enabled, leads, stages, contacts, staff, projects, onSubmitted,
 }: {
     visit: VisitItem;
     enabled: boolean;
@@ -735,6 +795,7 @@ function FeedbackStep({
     stages: StageItem[];
     contacts: ContactItem[];
     staff: StaffItem[];
+    projects: ProjectItem[];
     onSubmitted: () => void;
 }) {
     const [rating, setRating] = useState<number>(0);
@@ -754,12 +815,25 @@ function FeedbackStep({
     const [stageId, setStageId] = useState<number | ''>('');
     const [dealValue, setDealValue] = useState('');
     const [assignedAgentId, setAssignedAgentId] = useState<number | ''>(visit.staffId);
+    const [unitId, setUnitId] = useState<number | ''>('');
 
     const [busy, setBusy] = useState(false);
     const [banner, setBanner] = useState<Banner | null>(null);
     const [done, setDone] = useState(false);
 
     const sellableStages = useMemo(() => stages.filter((s) => !s.isLost), [stages]);
+    const buyerContacts = useMemo(
+        () => contacts.filter((contact) => contact.phone && visit.buyerPhone && phonesMatch(contact.phone, visit.buyerPhone)),
+        [contacts, visit.buyerPhone],
+    );
+    const buyerLeads = useMemo(
+        () => leads.filter((lead) => lead.phone && visit.buyerPhone && phonesMatch(lead.phone, visit.buyerPhone)),
+        [leads, visit.buyerPhone],
+    );
+    const visitUnits = useMemo(() => {
+        const project = projects.find((item) => item.id === visit.projectId);
+        return project?.units.filter((unit) => visit.unitIds.includes(unit.id)) ?? [];
+    }, [projects, visit.projectId, visit.unitIds]);
 
     async function handleSubmit() {
         setBusy(true);
@@ -784,6 +858,7 @@ function FeedbackStep({
             base.stageId = stageId === '' ? undefined : stageId;
             base.dealValue = dealValue.trim() ? Number(dealValue) : undefined;
             base.assignedAgentId = assignedAgentId === '' ? undefined : assignedAgentId;
+            base.unitId = unitId === '' ? undefined : unitId;
         }
 
         const res = await submitVisitFeedback(base);
@@ -872,11 +947,12 @@ function FeedbackStep({
                                     className="feedback-input"
                                 >
                                     <option value="">Select a lead…</option>
-                                    {leads.map((l) => (
+                                    {buyerLeads.map((l) => (
                                         <option key={l.id} value={l.id}>{l.name}{l.phone ? ` — ${l.phone}` : ''}</option>
                                     ))}
                                 </select>
                             </Field>
+                            {buyerLeads.length === 0 && <p className="text-xs text-amber-700">No assigned lead matches this verified buyer.</p>}
                             <Field label="Follow-up message">
                                 <textarea value={followUpMessage} onChange={(e) => setFollowUpMessage(e.target.value)} rows={2} className="feedback-input" />
                             </Field>
@@ -896,7 +972,7 @@ function FeedbackStep({
                                         className="feedback-input"
                                     >
                                         <option value="">Select a contact…</option>
-                                        {contacts.map((c) => (
+                                        {buyerContacts.map((c) => (
                                             <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ''}</option>
                                         ))}
                                     </select>
@@ -928,7 +1004,16 @@ function FeedbackStep({
                                         ))}
                                     </select>
                                 </Field>
+                                {visitUnits.length > 0 && (
+                                    <Field label="Viewed unit (optional)">
+                                        <select value={unitId} onChange={(e) => setUnitId(e.target.value ? Number(e.target.value) : '')} className="feedback-input">
+                                            <option value="">No unit selected</option>
+                                            {visitUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.label} — AED {unit.totalPrice.toLocaleString('en-AE')}</option>)}
+                                        </select>
+                                    </Field>
+                                )}
                             </div>
+                            {buyerContacts.length === 0 && <p className="text-xs text-amber-700">No CRM contact matches this verified buyer. Create or correct the contact before creating a deal.</p>}
                         </div>
                     )}
 
@@ -967,8 +1052,9 @@ interface AnalyticsResult {
     averageDuration: number | null;
 }
 
-function AnalyticsPanel({ staff }: { staff: StaffItem[] }) {
+function AnalyticsPanel({ staff, projects }: { staff: StaffItem[]; projects: ProjectItem[] }) {
     const [staffId, setStaffId] = useState<number | ''>('');
+    const [projectId, setProjectId] = useState<number | ''>('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [busy, setBusy] = useState(false);
@@ -980,10 +1066,12 @@ function AnalyticsPanel({ staff }: { staff: StaffItem[] }) {
         setBanner(null);
         const input: {
             staffId?: number;
+            projectId?: number;
             startDate?: string;
             endDate?: string;
         } = {};
         if (staffId !== '') input.staffId = staffId;
+        if (projectId !== '') input.projectId = projectId;
         if (startDate) input.startDate = new Date(startDate).toISOString();
         if (endDate) input.endDate = new Date(endDate).toISOString();
 
@@ -1003,7 +1091,7 @@ function AnalyticsPanel({ staff }: { staff: StaffItem[] }) {
                 <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-4">
                     <BarChart3 className="w-4 h-4 text-accent" /> Visit Analytics
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                <div className={`grid grid-cols-1 gap-3 items-end ${projects.length > 0 ? 'sm:grid-cols-2 lg:grid-cols-5' : 'sm:grid-cols-4'}`}>
                     <Field label="Agent">
                         <select
                             value={staffId}
@@ -1016,6 +1104,14 @@ function AnalyticsPanel({ staff }: { staff: StaffItem[] }) {
                             ))}
                         </select>
                     </Field>
+                    {projects.length > 0 && (
+                        <Field label="Project">
+                            <select value={projectId} onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : '')} className="feedback-input">
+                                <option value="">All projects</option>
+                                {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                            </select>
+                        </Field>
+                    )}
                     <Field label="From">
                         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="feedback-input" />
                     </Field>

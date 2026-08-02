@@ -101,6 +101,30 @@ async function main() {
     create: { name: 'Realzentic Administrator', email: 'admin@realzentic.com', hashedPassword: password, role: 'ADMIN', staffId: staffRecords[0].id },
   })
 
+  // Local/demo staff credentials are created only when explicitly requested.
+  // Production seeding therefore never introduces a known staff password.
+  const seedStaffPassword = process.env.SEED_STAFF_PASSWORD
+  if (seedStaffPassword) {
+    const staffPassword = await bcrypt.hash(seedStaffPassword, 10)
+    await prisma.user.upsert({
+      where: { email: staffRecords[1].email },
+      update: {
+        name: staffRecords[1].name,
+        hashedPassword: staffPassword,
+        role: 'STAFF',
+        isActive: true,
+        staffId: staffRecords[1].id,
+      },
+      create: {
+        name: staffRecords[1].name,
+        email: staffRecords[1].email,
+        hashedPassword: staffPassword,
+        role: 'STAFF',
+        staffId: staffRecords[1].id,
+      },
+    })
+  }
+
   const contactSpecs = [
     { name: 'James Wilson', phone: '971501234601', email: 'james.wilson@example.com', emirate: 'Dubai', nationality: 'British', interest: '2 Bedroom Apartment in Dubai Marina', budget: '2.2M AED', source: 'Property Finder', assignedToId: staffRecords[0].id },
     { name: 'Fatima Al Mansoori', phone: '971501234602', email: 'fatima.almansoori@example.com', emirate: 'Dubai', nationality: 'Emirati', interest: 'Villa in Dubai Hills Estate', budget: '6M AED', source: 'Bayut', assignedToId: staffRecords[1].id },

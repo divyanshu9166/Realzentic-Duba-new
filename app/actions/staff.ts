@@ -90,8 +90,31 @@ const mapStaffForPortal = (s: any) => ({
   })),
 })
 
-export async function getStaff() {
+/** Public, minimal list used only by the staff-login chooser. */
+export async function getStaffLoginOptions() {
   const staff = await prisma.staff.findMany({
+    where: { status: 'Active' },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, role: true, user: { select: { isActive: true } } },
+  })
+  return {
+    success: true,
+    data: staff.map(s => ({
+      id: s.id,
+      name: s.name,
+      role: s.role,
+      hasLogin: Boolean(s.user?.isActive),
+    })),
+  }
+}
+
+export async function getStaff() {
+  let session
+  try { session = await requireAuth() } catch { return { success: false, error: 'Unauthorized', data: [] } }
+  const manager = session.user.role === 'ADMIN' || session.user.role === 'MANAGER'
+  if (!manager && session.user.staffId == null) return { success: false, error: 'Staff profile is not linked', data: [] }
+  const staff = await prisma.staff.findMany({
+    where: manager ? undefined : { id: session.user.staffId! },
     include: staffPortalInclude,
     orderBy: { name: 'asc' },
   })

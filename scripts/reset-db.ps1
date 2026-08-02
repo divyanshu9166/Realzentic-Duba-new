@@ -14,6 +14,7 @@ $testDatabaseUri = [System.UriBuilder]::new([System.Uri]$sourceDatabaseUrl)
 $testDatabaseUri.Path = "/realzentic_dubai_test"
 $env:DATABASE_URL = $testDatabaseUri.Uri.AbsoluteUri
 $env:SEED_ADMIN_PASSWORD = "TestOnly2026!"
+$env:SEED_STAFF_PASSWORD = "StaffTest2026!"
 
 Write-Host ""
 Write-Host "Resetting isolated test database..." -ForegroundColor Yellow
@@ -25,3 +26,4 @@ npx tsx prisma/seed.ts
 Write-Host ""
 Write-Host "Database reset complete!" -ForegroundColor Green
 Write-Host "  Admin: admin@realzentic.com / TestOnly2026!" -ForegroundColor Magenta
+Write-Host "  Staff: Omar Hassan / StaffTest2026!" -ForegroundColor Magenta

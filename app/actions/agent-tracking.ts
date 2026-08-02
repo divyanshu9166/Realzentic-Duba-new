@@ -94,15 +94,21 @@ export async function recordAgentLocation(
 
     try {
         const now = new Date()
-        const activeAttendance = await prisma.attendance.findFirst({
-            where: {
-                staffId,
-                date: dubaiAttendanceDate(now),
-                clockIn: { not: null },
-                clockOut: null,
-            },
-            select: { id: true },
-        })
+        const [staff, activeAttendance] = await Promise.all([
+            prisma.staff.findUnique({ where: { id: staffId }, select: { status: true } }),
+            prisma.attendance.findFirst({
+                where: {
+                    staffId,
+                    date: dubaiAttendanceDate(now),
+                    clockIn: { not: null },
+                    clockOut: null,
+                },
+                select: { id: true },
+            }),
+        ])
+        if (!staff || staff.status !== 'Active') {
+            return { success: false, error: 'Your staff profile is inactive' }
+        }
         if (!activeAttendance) {
             return {
                 success: false,
@@ -259,6 +265,7 @@ export async function getLiveAgentLocations(
                         id: true,
                         name: true,
                         role: true,
+                        status: true,
                         locationSharingStoppedAt: true,
                         locationSharingExpiresAt: true,
                     },
@@ -275,6 +282,7 @@ export async function getLiveAgentLocations(
         const nowMs = now.getTime()
         const data: LiveAgentLocation[] = [...newestByStaff.values()]
             .filter((row) =>
+                row.staff?.status === 'Active' &&
                 row.staff?.locationSharingExpiresAt != null &&
                 row.staff.locationSharingExpiresAt > now &&
                 (row.staff.locationSharingStoppedAt == null || row.staff.locationSharingStoppedAt < row.recordedAt),

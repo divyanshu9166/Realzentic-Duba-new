@@ -70,6 +70,8 @@ export default async function FieldVisitsPage({
         scheduledTime: v.scheduledTime ?? null,
         buyerPhone: v.buyerPhone ?? null,
         unitIds: v.unitIds ?? [],
+        type: v.type,
+        notes: v.notes ?? null,
     }));
 
     const staff: StaffItem[] = (references?.staff ?? []).map((s) => ({
@@ -128,6 +130,7 @@ export default async function FieldVisitsPage({
                 contacts={contacts}
                 projects={projects}
                 canManage={Boolean(references?.canManage)}
+                currentStaffId={session.user.staffId}
                 initialVisitId={initialVisitId}
             />
         </div>

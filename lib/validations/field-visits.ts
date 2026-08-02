@@ -48,6 +48,12 @@ export const createFieldVisitSchema = z.object({
     unitIds: z.array(idSchema).max(20, 'A visit can include at most 20 units').default([]),
 })
 
+export type CreateFieldVisitInput = z.infer<typeof createFieldVisitSchema>
+
+export const rescheduleFieldVisitSchema = createFieldVisitSchema.extend({
+    visitId: idSchema,
+})
+
 export const updateFieldVisitSchema = z.object({
     visitId: idSchema,
     status: siteVisitStatusEnum.optional(),
