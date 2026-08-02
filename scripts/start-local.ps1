@@ -101,4 +101,4 @@ if (Test-Path -LiteralPath $nextCache) {
 
 # Webpack dev mode is more stable on this Windows workstation for the first
 # compile; production builds continue to use the normal Next.js build command.
-npm run dev:webpack -- -p 3001
+npx next dev --webpack --port 3001
