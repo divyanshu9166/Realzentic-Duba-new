@@ -23,6 +23,7 @@ import {
   type CreateFieldVisitInput,
 } from '@/lib/validations/field-visits'
 import { normalizePhoneForMetaUae, isValidE164, phonesMatch } from '@/lib/whatsapp/phone-utils'
+import { dispatchAutomatedEmailCampaign } from './email-campaigns'
 
 const ACTIVE_VISIT_STATUSES = ['Scheduled', 'In Progress'] as const
 
@@ -857,6 +858,11 @@ export async function submitVisitFeedback(input: unknown) {
 
       return { visit: updatedVisit, deal, followUp }
     })
+
+    if (result.visit.buyerPhone) {
+      const contact = await prisma.contact.findFirst({ where: { phone: result.visit.buyerPhone }, select: { id: true } })
+      if (contact) await dispatchAutomatedEmailCampaign('post_visit', contact.id)
+    }
 
     revalidateVisitPaths()
     return {

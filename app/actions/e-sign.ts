@@ -9,6 +9,7 @@
 
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
+import { requireAuth } from '@/lib/auth-helpers'
 
 // ─── Shared types ──────────────────────────────────────
 
@@ -24,6 +25,7 @@ export interface CreateSignatureInput {
     signedDocUrl?: string | null
     contactId?: number | null
     documentId?: number | null
+    contractId?: number | null
 }
 
 // ─── Helpers ───────────────────────────────────────────
@@ -54,6 +56,7 @@ export async function createSignature(
     createdAt: string
 }>> {
     try {
+        await requireAuth()
         if (!isNonEmptyString(data?.signerName)) {
             return { success: false, error: 'signerName is required' }
         }
@@ -65,6 +68,9 @@ export async function createSignature(
         }
         if (data.documentId != null && !isPositiveInt(data.documentId)) {
             return { success: false, error: 'documentId must be a positive integer' }
+        }
+        if (data.contractId != null && !isPositiveInt(data.contractId)) {
+            return { success: false, error: 'contractId must be a positive integer' }
         }
 
         // Verify referential integrity when contactId is provided.
@@ -78,6 +84,12 @@ export async function createSignature(
             }
         }
 
+        let contract: { id: number; fileUrl: string | null } | null = null
+        if (data.contractId != null) {
+            contract = await prisma.contract.findUnique({ where: { id: data.contractId }, select: { id: true, fileUrl: true } })
+            if (!contract) return { success: false, error: `Contract ${data.contractId} not found` }
+        }
+
         const signature = await prisma.documentSignature.create({
             data: {
                 signerName: data.signerName.trim(),
@@ -87,9 +99,15 @@ export async function createSignature(
                 signedDocUrl: data.signedDocUrl ?? null,
                 contactId: data.contactId ?? null,
                 documentId: data.documentId ?? null,
+                contractId: data.contractId ?? null,
                 ipAddress: null,
             },
         })
+
+        if (contract) {
+            await prisma.contract.update({ where: { id: contract.id }, data: { status: 'SIGNED', signedAt: new Date(), signedFileUrl: contract.fileUrl } })
+            revalidatePath('/billing')
+        }
 
         revalidatePath('/documents')
 

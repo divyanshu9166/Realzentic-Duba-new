@@ -58,7 +58,7 @@ const matchableUnitArb: fc.Arbitrary<MatchableUnit> = fc.record({
     netArea: areaArb,
     totalPrice: priceArb,
     projectId: fc.option(fc.integer({ min: 1, max: 20 }), { nil: undefined }),
-    location: fc.option(fc.constantFrom('Pune', 'Mumbai', 'Delhi', 'Bengaluru'), {
+    location: fc.option(fc.constantFrom('Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman'), {
         nil: undefined,
     }),
     amenities: fc.option(fc.subarray(AMENITY_POOL), { nil: undefined }),
@@ -77,7 +77,7 @@ const preferencesArb: fc.Arbitrary<BuyerPreferences> = fc.record({
     minBudget: fc.option(priceArb, { nil: undefined }),
     maxBudget: fc.option(priceArb, { nil: undefined }),
     projectId: fc.option(fc.integer({ min: 1, max: 20 }), { nil: undefined }),
-    location: fc.option(fc.constantFrom('Pune', 'Mumbai', 'Delhi', 'Bengaluru'), {
+    location: fc.option(fc.constantFrom('Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman'), {
         nil: undefined,
     }),
     type: optionalScalarFilter(typeArb),

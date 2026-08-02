@@ -11,6 +11,9 @@ import {
 } from '@/lib/cp-session'
 import { checkRateLimit, peekRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { uploadFile } from '@/lib/r2'
+import { autoAssignLeadForNewLead } from './lead-routing'
+import { dispatchAutomatedEmailCampaign } from './email-campaigns'
+import { resolveProjectIdForText } from '@/lib/project-resolution'
 
 /**
  * Channel Partner Portal authentication server actions (Module 4 / Req 7, 21).
@@ -311,6 +314,7 @@ export async function cpSubmitLead(
     const { clientName, phone, interestedProperty, budget } = parsed.data
 
     try {
+        const projectId = await resolveProjectIdForText(prisma, [interestedProperty])
         const result = await prisma.$transaction(async (tx) => {
             // Reuse an existing Contact for this phone, else create one — keeps a
             // single customer identity per number, matching the rest of the app.
@@ -324,6 +328,7 @@ export async function cpSubmitLead(
             const lead = await tx.lead.create({
                 data: {
                     contactId: contact.id,
+                    projectId,
                     interest: interestedProperty,
                     budget,
                     source: 'Channel Partner',
@@ -339,8 +344,11 @@ export async function cpSubmitLead(
                 select: { id: true },
             })
 
-            return { cpLeadId: cpLead.id, leadId: lead.id }
+            return { cpLeadId: cpLead.id, leadId: lead.id, contactId: contact.id }
         })
+
+        await autoAssignLeadForNewLead(result.leadId, { source: 'Channel Partner' })
+        await dispatchAutomatedEmailCampaign('new_lead', result.contactId)
 
         return { success: true, data: result }
     } catch {

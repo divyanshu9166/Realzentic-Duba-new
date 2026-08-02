@@ -16,6 +16,7 @@
  * onClose     — called when the dialog should close
  * contactId   — optional pre-fill
  * documentId  — optional pre-fill
+ * contractId  — optional billing contract to mark as signed
  * signerName  — optional pre-fill
  * onSigned    — called with the stored signature URL after success
  */
@@ -37,6 +38,7 @@ export interface ESignatureModalProps {
     onClose: () => void;
     contactId?: number;
     documentId?: number;
+    contractId?: number;
     signerName?: string;
     onSigned: (signatureUrl: string) => void;
 }
@@ -50,6 +52,7 @@ export default function ESignatureModal({
     onClose,
     contactId,
     documentId,
+    contractId,
     signerName: signerNameProp,
     onSigned,
 }: ESignatureModalProps) {
@@ -68,6 +71,8 @@ export default function ESignatureModal({
     const lastPosRef = useRef<{ x: number; y: number } | null>(null);
 
     // Sync name field when prop changes (e.g. modal re-opened with new contact)
+    // Props-driven form reset is intentional for this modal.
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (signerNameProp) {
             setSignerName(signerNameProp);
@@ -76,6 +81,7 @@ export default function ESignatureModal({
     }, [signerNameProp]);
 
     // Reset when modal is opened/closed
+    // Reset transient drawing state whenever the modal closes.
     useEffect(() => {
         if (!isOpen) {
             setTab('draw');
@@ -85,6 +91,7 @@ export default function ESignatureModal({
             lastPosRef.current = null;
         }
     }, [isOpen]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // ─── Canvas helpers ──────────────────────────────────
 
@@ -270,6 +277,7 @@ export default function ESignatureModal({
                 signatureUrl,
                 contactId: contactId ?? null,
                 documentId: documentId ?? null,
+                contractId: contractId ?? null,
             });
 
             if (!res.success) {

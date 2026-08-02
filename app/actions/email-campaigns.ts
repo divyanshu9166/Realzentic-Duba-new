@@ -390,6 +390,63 @@ export async function getEmailConfigStatus() {
   }
 }
 
+// ─── EVENT-DRIVEN AUTOMATED EMAILS ───────────────────
+
+/**
+ * Dispatch an automated campaign to one contact after a CRM event. This is
+ * intentionally separate from sendEmailCampaign: automated campaigns must
+ * target the event contact and must remain reusable for future events.
+ */
+export async function dispatchAutomatedEmailCampaign(triggerType: string, contactId: number) {
+  try {
+    const [contact, campaigns, smtp] = await Promise.all([
+      prisma.contact.findUnique({ where: { id: contactId }, select: { id: true, name: true, email: true, emailSubscribed: true } }),
+      prisma.emailCampaign.findMany({ where: { isAutomated: true, triggerType, status: { in: ['DRAFT', 'SCHEDULED'] } }, orderBy: { id: 'asc' } }),
+      getSmtpConfig(),
+    ])
+    if (!contact?.email || !contact.emailSubscribed || campaigns.length === 0) return { success: true, data: { queued: 0, sent: 0 } }
+    if (!smtp) return { success: false, error: 'Email automation skipped because SMTP is not configured' }
+    let queued = 0; let sent = 0
+    const storeSettings = await prisma.storeSettings.findFirst({ where: { id: 1 } })
+    for (const campaign of campaigns) {
+      const alreadyQueued = await prisma.emailRecipient.findFirst({ where: { campaignId: campaign.id, contactId, status: { in: ['queued', 'sent'] } }, select: { id: true } })
+      if (alreadyQueued) continue
+      const delayMinutes = Math.max(0, (campaign.triggerDelay ?? 0) * 60)
+      const scheduledAt = delayMinutes > 0 ? new Date(Date.now() + delayMinutes * 60_000) : null
+      const useVariantB = campaign.isABTest && Boolean(campaign.variantB) && (contactId % 100) >= campaign.abSplitPercent
+      const recipient = await prisma.emailRecipient.create({ data: { campaignId: campaign.id, contactId, email: contact.email, name: contact.name, variant: useVariantB ? 'B' : 'A', status: scheduledAt ? 'queued' : 'sending', scheduledAt } })
+      queued++
+      if (scheduledAt) continue
+      const vars = { customerName: contact.name, storeName: storeSettings?.storeName || 'Realzentic Dubai', storePhone: storeSettings?.phone || '', storeEmail: storeSettings?.email || '', storeUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000' }
+      const variant = useVariantB ? campaign.variantB as Record<string, string> | null : null
+      const response = await sendBulkEmails([{ to: contact.email, subject: replaceVariables(variant?.subject || campaign.subject, vars), html: replaceVariables(variant?.body || campaign.body, vars), recipientId: recipient.id }])
+      const sentNow = response.sent > 0
+      await prisma.emailRecipient.update({ where: { id: recipient.id }, data: { status: sentNow ? 'sent' : 'failed', sentAt: sentNow ? new Date() : null } })
+      if (sentNow) { sent++; await prisma.emailCampaign.update({ where: { id: campaign.id }, data: { sent: { increment: 1 } } }) }
+    }
+    return { success: true, data: { queued, sent } }
+  } catch (error) {
+    console.error('[email-campaigns] automated dispatch failed', error)
+    return { success: false, error: 'Automated email dispatch failed' }
+  }
+}
+
+/** Process delayed automated recipients from a cron/worker invocation. */
+export async function processDueAutomatedEmailRecipients() {
+  const due = await prisma.emailRecipient.findMany({ where: { status: 'queued', scheduledAt: { lte: new Date() }, campaign: { isAutomated: true } }, include: { campaign: true } , take: 100 })
+  let sent = 0
+  for (const recipient of due) {
+    const contact = recipient.contactId ? await prisma.contact.findUnique({ where: { id: recipient.contactId }, select: { name: true, email: true, emailSubscribed: true } }) : null
+    if (!contact?.email || !contact.emailSubscribed) { await prisma.emailRecipient.update({ where: { id: recipient.id }, data: { status: 'unsubscribed' } }); continue }
+    const variant = recipient.variant === 'B' ? recipient.campaign.variantB as Record<string, string> | null : null
+    const response = await sendBulkEmails([{ to: contact.email, subject: replaceVariables(variant?.subject || recipient.campaign.subject, { customerName: contact.name }), html: replaceVariables(variant?.body || recipient.campaign.body, { customerName: contact.name }), recipientId: recipient.id }])
+    const ok = response.sent > 0
+    await prisma.emailRecipient.update({ where: { id: recipient.id }, data: { status: ok ? 'sent' : 'failed', sentAt: ok ? new Date() : null } })
+    if (ok) { sent++; await prisma.emailCampaign.update({ where: { id: recipient.campaignId }, data: { sent: { increment: 1 } } }) }
+  }
+  return { processed: due.length, sent }
+}
+
 // ─── CAMPAIGN ANALYTICS ─────────────────────────────
 
 export async function getCampaignAnalytics(campaignId: number) {

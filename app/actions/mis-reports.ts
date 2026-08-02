@@ -26,10 +26,12 @@ export type MisReportType =
     | 'lead-source-roi'
     | 'pending-bookings'
     | 'cancellations'
+    | 'custom'
 
 export interface MisParams {
     from?: string // ISO date string e.g. "2024-01-01"
     to?: string   // ISO date string e.g. "2024-12-31"
+    dimension?: 'agent' | 'project' | 'location' | 'source' | 'portal'
 }
 
 // ─── Utility helpers ────────────────────────────────────────────────────────
@@ -386,6 +388,38 @@ async function cancellationsReport(params?: MisParams) {
     })
 }
 
+async function customReport(params?: MisParams) {
+    const dimension = params?.dimension ?? 'agent'
+    const range = dateRange(params)
+    const hasRange = Object.keys(range).length > 0
+    if (dimension === 'agent') {
+        const deals = await prisma.deal.findMany({ where: { assignedAgentId: { not: null }, ...(hasRange ? { wonDate: range } : {}) }, select: { assignedAgentId: true, value: true, stage: { select: { isWon: true } }, assignedAgent: { select: { name: true } } } })
+        const rows = new Map<number, { agent: string; deals: number; wonDeals: number; value: number }>()
+        for (const deal of deals) { const id = deal.assignedAgentId!; const row = rows.get(id) ?? { agent: deal.assignedAgent?.name ?? 'Unknown', deals: 0, wonDeals: 0, value: 0 }; row.deals++; if (deal.stage.isWon) { row.wonDeals++; row.value += toNum(deal.value) } rows.set(id, row) }
+        return [...rows.values()].sort((a, b) => b.value - a.value)
+    }
+    if (dimension === 'project') {
+        const bookings = await prisma.booking.findMany({ where: hasRange ? { bookingDate: range } : undefined, select: { agreementValue: true, unit: { select: { tower: { select: { project: { select: { name: true } } } } } } } })
+        const rows = new Map<string, { project: string; bookings: number; agreementValue: number }>()
+        for (const booking of bookings) { const name = booking.unit.tower.project.name; const row = rows.get(name) ?? { project: name, bookings: 0, agreementValue: 0 }; row.bookings++; row.agreementValue += toNum(booking.agreementValue); rows.set(name, row) }
+        return [...rows.values()].sort((a, b) => b.agreementValue - a.agreementValue)
+    }
+    if (dimension === 'location') {
+        const contacts = await prisma.contact.findMany({ select: { emirate: true, leads: { where: hasRange ? { date: range } : undefined, select: { id: true } }, deals: { where: hasRange ? { createdAt: range } : undefined, select: { id: true } } } })
+        const rows = new Map<string, { emirate: string; leads: number; deals: number }>()
+        for (const contact of contacts) { const emirate = contact.emirate || 'Unspecified'; const row = rows.get(emirate) ?? { emirate, leads: 0, deals: 0 }; row.leads += contact.leads.length; row.deals += contact.deals.length; rows.set(emirate, row) }
+        return [...rows.values()].sort((a, b) => b.leads - a.leads)
+    }
+    if (dimension === 'portal') {
+        const portals = await prisma.portalLead.groupBy({ by: ['portalName'], where: hasRange ? { inquiryDate: range } : undefined, _count: { _all: true } })
+        return portals.sort((a, b) => b._count._all - a._count._all).map(row => ({ portal: row.portalName, enquiries: row._count._all }))
+    }
+    const leads = await prisma.lead.findMany({ where: hasRange ? { date: range } : undefined, select: { source: true, status: true } })
+    const rows = new Map<string, { source: string; leads: number; won: number; lost: number }>()
+    for (const lead of leads) { const source = lead.source || 'Unknown'; const row = rows.get(source) ?? { source, leads: 0, won: 0, lost: 0 }; row.leads++; if (lead.status === 'WON') row.won++; if (lead.status === 'LOST') row.lost++; rows.set(source, row) }
+    return [...rows.values()].sort((a, b) => b.leads - a.leads)
+}
+
 // ─── CSV column mappings ─────────────────────────────────────────────────────
 
 const CSV_HEADERS: Record<MisReportType, string[]> = {
@@ -394,6 +428,7 @@ const CSV_HEADERS: Record<MisReportType, string[]> = {
     'lead-source-roi': ['source', 'totalLeads', 'wonLeads', 'lostLeads', 'openLeads', 'conversionRate'],
     'pending-bookings': ['bookingId', 'buyerName', 'buyerPhone', 'project', 'tower', 'unit', 'unitType', 'agreementValue', 'outstandingAmount', 'nextMilestoneName', 'nextMilestoneDue', 'bookingDate'],
     'cancellations': ['bookingId', 'buyerName', 'buyerPhone', 'project', 'tower', 'unit', 'unitType', 'agreementValue', 'tokenAmount', 'amountCollected', 'cancellationReason', 'bookingDate', 'cancellationDate'],
+    'custom': ['agent', 'deals', 'wonDeals', 'value', 'project', 'bookings', 'agreementValue', 'emirate', 'leads', 'source', 'won', 'lost', 'portal', 'enquiries'],
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -429,6 +464,9 @@ export async function getMisReport(
                 break
             case 'cancellations':
                 data = await cancellationsReport(params) as Record<string, unknown>[]
+                break
+            case 'custom':
+                data = await customReport(params) as Record<string, unknown>[]
                 break
             default:
                 return { success: false, error: `Unknown report type: ${String(type)}` }

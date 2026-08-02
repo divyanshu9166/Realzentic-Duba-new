@@ -124,7 +124,7 @@ describe('Inventory service — DB integration', () => {
             name: '', // required → invalid
             location: 'X',
             city: 'Dubai',
-            state: 'Maharashtra',
+            emirate: 'Dubai',
             type: 'Residential',
             status: 'UnderConstruction',
         })

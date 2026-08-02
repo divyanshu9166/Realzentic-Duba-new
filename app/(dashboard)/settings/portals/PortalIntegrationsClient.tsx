@@ -3,14 +3,14 @@
 /**
  * Property Portal Integration admin UI (Module 12 / Req 15.1).
  *
- * One configuration card per supported portal (99acres, MagicBricks, Housing,
- * NoBroker): enable/disable, set the inbound API key (masked once saved),
+ * One configuration card per supported portal (Bayut, Property Finder,
+ * Dubizzle): enable/disable, set the inbound API key (masked once saved),
  * choose the auto-assign agent, and copy the portal-specific webhook URL to
  * paste into the portal's dashboard. Backed by `listPortalConfigs` /
  * `upsertPortalConfig`.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Copy, Check, Plug, Webhook } from 'lucide-react'
 import { PORTAL_SOURCES } from '@/lib/portal'
@@ -24,11 +24,26 @@ const MASKED = '••••••••••••'
 
 type StaffOption = { id: number; name: string }
 
+type PortalConfigView = {
+    portalName: string
+    enabled: boolean
+    hasApiKey: boolean
+    hasListingApiKey: boolean
+    listingApiUrl: string | null
+    webhookUrl: string | null
+    lastSyncAt: string | null
+    autoAssignStaffId: number | null
+}
+
 type PortalState = {
     enabled: boolean
     hasApiKey: boolean
+    hasListingApiKey: boolean
     apiKey: string
     apiKeyEdited: boolean
+    listingApiKey: string
+    listingApiKeyEdited: boolean
+    listingApiUrl: string
     webhookUrl: string
     autoAssignStaffId: number | null
     lastSyncAt: string | null
@@ -39,8 +54,12 @@ function emptyState(): PortalState {
     return {
         enabled: false,
         hasApiKey: false,
+        hasListingApiKey: false,
         apiKey: '',
         apiKeyEdited: false,
+        listingApiKey: '',
+        listingApiKeyEdited: false,
+        listingApiUrl: '',
         webhookUrl: '',
         autoAssignStaffId: null,
         lastSyncAt: null,
@@ -48,23 +67,53 @@ function emptyState(): PortalState {
     }
 }
 
+function statesFromConfigs(configs: PortalConfigView[]): Record<string, PortalState> {
+    const next: Record<string, PortalState> = Object.fromEntries(
+        PORTAL_SOURCES.map((p) => [p, emptyState()]),
+    )
+    for (const c of configs) {
+        if (!(c.portalName in next)) continue
+        next[c.portalName] = {
+            enabled: c.enabled,
+            hasApiKey: c.hasApiKey,
+            hasListingApiKey: c.hasListingApiKey,
+            apiKey: c.hasApiKey ? MASKED : '',
+            apiKeyEdited: false,
+            listingApiKey: c.hasListingApiKey ? MASKED : '',
+            listingApiKeyEdited: false,
+            listingApiUrl: c.listingApiUrl ?? '',
+            webhookUrl: c.webhookUrl ?? '',
+            autoAssignStaffId: c.autoAssignStaffId,
+            lastSyncAt: c.lastSyncAt,
+            saving: false,
+        }
+    }
+    return next
+}
+
 /** The webhook path slug for a canonical portal source. */
 function slugFor(source: string): string {
     return source.toLowerCase()
 }
 
-export default function PortalIntegrationsClient() {
-    const [loading, setLoading] = useState(true)
-    const [staff, setStaff] = useState<StaffOption[]>([])
+export default function PortalIntegrationsClient({
+    initialConfigs,
+    initialStaff,
+    initialLoadError,
+}: {
+    initialConfigs: PortalConfigView[]
+    initialStaff: StaffOption[]
+    initialLoadError?: string | null
+}) {
+    const [staff, setStaff] = useState<StaffOption[]>(initialStaff)
     const [byPortal, setByPortal] = useState<Record<string, PortalState>>(
-        () => Object.fromEntries(PORTAL_SOURCES.map((p) => [p, emptyState()])),
+        () => statesFromConfigs(initialConfigs),
     )
     const [copied, setCopied] = useState<string | null>(null)
 
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
     const load = useCallback(async () => {
-        setLoading(true)
         try {
             const [cfgRes, staffRes] = await Promise.all([listPortalConfigs(), getStaff()])
 
@@ -81,8 +130,12 @@ export default function PortalIntegrationsClient() {
                     next[c.portalName] = {
                         enabled: c.enabled,
                         hasApiKey: c.hasApiKey,
+                        hasListingApiKey: c.hasListingApiKey,
                         apiKey: c.hasApiKey ? MASKED : '',
                         apiKeyEdited: false,
+                        listingApiKey: c.hasListingApiKey ? MASKED : '',
+                        listingApiKeyEdited: false,
+                        listingApiUrl: c.listingApiUrl ?? '',
                         webhookUrl: c.webhookUrl ?? '',
                         autoAssignStaffId: c.autoAssignStaffId,
                         lastSyncAt: c.lastSyncAt,
@@ -95,14 +148,8 @@ export default function PortalIntegrationsClient() {
             setByPortal(next)
         } catch {
             toast.error('Failed to load portal integrations')
-        } finally {
-            setLoading(false)
         }
     }, [])
-
-    useEffect(() => {
-        load()
-    }, [load])
 
     function patch(portal: string, partial: Partial<PortalState>) {
         setByPortal((prev) => ({ ...prev, [portal]: { ...prev[portal], ...partial } }))
@@ -124,6 +171,8 @@ export default function PortalIntegrationsClient() {
             }
             // Always record the canonical webhook URL for reference.
             payload.webhookUrl = `${origin}/api/webhooks/portals/${slugFor(portal)}`
+            payload.listingApiUrl = s.listingApiUrl.trim()
+            if (s.listingApiKeyEdited && s.listingApiKey !== MASKED && s.listingApiKey.trim()) payload.listingApiKey = s.listingApiKey.trim()
 
             const res = await upsertPortalConfig(payload)
             if (!res.success) {
@@ -151,14 +200,6 @@ export default function PortalIntegrationsClient() {
         }
     }
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Loader2 className="size-6 animate-spin text-accent" />
-            </div>
-        )
-    }
-
     return (
         <div className="space-y-4">
             <div className="flex items-start gap-3">
@@ -173,6 +214,12 @@ export default function PortalIntegrationsClient() {
                     </p>
                 </div>
             </div>
+
+            {initialLoadError && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
+                    {initialLoadError} Some configuration values may be unavailable until you save them again.
+                </div>
+            )}
 
             {PORTAL_SOURCES.map((portal) => {
                 const s = byPortal[portal]
@@ -222,6 +269,18 @@ export default function PortalIntegrationsClient() {
                                         <option key={m.id} value={m.id}>{m.name}</option>
                                     ))}
                                 </select>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 rounded-lg border border-border bg-surface/40 p-3">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Outbound listing API URL</Label>
+                                <Input type="url" placeholder="https://your-adapter.example.com/listings" value={s.listingApiUrl} onChange={(e) => patch(portal, { listingApiUrl: e.target.value })} />
+                                <p className="text-[11px] text-muted">Use the provider-approved adapter endpoint for publishing listings.</p>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Outbound listing API key {s.hasListingApiKey && <span className="text-muted">(saved)</span>}</Label>
+                                <Input type="password" placeholder={s.hasListingApiKey ? 'Re-enter to change' : 'Adapter token'} value={s.listingApiKey} onChange={(e) => patch(portal, { listingApiKey: e.target.value, listingApiKeyEdited: true })} onFocus={() => { if (s.listingApiKey === MASKED) patch(portal, { listingApiKey: '', listingApiKeyEdited: true }) }} />
                             </div>
                         </div>
 

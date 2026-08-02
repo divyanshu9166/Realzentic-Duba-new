@@ -40,6 +40,10 @@ import {
   Navigation,
   CalendarClock,
   MessageSquareDot,
+  GitBranch,
+  Home,
+  Wrench,
+  Receipt,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSession } from '@/components/AuthProvider';
@@ -52,10 +56,14 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/walkins', label: 'Walk-ins', icon: UserPlus },
   { href: '/leads', label: 'Leads', icon: Users },
+  { href: '/lead-routing', label: 'Lead Routing & SLA', icon: GitBranch, roles: ['ADMIN', 'MANAGER'] },
   { href: '/follow-ups', label: 'Follow-ups', icon: CalendarClock },
   { href: '/contacts', label: 'Contacts', icon: Contact },
   { href: '/properties', label: 'Properties', icon: Building },
   { href: '/deals', label: 'Deals', icon: Briefcase },
+  { href: '/rentals', label: 'Rentals & Leases', icon: Home, roles: ['ADMIN', 'MANAGER'] },
+  { href: '/maintenance', label: 'Maintenance', icon: Wrench, roles: ['ADMIN', 'MANAGER'] },
+  { href: '/billing', label: 'Billing & Commissions', icon: Receipt, roles: ['ADMIN', 'MANAGER'] },
   { href: '/loans', label: 'Loan Desk', icon: Landmark, roles: ['ADMIN', 'MANAGER', 'STAFF'] },
   { href: '/recommend', label: 'AI Match', icon: Sparkles },
   { href: '/tools/cma', label: 'CMA Pricing', icon: Scale, roles: ['ADMIN', 'MANAGER'] },
@@ -73,6 +81,7 @@ const navItems = [
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/drafts', label: 'Drafts', icon: Trash2, roles: ['ADMIN', 'MANAGER'] },
   { href: '/email-marketing', label: 'Email Marketing', icon: MailPlus, roles: ['ADMIN', 'MANAGER'] },
+  { href: '/listing-publications', label: 'Portal Listings', icon: Megaphone, roles: ['ADMIN', 'MANAGER'] },
   { href: '/whatsapp-marketing', label: 'WhatsApp Marketing', icon: Megaphone, roles: ['ADMIN', 'MANAGER'] },
   { href: '/whatsapp-reminders', label: 'WhatsApp Reminders', icon: MessageSquareDot, roles: ['ADMIN', 'MANAGER'] },
   { href: '/social-inbox', label: 'Instagram & FB Inbox', icon: MessageSquare, roles: ['ADMIN', 'MANAGER'] },

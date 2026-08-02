@@ -213,3 +213,40 @@ export async function getCrmReports(): Promise<Result<CrmReports>> {
         return { success: false, error: 'Failed to build reports' }
     }
 }
+
+/**
+ * Market view used by managers: demand by UAE emirate and project-level
+ * inventory pressure. Leads do not currently carry a separate project FK, so
+ * New leads use a structured projectId. Legacy leads without that link use a
+ * clearly labelled text fallback so historical data remains visible without
+ * pretending that the attribution is exact.
+ */
+export async function getMarketInsights() {
+    try {
+        await requireRole('ADMIN', 'MANAGER')
+        const [contacts, projects, leads] = await Promise.all([
+            prisma.contact.findMany({ select: { emirate: true, leads: { select: { id: true } } } }),
+            prisma.project.findMany({ select: { id: true, name: true, city: true, emirate: true, towers: { select: { units: { select: { status: true } } } } }, orderBy: { name: 'asc' } }),
+            prisma.lead.findMany({ select: { id: true, projectId: true, interest: true, notes: true, status: true } }),
+        ])
+
+        const emirateCounts = new Map<string, number>()
+        for (const contact of contacts) {
+            const emirate = contact.emirate?.trim() || 'Unspecified'
+            emirateCounts.set(emirate, (emirateCounts.get(emirate) ?? 0) + contact.leads.length)
+        }
+        const demandByEmirate = [...emirateCounts.entries()].map(([emirate, leads]) => ({ emirate, leads })).sort((a, b) => b.leads - a.leads)
+
+        const projectPressure = projects.map(project => {
+            const availableUnits = project.towers.reduce((sum, tower) => sum + tower.units.filter(unit => unit.status === 'Available').length, 0)
+            const totalUnits = project.towers.reduce((sum, tower) => sum + tower.units.length, 0)
+            const structured = leads.filter(lead => lead.projectId === project.id && lead.status !== 'LOST')
+            const legacy = leads.filter(lead => !lead.projectId && lead.status !== 'LOST' && [lead.interest, lead.notes].some(value => value?.toLowerCase().includes(project.name.toLowerCase())))
+            return { projectId: project.id, projectName: project.name, city: project.city, emirate: project.emirate, totalUnits, availableUnits, activeDemand: structured.length + legacy.length, structuredDemand: structured.length, legacyTextDemand: legacy.length, supplyToDemandRatio: structured.length + legacy.length > 0 ? Number((availableUnits / (structured.length + legacy.length)).toFixed(2)) : null }
+        })
+
+        const popularLocations = new Map<string, number>()
+        for (const project of projects) popularLocations.set(`${project.city}, ${project.emirate}`, (popularLocations.get(`${project.city}, ${project.emirate}`) ?? 0) + 1)
+        return { success: true, data: { generatedAt: new Date().toISOString(), demandByEmirate, projectPressure, popularLocations: [...popularLocations.entries()].map(([location, projectsCount]) => ({ location, projectsCount })).sort((a, b) => b.projectsCount - a.projectsCount), attributionNote: 'New lead demand uses the structured project link. Legacy text demand is shown separately as legacyTextDemand.' } }
+    } catch { return { success: false, error: 'Admin or manager access required' } }
+}

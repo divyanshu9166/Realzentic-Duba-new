@@ -111,6 +111,11 @@ model Contact {
   waitlists           UnitWaitlist[]
   snagReports         SnagReport[]
   followUpEntries     FollowUpEntry[]
+  rentalDeals         RentalDeal[]
+  leases              Lease[]
+  invoices            Invoice[]
+  contracts           Contract[]
+  workOrders          WorkOrder[]
 
   @@index([email])
   @@index([emailSubscribed])
@@ -131,6 +136,8 @@ model Lead {
   id                Int        @id @default(autoincrement())
   contactId         Int
   contact           Contact    @relation(fields: [contactId], references: [id])
+  projectId         Int?
+  project           Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
   interest          String
   budget            String?
   status            LeadStatus @default(NEW)
@@ -145,17 +152,67 @@ model Lead {
   assignedTo        Staff?     @relation(fields: [assignedToId], references: [id])
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
+  assignedAt        DateTime?
+  firstResponseAt   DateTime?
+  responseDueAt     DateTime?
+  assignmentReason  String?
 
   followUps FollowUp[]
 
   // Real Estate CRM back-relations (additive)
-  cpLead          CPLead?
-  portalLead      PortalLead?
-  followUpEntries FollowUpEntry[]
+  cpLead           CPLead?
+  portalLead       PortalLead?
+  followUpEntries  FollowUpEntry[]
+  assignmentEvents LeadAssignmentEvent[]
 
   @@index([status])
   @@index([date])
   @@index([assignedToId])
+  @@index([responseDueAt])
+  @@index([projectId])
+}
+
+// ─── LEAD ROUTING & RESPONSE SLA ─────────────────────
+
+model LeadRoutingRule {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  active             Boolean  @default(true)
+  priority           Int      @default(100)
+  source             String?
+  emirate            String?
+  community          String?
+  responseSlaMinutes Int      @default(15)
+  mode               String   @default("ROUND_ROBIN") // ROUND_ROBIN | LEAST_LOADED | FIXED
+  staffIds           Int[]
+  fixedStaffId       Int?
+  roundRobinCursor   Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  assignments LeadAssignmentEvent[]
+
+  @@index([active, priority])
+}
+
+model LeadAssignmentEvent {
+  id            Int              @id @default(autoincrement())
+  leadId        Int
+  lead          Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  ruleId        Int?
+  rule          LeadRoutingRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  fromStaffId   Int?
+  fromStaff     Staff?           @relation("LeadAssignmentFrom", fields: [fromStaffId], references: [id], onDelete: SetNull)
+  toStaffId     Int?
+  toStaff       Staff?           @relation("LeadAssignmentTo", fields: [toStaffId], references: [id], onDelete: SetNull)
+  reason        String
+  assignedAt    DateTime         @default(now())
+  responseDueAt DateTime?
+  respondedAt   DateTime?
+
+  @@index([leadId, assignedAt])
+  @@index([toStaffId, respondedAt])
+  @@index([responseDueAt])
 }
 
 model FollowUp {
@@ -305,15 +362,21 @@ model Staff {
   receivedPayments DailyPayment[]
 
   // Real Estate CRM back-relations (additive)
-  agentScores      AgentScore[]
-  agentBadges      AgentBadge[]
-  deals            Deal[]
-  tasks            Task[]
-  loanApplications LoanApplication[]
-  agentTargets     AgentTarget[]
-  snagReports      SnagReport[]
-  agentLocations   AgentLocation[]
-  followUpEntries  FollowUpEntry[]
+  agentScores         AgentScore[]
+  agentBadges         AgentBadge[]
+  deals               Deal[]
+  tasks               Task[]
+  loanApplications    LoanApplication[]
+  agentTargets        AgentTarget[]
+  snagReports         SnagReport[]
+  agentLocations      AgentLocation[]
+  followUpEntries     FollowUpEntry[]
+  leadAssignmentsFrom LeadAssignmentEvent[] @relation("LeadAssignmentFrom")
+  leadAssignmentsTo   LeadAssignmentEvent[] @relation("LeadAssignmentTo")
+  rentalDeals         RentalDeal[]
+  leases              Lease[]
+  workOrders          WorkOrder[]
+  commissions         CommissionLedger[]
 
   @@index([email])
 }
@@ -678,26 +741,28 @@ model EmailCampaign {
 }
 
 model EmailRecipient {
-  id         Int           @id @default(autoincrement())
-  campaignId Int
-  campaign   EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  contactId  Int?
-  email      String
-  name       String
-  variant    String        @default("A")
-  status     String        @default("queued")
-  sentAt     DateTime?
-  openedAt   DateTime?
-  clickedAt  DateTime?
-  bouncedAt  DateTime?
-  opens      Int           @default(0)
-  clicks     Int           @default(0)
+  id          Int           @id @default(autoincrement())
+  campaignId  Int
+  campaign    EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId   Int?
+  email       String
+  name        String
+  variant     String        @default("A")
+  status      String        @default("queued")
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  openedAt    DateTime?
+  clickedAt   DateTime?
+  bouncedAt   DateTime?
+  opens       Int           @default(0)
+  clicks      Int           @default(0)
 
   events EmailEvent[]
 
   @@index([campaignId])
   @@index([email])
   @@index([status])
+  @@index([scheduledAt, status])
 }
 
 model EmailEvent {
@@ -822,6 +887,8 @@ model Expense {
   vendor      String?
   staffId     Int?
   staff       Staff?          @relation("StaffExpenses", fields: [staffId], references: [id])
+  workOrderId Int?
+  workOrder   WorkOrder?      @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   status      String          @default("Approved")
   approvedBy  String?
   isRecurring Boolean         @default(false)
@@ -833,6 +900,7 @@ model Expense {
   @@index([categoryId])
   @@index([status])
   @@index([staffId])
+  @@index([workOrderId])
 }
 
 model RecurringExpense {
@@ -899,11 +967,15 @@ model DailyPayment {
 
   customerName String?
 
-  // Document linking — plain Int references (no FK) for future property/deal models
+  // Document linking. Legacy order fields remain plain references; invoices
+  // are now first-class billing records with an enforced relation.
   contactId     Int?
-  contact       Contact? @relation(fields: [contactId], references: [id])
+  contact       Contact?    @relation(fields: [contactId], references: [id])
   orderId       Int? // plain nullable Int — no FK (Order model removed)
-  invoiceId     Int? // plain nullable Int — no FK (Invoice model removed)
+  invoiceId     Int?
+  invoice       Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  vendorBillId  Int?
+  vendorBill    VendorBill? @relation(fields: [vendorBillId], references: [id], onDelete: SetNull)
   customOrderId Int? // plain nullable Int — no FK (CustomOrder model removed)
 
   // Reconciliation
@@ -1737,6 +1809,9 @@ model Project {
   paymentPlans        PaymentPlan[]
   constructionUpdates ConstructionUpdate[]
   waitlist            UnitWaitlist[]
+  rentalDeals         RentalDeal[]
+  listingPublications ListingPublication[]
+  leads               Lead[]
 
   @@index([city])
   @@index([status])
@@ -1802,11 +1877,14 @@ model Unit {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
-  priceHistory UnitPriceHistory[]
-  costSheets   CostSheet[]
-  deals        Deal[]
-  bookings     Booking[]          @relation("BookingUnit")
-  waitlists    UnitWaitlist[]     @relation("WaitlistUnit")
+  priceHistory        UnitPriceHistory[]
+  costSheets          CostSheet[]
+  deals               Deal[]
+  bookings            Booking[]            @relation("BookingUnit")
+  waitlists           UnitWaitlist[]       @relation("WaitlistUnit")
+  rentalDeals         RentalDeal[]
+  leases              Lease[]
+  listingPublications ListingPublication[]
 
   @@unique([towerId, unitNumber])
   @@index([status])
@@ -1919,11 +1997,14 @@ model Deal {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  activities   DealActivity[]
-  booking      Booking?
-  commissions  CPCommission[]
-  referrals    Referral[]
-  appointments Appointment[]
+  activities       DealActivity[]
+  booking          Booking?
+  commissions      CPCommission[]
+  referrals        Referral[]
+  appointments     Appointment[]
+  invoices         Invoice[]
+  contracts        Contract[]
+  agentCommissions CommissionLedger[]
 
   @@index([stageId])
   @@index([contactId])
@@ -1967,6 +2048,7 @@ model Booking {
   schedules   PaymentSchedule[]
   commissions CPCommission[]
   snagReports SnagReport[]
+  workOrders  WorkOrder[]
 
   @@index([unitId])
   @@index([contactId])
@@ -2164,6 +2246,8 @@ model PortalConfig {
   enabled           Boolean   @default(false)
   apiKey            String?
   webhookUrl        String?
+  listingApiUrl     String?
+  listingApiKey     String?
   lastSyncAt        DateTime?
   autoAssignStaffId Int?
 
@@ -2335,21 +2419,24 @@ model LoanApplication {
 // Digital signature capture (in-browser canvas/typed) on a generated document.
 
 model DocumentSignature {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   documentId   Int? // FK-free; links to Document.id for context only
+  contractId   Int?
+  contract     Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
   contactId    Int?
-  contact      Contact? @relation(fields: [contactId], references: [id])
+  contact      Contact?  @relation(fields: [contactId], references: [id])
   signerName   String
   signerEmail  String?
   signerPhone  String?
   signatureUrl String // URL of the stored signature image (PNG)
   signedDocUrl String? // URL of the merged/signed PDF
   ipAddress    String?
-  signedAt     DateTime @default(now())
-  createdAt    DateTime @default(now())
+  signedAt     DateTime  @default(now())
+  createdAt    DateTime  @default(now())
 
   @@index([contactId])
   @@index([documentId])
+  @@index([contractId])
 }
 
 // ─── PRE-LAUNCH / WAITLIST ────────────────────────────
@@ -2491,4 +2578,287 @@ model SnagReport {
   @@index([bookingId])
   @@index([status])
   @@index([contactId])
+}
+
+// ─── RENTAL / LEASE MANAGEMENT ───────────────────────
+
+model RentalDeal {
+  id              Int       @id @default(autoincrement())
+  displayId       String    @unique
+  contactId       Int
+  contact         Contact   @relation(fields: [contactId], references: [id])
+  assignedAgentId Int?
+  assignedAgent   Staff?    @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  projectId       Int?
+  project         Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  unitId          Int?
+  unit            Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  dealType        String    @default("NEW_LEASE") // NEW_LEASE | RENEWAL
+  status          String    @default("NEGOTIATION") // DRAFT | NEGOTIATION | ACTIVE | COMPLETED | CANCELLED
+  annualRent      Int
+  monthlyRent     Int?
+  securityDeposit Int       @default(0)
+  agencyFee       Int       @default(0)
+  startDate       DateTime?
+  endDate         DateTime?
+  source          String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  lease       Lease?
+  invoices    Invoice[]
+  contracts   Contract[]
+  commissions CommissionLedger[]
+
+  @@index([contactId])
+  @@index([assignedAgentId])
+  @@index([status])
+  @@index([endDate])
+}
+
+model Lease {
+  id                    Int        @id @default(autoincrement())
+  contractNumber        String     @unique
+  rentalDealId          Int        @unique
+  rentalDeal            RentalDeal @relation(fields: [rentalDealId], references: [id], onDelete: Cascade)
+  contactId             Int
+  contact               Contact    @relation(fields: [contactId], references: [id])
+  assignedAgentId       Int?
+  assignedAgent         Staff?     @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  unitId                Int?
+  unit                  Unit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  ejariNumber           String?    @unique
+  ejariStatus           String     @default("PENDING") // PENDING | SUBMITTED | ACTIVE | EXPIRED | NOT_REQUIRED
+  status                String     @default("ACTIVE") // DRAFT | ACTIVE | EXPIRED | TERMINATED
+  startDate             DateTime
+  endDate               DateTime
+  renewalNoticeDate     DateTime
+  annualRent            Int
+  securityDeposit       Int        @default(0)
+  noticeDays            Int        @default(90)
+  autoRenew             Boolean    @default(false)
+  renewalReminderSentAt DateTime?
+  landlordName          String?
+  landlordPhone         String?
+  notes                 String?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  renewals   LeaseRenewal[]
+  invoices   Invoice[]
+  contracts  Contract[]
+  workOrders WorkOrder[]
+
+  @@index([contactId])
+  @@index([status])
+  @@index([endDate])
+  @@index([renewalNoticeDate])
+}
+
+model LeaseRenewal {
+  id             Int       @id @default(autoincrement())
+  leaseId        Int
+  lease          Lease     @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  proposedStart  DateTime
+  proposedEnd    DateTime
+  proposedRent   Int
+  status         String    @default("DRAFT") // DRAFT | OFFERED | ACCEPTED | DECLINED | COMPLETED
+  reminderSentAt DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([leaseId])
+  @@index([status])
+}
+
+// ─── MAINTENANCE WORK ORDERS ─────────────────────────
+
+model WorkOrder {
+  id              Int       @id @default(autoincrement())
+  displayId       String    @unique
+  leaseId         Int?
+  lease           Lease?    @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  bookingId       Int?
+  booking         Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  contactId       Int?
+  contact         Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignedToId    Int?
+  assignedTo      Staff?    @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  title           String
+  description     String?
+  category        String    @default("GENERAL") // GENERAL | PLUMBING | ELECTRICAL | HVAC | CIVIL | CLEANING | OTHER
+  priority        String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status          String    @default("OPEN") // OPEN | SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
+  vendorName      String?
+  vendorPhone     String?
+  scheduledAt     DateTime?
+  dueAt           DateTime?
+  completedAt     DateTime?
+  estimatedCost   Int       @default(0)
+  actualCost      Int       @default(0)
+  resolutionNotes String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  expenses Expense[]
+
+  @@index([status])
+  @@index([assignedToId, status])
+  @@index([dueAt])
+  @@index([leaseId])
+  @@index([bookingId])
+}
+
+// ─── BILLING / DOCUMENTS ────────────────────────────
+
+model Invoice {
+  id           Int         @id @default(autoincrement())
+  displayId    String      @unique
+  contactId    Int?
+  contact      Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  dealId       Int?
+  deal         Deal?       @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  rentalDealId Int?
+  rentalDeal   RentalDeal? @relation(fields: [rentalDealId], references: [id], onDelete: SetNull)
+  leaseId      Int?
+  lease        Lease?      @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  type         String      @default("SERVICE") // SERVICE | COMMISSION | RENT | SECURITY_DEPOSIT | OTHER
+  status       String      @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
+  issueDate    DateTime    @default(now())
+  dueDate      DateTime?
+  subtotal     Int
+  vatAmount    Int         @default(0)
+  total        Int
+  balanceDue   Int
+  lineItems    Json
+  notes        String?
+  fileUrl      String?
+  createdById  Int?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  payments    DailyPayment[]
+  contracts   Contract[]
+  commissions CommissionLedger[]
+
+  @@index([contactId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([dealId])
+  @@index([rentalDealId])
+  @@index([leaseId])
+}
+
+model Contract {
+  id            Int                 @id @default(autoincrement())
+  displayId     String              @unique
+  title         String
+  type          String              @default("SERVICE") // SALE | LEASE | RENEWAL | SERVICE | OTHER
+  status        String              @default("DRAFT") // DRAFT | SENT | SIGNED | EXPIRED | CANCELLED
+  contactId     Int?
+  contact       Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  dealId        Int?
+  deal          Deal?               @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  rentalDealId  Int?
+  rentalDeal    RentalDeal?         @relation(fields: [rentalDealId], references: [id], onDelete: SetNull)
+  leaseId       Int?
+  lease         Lease?              @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  invoiceId     Int?
+  invoice       Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  templateId    Int?
+  fileUrl       String?
+  signedFileUrl String?
+  signedAt      DateTime?
+  expiresAt     DateTime?
+  notes         String?
+  createdById   Int?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  signatures    DocumentSignature[]
+
+  @@index([status])
+  @@index([contactId])
+  @@index([leaseId])
+}
+
+// ─── VENDOR BILLS / ACCOUNTS PAYABLE ─────────────────
+
+model VendorBill {
+  id          Int       @id @default(autoincrement())
+  displayId   String    @unique
+  vendorName  String
+  vendorPhone String?
+  description String
+  category    String?
+  issueDate   DateTime  @default(now())
+  dueDate     DateTime?
+  status      String    @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
+  subtotal    Int
+  vatAmount   Int       @default(0)
+  total       Int
+  balanceDue  Int
+  notes       String?
+  createdById Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  payments DailyPayment[]
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([vendorName])
+}
+
+model CommissionLedger {
+  id               Int         @id @default(autoincrement())
+  displayId        String      @unique
+  beneficiaryType  String      @default("AGENT") // AGENT | COMPANY
+  staffId          Int?
+  staff            Staff?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  dealId           Int?
+  deal             Deal?       @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  rentalDealId     Int?
+  rentalDeal       RentalDeal? @relation(fields: [rentalDealId], references: [id], onDelete: SetNull)
+  invoiceId        Int?
+  invoice          Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  basisAmount      Int
+  rate             Float       @default(0)
+  amount           Int
+  status           String      @default("PENDING") // PENDING | APPROVED | PAID | VOID
+  approvedAt       DateTime?
+  paidAt           DateTime?
+  paymentReference String?
+  notes            String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([staffId, status])
+  @@index([beneficiaryType, status])
+  @@index([dealId])
+  @@index([rentalDealId])
+}
+
+// ─── LISTING PUBLICATION TRACKING ────────────────────
+
+model ListingPublication {
+  id                Int       @id @default(autoincrement())
+  portalName        String
+  projectId         Int?
+  project           Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  unitId            Int?
+  unit              Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  status            String    @default("DRAFT") // DRAFT | QUEUED | PUBLISHED | FAILED | UNPUBLISHED
+  externalListingId String?
+  listingUrl        String?
+  lastPublishedAt   DateTime?
+  lastError         String?
+  payload           Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([portalName, projectId, unitId])
+  @@index([status])
+  @@index([portalName])
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Plus, MessageSquare, Instagram, Facebook, Globe, Phone, Mail, ChevronRight, Bot, Clock, Trash2, Store, Building2, AlertCircle, Users } from 'lucide-react';
-import { getLeads, createLead, updateLeadStatus, addFollowUp, findDuplicates, mergeContacts, dedupReport } from '@/app/actions/leads';
+import { getLeads, getLeadReferenceData, createLead, updateLeadStatus, addFollowUp, findDuplicates, mergeContacts, dedupReport } from '@/app/actions/leads';
 import { convertLeadToFollowUp } from '@/app/actions/follow-ups';
 import { moveLeadToDraft } from '@/app/actions/drafts';
 import Modal from '@/components/Modal';
@@ -78,6 +78,7 @@ const buildLeadWhatsAppMessage = (lead) => {
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedLead, setSelectedLead] = useState(null);
@@ -105,8 +106,9 @@ export default function LeadsPage() {
   const [duplicateContactIds, setDuplicateContactIds] = useState(new Set());
 
   const refresh = async () => {
-    const [leadsRes, dupRes] = await Promise.all([getLeads(), dedupReport()]);
+    const [leadsRes, dupRes, refsRes] = await Promise.all([getLeads(), dedupReport(), getLeadReferenceData()]);
     if (leadsRes.success) setLeads(leadsRes.data);
+    if (refsRes.success) setProjects(refsRes.data.projects);
     if (dupRes.success && dupRes.data.length > 0) {
       const ids = new Set(dupRes.data.flatMap(group => group.map(m => m.id)));
       setDuplicateContactIds(ids);
@@ -127,6 +129,7 @@ export default function LeadsPage() {
         setDuplicateContactIds(ids);
       }
     });
+    getLeadReferenceData().then(res => { if (res.success) setProjects(res.data.projects); });
   }, []);
 
   const filteredLeads = leads.filter(l =>
@@ -140,6 +143,7 @@ export default function LeadsPage() {
     const leadData = {
       name: f.fullName.value, phone: f.phone.value, email: f.email.value,
       source: f.source.value, budget: f.budget.value,
+      projectId: f.projectId?.value ? Number(f.projectId.value) : null,
       interest: f.interest.value,
       notes: composePreferenceNotes({
         notes: f.notes.value,
@@ -826,6 +830,13 @@ export default function LeadsPage() {
                 {DUBAI_LOCATION_OPTIONS.map(location => <option key={location} value={location} />)}
               </datalist>
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1.5">Exact Project (for demand reporting)</label>
+            <select name="projectId" className="w-full" defaultValue="">
+              <option value="">Not specified / location only</option>
+              {projects.map((project) => <option key={project.id} value={project.id}>{project.name} · {project.city}, {project.emirate}</option>)}
+            </select>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

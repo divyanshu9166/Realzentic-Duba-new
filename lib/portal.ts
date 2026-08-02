@@ -51,8 +51,8 @@ const PORTAL_KEY_TO_SOURCE: Record<string, PortalSource> = {
 
 /**
  * Reduce a portal identifier to a comparison key: lowercased with every
- * non-alphanumeric character removed. This makes `"99-acres"`, `"99 Acres"`,
- * and `"99acres"` all map to `"99acres"`, and `"Housing.com"` to `"housingcom"`.
+ * non-alphanumeric character removed. This makes `"Property-Finder"`,
+ * `"Property Finder"`, and `"propertyfinder"` all map to `"propertyfinder"`.
  */
 function normalizeKey(identifier: string): string {
     return identifier.toLowerCase().replace(/[^a-z0-9]/g, '')

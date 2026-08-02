@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@layer components {
+  .field {
+    @apply min-h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+}
+
 /* Disable Tailwind v4's automatic prefers-color-scheme dark mode.
    The CRM is designed as a light-only app. Without this override,
    users with OS dark mode enabled see inverted colors on every

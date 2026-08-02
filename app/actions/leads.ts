@@ -5,6 +5,9 @@ import { revalidatePath } from 'next/cache'
 import { createLeadSchema, updateLeadStatusSchema, addFollowUpSchema } from '@/lib/validations/lead'
 import type { LeadStatus } from '@prisma/client'
 import { moveLeadToDraft } from './drafts'
+import { autoAssignLeadForNewLead } from './lead-routing'
+import { dispatchAutomatedEmailCampaign } from './email-campaigns'
+import { resolveProjectIdForText } from '@/lib/project-resolution'
 import {
   isDuplicate,
   duplicateConfidence,
@@ -30,6 +33,11 @@ const statusDisplayMap: Record<LeadStatus, string> = {
   QUOTATION: 'Quotation',
   WON: 'Won',
   LOST: 'Lost',
+}
+
+export async function getLeadReferenceData() {
+  const projects = await prisma.project.findMany({ select: { id: true, name: true, city: true, emirate: true }, orderBy: { name: 'asc' } })
+  return { success: true, data: { projects } }
 }
 
 export async function getLeads(status?: string) {
@@ -79,7 +87,7 @@ export async function createLead(data: unknown) {
   const parsed = createLeadSchema.safeParse(data)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-  const { name, phone, email, source, interest, budget, notes } = parsed.data
+  const { name, phone, email, source, interest, projectId: requestedProjectId, budget, notes } = parsed.data
 
   // Find or create contact. Req 11.7: if the phone already exists on a Contact,
   // link the new lead to that existing Contact instead of creating a duplicate,
@@ -106,9 +114,11 @@ export async function createLead(data: unknown) {
     })
   }
 
+  const projectId = requestedProjectId ?? await resolveProjectIdForText(prisma, [interest, notes])
   const lead = await prisma.lead.create({
     data: {
       contactId: contact.id,
+      projectId,
       interest,
       budget,
       status: 'NEW',
@@ -116,6 +126,12 @@ export async function createLead(data: unknown) {
       notes,
     },
   })
+
+  // Apply the same routing pool used by portal webhooks and the lead-routing
+  // workspace. If no active rule matches, the lead remains safely unassigned
+  // in the manager queue instead of being silently lost.
+  await autoAssignLeadForNewLead(lead.id)
+  await dispatchAutomatedEmailCampaign('new_lead', contact.id)
 
   revalidatePath('/leads')
   return { success: true, data: lead }
@@ -125,10 +141,16 @@ export async function updateLeadStatus(data: unknown) {
   const parsed = updateLeadStatusSchema.safeParse(data)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
+  const previous = await prisma.lead.findUnique({ where: { id: parsed.data.id }, select: { contactId: true, status: true } })
+  if (!previous) return { success: false, error: 'Lead not found' }
   const lead = await prisma.lead.update({
     where: { id: parsed.data.id },
     data: { status: parsed.data.status },
   })
+
+  if (parsed.data.status === 'QUOTATION' && previous.status !== 'QUOTATION') {
+    await dispatchAutomatedEmailCampaign('abandoned_quote', previous.contactId)
+  }
 
   revalidatePath('/leads')
   return { success: true, data: lead }

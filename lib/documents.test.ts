@@ -93,10 +93,10 @@ describe('resolveMergeFields', () => {
     it('resolves when every field has a value and substitutes them', () => {
         const result = resolveMergeFields('Hello {{name}} from {{city}}', {
             name: 'Asha',
-            city: 'Pune',
+            city: 'Dubai',
         })
         expect(result.ok).toBe(true)
-        expect(result.resolved).toBe('Hello Asha from Pune')
+        expect(result.resolved).toBe('Hello Asha from Dubai')
         expect(result.missing).toBeUndefined()
     })
 

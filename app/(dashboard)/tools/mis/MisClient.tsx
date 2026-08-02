@@ -20,6 +20,7 @@ import {
     Loader2,
     RefreshCw,
     ChevronDown,
+    SlidersHorizontal,
 } from 'lucide-react'
 import {
     getMisReport,
@@ -73,6 +74,13 @@ const REPORTS: ReportDef[] = [
         description: 'Cancelled bookings and reasons within the period',
         icon: <XCircle className="size-5" />,
         color: 'text-rose-500',
+    },
+    {
+        type: 'custom',
+        title: 'Custom View',
+        description: 'Filter operational data by agent, project, location, source or portal',
+        icon: <SlidersHorizontal className="size-5" />,
+        color: 'text-sky-500',
     },
 ]
 
@@ -141,10 +149,12 @@ export default function MisClient() {
     const [columns, setColumns] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
     const [exporting, setExporting] = useState(false)
+    const [dimension, setDimension] = useState<'agent' | 'project' | 'location' | 'source' | 'portal'>('agent')
 
     const params: MisParams = {
         from: from || undefined,
         to: to || undefined,
+        dimension: activeType === 'custom' ? dimension : undefined,
     }
 
     async function runReport(type: MisReportType) {
@@ -237,6 +247,11 @@ export default function MisClient() {
                             Clear
                         </button>
                     )}
+                    <label className="flex items-center gap-2 text-sm text-muted">Custom view
+                        <select value={dimension} onChange={(e) => setDimension(e.target.value as typeof dimension)} className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground">
+                            <option value="agent">Agent</option><option value="project">Project</option><option value="location">Location</option><option value="source">Lead source</option><option value="portal">Portal</option>
+                        </select>
+                    </label>
                 </div>
             </div>
 

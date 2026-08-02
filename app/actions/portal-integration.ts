@@ -4,6 +4,9 @@ import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth-helpers'
 import { sendEmail } from '@/lib/email'
+import { autoAssignLeadForNewLead } from './lead-routing'
+import { dispatchAutomatedEmailCampaign } from './email-campaigns'
+import { resolveProjectIdForText } from '@/lib/project-resolution'
 import { isDuplicate, normalizePhone } from '@/lib/dedup'
 import { uaePhoneVariants } from '@/lib/whatsapp/phone-utils'
 import {
@@ -76,7 +79,7 @@ export async function upsertPortalConfig(data: unknown): Promise<Result<{ id: nu
         return { success: false, error: parsed.error.issues[0].message }
     }
 
-    const { portalName, enabled, apiKey, webhookUrl, autoAssignStaffId } = parsed.data
+    const { portalName, enabled, apiKey, webhookUrl, listingApiUrl, listingApiKey, autoAssignStaffId } = parsed.data
 
     // Validate the auto-assign staff reference before persisting it.
     if (autoAssignStaffId !== undefined && autoAssignStaffId !== null) {
@@ -94,16 +97,20 @@ export async function upsertPortalConfig(data: unknown): Promise<Result<{ id: nu
             enabled,
             apiKey: apiKey ?? null,
             webhookUrl: webhookUrl ?? null,
+            listingApiUrl: listingApiUrl ?? null,
+            listingApiKey: listingApiKey ?? null,
             autoAssignStaffId: autoAssignStaffId ?? null,
         },
         update: {
             enabled,
             webhookUrl: webhookUrl ?? null,
+            listingApiUrl: listingApiUrl ?? null,
             autoAssignStaffId: autoAssignStaffId ?? null,
             // Only overwrite the stored API key when a new one was provided —
             // the admin UI masks the saved secret and omits it on re-save, so
             // omitting it must preserve (not clear) the existing key.
             ...(apiKey !== undefined ? { apiKey } : {}),
+            ...(listingApiKey !== undefined ? { listingApiKey } : {}),
         },
         select: { id: true },
     })
@@ -120,6 +127,8 @@ export async function listPortalConfigs(): Promise<
             portalName: string
             enabled: boolean
             hasApiKey: boolean
+            hasListingApiKey: boolean
+            listingApiUrl: string | null
             webhookUrl: string | null
             lastSyncAt: string | null
             autoAssignStaffId: number | null
@@ -144,6 +153,8 @@ export async function listPortalConfigs(): Promise<
             enabled: c.enabled,
             // Never echo the secret back; expose only its presence.
             hasApiKey: Boolean(c.apiKey),
+            hasListingApiKey: Boolean(c.listingApiKey),
+            listingApiUrl: c.listingApiUrl,
             webhookUrl: c.webhookUrl,
             lastSyncAt: c.lastSyncAt ? c.lastSyncAt.toISOString() : null,
             autoAssignStaffId: c.autoAssignStaffId,
@@ -331,7 +342,10 @@ export async function ingestPortalLead(
 
     // 4. No duplicate: create Contact + Lead + PortalLead atomically (Req 15.3,
     //    15.2). Auto-assign per config and record source attribution (Req 15.5).
-    const assignedToId = config.autoAssignStaffId ?? null
+    // Existing portal-specific assignment remains supported as an explicit
+    // override. When it is not configured, the shared routing pool assigns
+    // the lead using active rules and records an SLA event.
+    const configuredAssigneeId = config.autoAssignStaffId ?? null
 
     const created = await prisma.$transaction(async (tx) => {
         const contact = await tx.contact.create({
@@ -347,14 +361,28 @@ export async function ingestPortalLead(
         const newLead = await tx.lead.create({
             data: {
                 contactId: contact.id,
+                projectId: await resolveProjectIdForText(tx, [lead.propertyName, lead.buyerMessage]),
                 interest: lead.propertyName ?? 'Property inquiry',
                 status: 'NEW',
                 source,
                 notes: lead.buyerMessage,
-                assignedToId,
+                assignedToId: configuredAssigneeId,
+                assignedAt: configuredAssigneeId ? new Date() : null,
+                assignmentReason: configuredAssigneeId ? `Portal ${config.portalName} override` : null,
             },
             select: { id: true },
         })
+
+        if (configuredAssigneeId !== null) {
+            await tx.leadAssignmentEvent.create({
+                data: {
+                    leadId: newLead.id,
+                    toStaffId: configuredAssigneeId,
+                    reason: `Portal ${config.portalName} override`,
+                    assignedAt: new Date(),
+                },
+            })
+        }
 
         const portalLead = await tx.portalLead.create({
             data: {
@@ -383,6 +411,12 @@ export async function ingestPortalLead(
             portalLeadDbId: portalLead.id,
         }
     })
+
+    const routed = configuredAssigneeId === null
+        ? await autoAssignLeadForNewLead(created.leadId, { source })
+        : null
+    const assignedToId = configuredAssigneeId ?? (routed?.success ? routed.data.staffId : null)
+    await dispatchAutomatedEmailCampaign('new_lead', created.contactId)
 
     // 5. Notify the assignee (Req 15.3) — outside the transaction so a delivery
     //    failure cannot roll back the ingested lead.

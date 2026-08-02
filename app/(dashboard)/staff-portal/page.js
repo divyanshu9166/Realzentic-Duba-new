@@ -19,6 +19,7 @@ import Modal from '@/components/Modal';
 import { getStaffLoginOptions, getStaffPortalProfile, clockIn as serverClockIn, clockOut as serverClockOut, getMonthAttendance, verifyStaffPortalPassword } from '@/app/actions/staff';
 import { getStaffVisits, updateFieldVisit, logSelfVisit, getSelfVisits, updateSelfVisitPhotos } from '@/app/actions/field-visits';
 import { moveSelfVisitToDraft } from '@/app/actions/drafts';
+import { getStaffWorkOrders, updateStaffWorkOrder } from '@/app/actions/work-orders';
 
 const activityIcons = {
   call: { icon: Phone, color: 'bg-blue-500/10 text-blue-700', label: 'Call' },
@@ -82,6 +83,7 @@ export default function StaffPortalPage() {
   const [visitSaving, setVisitSaving] = useState(false);
   const [selfVisits, setSelfVisits] = useState([]);
   const [deletingVisitId, setDeletingVisitId] = useState(null);
+  const [workOrders, setWorkOrders] = useState([]);
 
   useEffect(() => {
     getStaffLoginOptions().then((staffRes) => {
@@ -129,6 +131,15 @@ export default function StaffPortalPage() {
         if (res.success) setAssignedVisits(res.data);
       });
     }
+  }, [tab, loggedInStaff]);
+
+  useEffect(() => {
+    if (!loggedInStaff || tab !== 'work-orders') return;
+    let active = true;
+    getStaffWorkOrders().then(res => {
+      if (active && res.success) setWorkOrders(res.data);
+    });
+    return () => { active = false; };
   }, [tab, loggedInStaff]);
 
   // Fetch month attendance when tab = 'attendance' or month changes
@@ -563,6 +574,7 @@ export default function StaffPortalPage() {
     { key: 'self', label: 'Self Visits', icon: MapPinned },
     { key: 'attendance', label: 'My Attendance', icon: Calendar },
     { key: 'sales', label: 'My Property Sales', icon: ShoppingBag },
+    { key: 'work-orders', label: 'My Work Orders', icon: ClipboardList },
   ];
 
   return (
@@ -885,6 +897,30 @@ export default function StaffPortalPage() {
       )}
 
       {/* ===== MY ATTENDANCE TAB ===== */}
+      {tab === 'work-orders' && (
+        <div className="space-y-4">
+          <div className="glass-card p-4">
+            <p className="text-sm font-semibold text-foreground">Assigned maintenance work</p>
+            <p className="mt-1 text-xs text-muted">Update progress and resolution notes for work orders assigned to you. Assignment and cost controls remain with management.</p>
+          </div>
+          {workOrders.length === 0 ? (
+            <div className="glass-card p-8 text-center text-sm text-muted"><ClipboardList className="mx-auto mb-2 h-8 w-8" />No work orders are assigned to you.</div>
+          ) : workOrders.map(order => (
+            <article key={order.id} className="glass-card p-4 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-foreground">{order.displayId}</span><span className="rounded-full bg-accent/10 px-2 py-1 text-[10px] text-accent">{order.priority}</span></div>
+                  <p className="mt-2 text-sm font-medium text-foreground">{order.title}</p>
+                  <p className="mt-1 text-xs text-muted">{order.category} · {order.leaseNumber ? `Lease ${order.leaseNumber}` : 'General maintenance'}{order.dueAt ? ` · Due ${new Date(order.dueAt).toLocaleString('en-AE')}` : ''}</p>
+                </div>
+                <select value={order.status} onChange={async e => { const result = await updateStaffWorkOrder({ id: order.id, status: e.target.value, resolutionNotes: order.resolutionNotes || '' }); if (result.success) setWorkOrders(current => current.map(item => item.id === order.id ? result.data : item)); }} className="field min-w-[150px]"><option value="OPEN">Open</option><option value="SCHEDULED">Scheduled</option><option value="IN_PROGRESS">In progress</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select>
+              </div>
+              <textarea defaultValue={order.resolutionNotes || ''} placeholder="Add resolution notes" className="field min-h-20" onBlur={async e => { if (e.target.value !== (order.resolutionNotes || '')) { const result = await updateStaffWorkOrder({ id: order.id, status: order.status, resolutionNotes: e.target.value }); if (result.success) setWorkOrders(current => current.map(item => item.id === order.id ? result.data : item)); } }} />
+            </article>
+          ))}
+        </div>
+      )}
+
       {tab === 'attendance' && (() => {
         const { year, month } = attendanceMonth;
         const today = new Date();

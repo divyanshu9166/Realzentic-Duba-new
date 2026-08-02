@@ -46,6 +46,8 @@ export const upsertPortalConfigSchema = z.object({
     enabled: z.boolean().optional().default(false),
     apiKey: optionalSecret,
     webhookUrl: optionalUrl,
+    listingApiUrl: optionalUrl,
+    listingApiKey: optionalSecret,
     autoAssignStaffId: idSchema.optional().nullable(),
 })
 

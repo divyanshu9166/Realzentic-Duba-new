@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { agentLocationRetentionCutoff } from '@/lib/agent-location'
+import { processDueAutomatedEmailRecipients } from '@/app/actions/email-campaigns'
+import { processDueLeaseRenewalReminders } from '@/app/actions/rentals'
 
 export async function GET(request: Request) {
   try {
@@ -56,12 +58,19 @@ export async function GET(request: Request) {
       }
     })
 
+    // 4. Deliver delayed event-driven email campaigns. This is idempotent at
+    // recipient level and skips contacts who unsubscribed after queueing.
+    const processedAutomatedEmails = await processDueAutomatedEmailRecipients()
+    const processedLeaseRenewals = await processDueLeaseRenewalReminders()
+
     return NextResponse.json({
       success: true,
       message: 'Retention cleanup complete',
       deletedMessages: deletedMessages.count,
       deletedConversations: deletedConversations.count,
-      deletedAgentLocations: deletedAgentLocations.count
+      deletedAgentLocations: deletedAgentLocations.count,
+      processedAutomatedEmails,
+      processedLeaseRenewals: processedLeaseRenewals.success ? processedLeaseRenewals.data : { error: 'error' in processedLeaseRenewals ? processedLeaseRenewals.error : 'Lease reminder processing failed' }
     })
   } catch (error) {
     console.error('[cron] cleanup error:', error)

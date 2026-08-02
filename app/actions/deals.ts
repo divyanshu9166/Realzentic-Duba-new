@@ -21,6 +21,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
+import { dispatchAutomatedEmailCampaign } from './email-campaigns'
 import { getSession } from '@/lib/auth-helpers'
 import {
     cancelBookingSchema,
@@ -304,6 +305,10 @@ export async function moveDeal(
             },
         }),
     ])
+
+    if (targetStage!.isWon && oldStageId !== newStageId) {
+        await dispatchAutomatedEmailCampaign('post_purchase', deal.contactId)
+    }
 
     revalidatePath(DEALS_PATH)
     return { success: true, data: updated }
