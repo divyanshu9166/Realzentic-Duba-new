@@ -4,9 +4,9 @@ import { idSchema, moneyAmount, rating } from '@/lib/validations/common'
 /**
  * Zod schemas for Site Visit 2.0 (Module 9) server actions.
  *
- * These validate the inputs to the OTP check-in, geo check-in, structured
- * feedback, and follow-up/deal creation flows before any database write
- * (Requirements 12.2–12.6, 20.4). The geometric/OTP/analytics math itself
+ * These validate the inputs to the geo check-in, structured feedback, and
+ * follow-up/deal creation flows before any database write (Requirements
+ * 12.4–12.6, 20.4). The geometric/analytics math itself
  * lives in the pure helpers in `lib/geo.ts`.
  */
 
@@ -25,8 +25,8 @@ const longitude = z
     .max(180, 'Longitude must be ≤ 180')
 
 /**
- * A phone number for OTP delivery. Accepts loose input (the action normalizes
- * it to E.164 before sending); only requires enough digits to be plausible.
+ * A buyer phone number. Accepts loose input (the action normalizes it to E.164
+ * for matching); only requires enough digits to be plausible.
  */
 const phone = z
     .string({ message: 'A phone number is required' })
@@ -65,30 +65,6 @@ export const updateVisitPhotosSchema = z.object({
     visitId: idSchema,
     photoUrls: z.array(z.string().trim().min(1).max(2000)).max(10, 'A visit can contain at most 10 photos'),
 })
-
-// ─── Send check-in OTP (Req 12.2) ────────────────────
-
-export const sendCheckinOtpSchema = z.object({
-    visitId: idSchema,
-    buyerPhone: phone,
-    /** Optional digit count for the OTP (defaults to 6 in the action). */
-    otpLength: z.number().int().min(4).max(8).optional(),
-})
-
-export type SendCheckinOtpInput = z.infer<typeof sendCheckinOtpSchema>
-
-// ─── Verify check-in OTP (Req 12.3) ──────────────────
-
-export const verifyCheckinOtpSchema = z.object({
-    visitId: idSchema,
-    enteredOtp: z
-        .string({ message: 'Enter the OTP' })
-        .trim()
-        .min(4, 'OTP is too short')
-        .max(8, 'OTP is too long'),
-})
-
-export type VerifyCheckinOtpInput = z.infer<typeof verifyCheckinOtpSchema>
 
 // ─── Geo check-in (Req 12.4) ─────────────────────────
 

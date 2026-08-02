@@ -308,12 +308,9 @@ This plan implements 16 new modules additively on top of the existing Next.js (A
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 17. Module 9 — Site Visit 2.0
-  - [x] 17.1 Implement geo and OTP pure helpers in `lib/geo.ts`
-    - `haversineMeters`, `withinGeofence(radiusM=500)`, OTP generate/verify, visit-analytics aggregator
-    - _Requirements: 12.3, 12.4, 12.6_
-  - [x]* 17.2 Property test: OTP check-in verification
-    - **Property 45: OTP check-in verification**
-    - **Validates: Requirements 12.3**
+  - [x] 17.1 Implement geo and visit-analytics pure helpers in `lib/geo.ts`
+    - `haversineMeters`, `withinGeofence(radiusM=500)`, visit-analytics aggregator
+    - _Requirements: 12.4, 12.6_
   - [x]* 17.3 Property test: geofence check-in threshold
     - **Property 46: Geofence check-in threshold**
     - **Validates: Requirements 12.4**
@@ -321,11 +318,11 @@ This plan implements 16 new modules additively on top of the existing Next.js (A
     - **Property 47: Visit analytics aggregation**
     - **Validates: Requirements 12.6**
   - [x] 17.5 Extend `app/actions/field-visits.ts` for Site Visit 2.0
-    - OTP send (WhatsApp/SMS) + verify, geo check-in validation, structured feedback capture, follow-up/deal creation, analytics
-    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
+    - Geo check-in validation, structured feedback capture, follow-up/deal creation, analytics
+    - _Requirements: 12.1, 12.4, 12.5, 12.6_
   - [x] 17.6 Build Site Visit 2.0 UI (check-in, feedback, analytics)
-    - Geo check-in flow, OTP entry, structured feedback form, analytics view
-    - _Requirements: 12.5, 12.6_
+    - Geo check-in flow, structured feedback form, analytics view
+    - _Requirements: 12.4, 12.5, 12.6_
   - [ ]* 17.7 Integration test: OTP dispatch with mocked transport
     - OTP sent via WhatsApp with SMS fallback
     - _Requirements: 12.2_

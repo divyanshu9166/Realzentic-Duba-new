@@ -856,8 +856,6 @@ model Referral {
   geoCheckinLat    Float?
   geoCheckinLng    Float?
   geoCheckinTime   DateTime?
-  otpCode          String?
-  otpVerified      Boolean  @default(false)
   buyerRating      Int?     // 1..5
   feedbackLiked    String?
   feedbackDisliked String?
@@ -1155,12 +1153,6 @@ The following properties were derived from the acceptance-criteria prework. Pure
 **Validates: Requirements 11.7**
 
 ### Site Visit 2.0
-
-### Property 45: OTP check-in verification
-
-*For any* generated OTP and entered OTP, the site-visit check-in is accepted if and only if the entered OTP equals the generated OTP.
-
-**Validates: Requirements 12.3**
 
 ### Property 46: Geofence check-in threshold
 

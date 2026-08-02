@@ -22,8 +22,8 @@ vi.mock('@/lib/auth-helpers', async () => {
 import {
     createFieldVisit,
     getFieldVisits,
+    geoCheckin,
     rescheduleFieldVisit,
-    sendCheckinOtp,
     submitVisitFeedback,
 } from '@/app/actions/field-visits'
 import { Cleanup, disconnect, makeContact, makeProject, makeStaff, makeStage, prisma, uid } from './harness'
@@ -63,7 +63,6 @@ async function makeVisit(input: {
     buyerPhone?: string
     status?: string
     scheduledDate?: Date
-    otpVerified?: boolean
     geoCheckinTime?: Date | null
 }) {
     const scheduledDate = input.scheduledDate ?? new Date(Date.now() + 48 * 60 * 60_000)
@@ -81,7 +80,6 @@ async function makeVisit(input: {
             type: 'Property Viewing',
             projectId: input.projectId,
             buyerPhone: input.buyerPhone ?? '+971501234567',
-            otpVerified: input.otpVerified ?? false,
             geoCheckinTime: input.geoCheckinTime ?? null,
             photoUrls: [],
             unitIds: [],
@@ -111,17 +109,21 @@ describe('Site Visit role boundaries and manager workflow', () => {
         expect(managerList.success).toBe(true)
         expect(managerList.data?.map((visit) => visit.id)).toEqual(expect.arrayContaining([visitA.id, visitB.id]))
 
-        const impersonation = await sendCheckinOtp(
-            { visitId: visitB.id, buyerPhone: visitB.buyerPhone },
-            { sendWhatsApp: async () => { } },
-        )
+        const impersonation = await geoCheckin({
+            visitId: visitB.id,
+            agentLat: 25.0808,
+            agentLng: 55.1403,
+            accuracyM: 20,
+        })
         expect(impersonation).toEqual({ success: false, error: 'Forbidden' })
 
         actAs('STAFF', staffB.id)
-        const assigned = await sendCheckinOtp(
-            { visitId: visitB.id, buyerPhone: visitB.buyerPhone },
-            { sendWhatsApp: async () => { } },
-        )
+        const assigned = await geoCheckin({
+            visitId: visitB.id,
+            agentLat: 25.0808,
+            agentLng: 55.1403,
+            accuracyM: 20,
+        })
         expect(assigned.success).toBe(true)
     })
 
@@ -154,12 +156,11 @@ describe('Site Visit role boundaries and manager workflow', () => {
         expect(conflict.success).toBe(false)
         expect(conflict.error).toContain('within 60 minutes')
 
-        await prisma.fieldVisit.update({ where: { id: created.data.id }, data: { otpVerified: true } })
         const movedAt = new Date(Date.now() + 6 * 24 * 60 * 60_000).toISOString()
         const moved = await rescheduleFieldVisit({ ...payload, visitId: created.data.id, staffId: staffB.id, scheduledAt: movedAt })
         expect(moved.success).toBe(true)
         const persisted = await prisma.fieldVisit.findUnique({ where: { id: created.data.id } })
-        expect(persisted).toMatchObject({ staffId: staffB.id, otpVerified: false, otpCode: null })
+        expect(persisted).toMatchObject({ staffId: staffB.id, geoCheckinTime: null })
         expect(persisted?.scheduledDate?.toISOString()).toBe(movedAt)
 
         actAs('STAFF', staffB.id)
@@ -180,7 +181,6 @@ describe('Site Visit role boundaries and manager workflow', () => {
             projectId: project.id,
             buyerPhone: buyer.phone,
             status: 'In Progress',
-            otpVerified: true,
             geoCheckinTime: new Date(),
         })
         actAs('STAFF', staff.id)

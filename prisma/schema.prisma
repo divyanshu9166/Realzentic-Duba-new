@@ -384,12 +384,10 @@ model FieldVisit {
   // Site Visit 2.0 extensions (Req 12.1) — additive
   projectId        Int?
   unitIds          Int[]
-  buyerPhone       String? // buyer contact number, for reminders / OTP
+  buyerPhone       String? // buyer contact number, for reminders / matching
   geoCheckinLat    Float?
   geoCheckinLng    Float?
   geoCheckinTime   DateTime?
-  otpCode          String?
-  otpVerified      Boolean   @default(false)
   buyerRating      Int? // 1..5
   feedbackLiked    String?
   feedbackDisliked String?

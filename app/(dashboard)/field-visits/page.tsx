@@ -3,7 +3,7 @@
  *
  * Server component: loads the reference data the agent workflow needs
  * (active field visits, staff, leads, deal stages, contacts) and hands it to
- * the client `SiteVisitClient`, which owns the OTP check-in, geo check-in,
+ * the client `SiteVisitClient`, which owns the geo check-in,
  * structured-feedback, and analytics interactions wired to the
  * `app/actions/field-visits.ts` server actions.
  */
@@ -59,7 +59,6 @@ export default async function FieldVisitsPage({
         customer: v.customer,
         address: v.address,
         status: v.status,
-        otpVerified: Boolean(v.otpVerified),
         checkedIn: v.geoCheckinTime != null,
         buyerRating: v.buyerRating ?? null,
         followUpAction: v.followUpAction ?? null,
@@ -117,7 +116,7 @@ export default async function FieldVisitsPage({
                         <h1 className="text-xl md:text-2xl font-bold text-foreground">Site Visits</h1>
                     </div>
                     <p className="mt-1 text-xs md:text-sm text-muted">
-                        OTP-verified, geo-checked site visits with structured buyer feedback and analytics.
+                        GPS-verified site visits with structured buyer feedback and analytics.
                     </p>
                 </div>
             </div>

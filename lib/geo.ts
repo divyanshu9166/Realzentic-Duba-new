@@ -1,5 +1,5 @@
 /**
- * Geo, OTP, and visit-analytics pure helpers for Site Visit 2.0 (Module 9).
+ * Geo and visit-analytics pure helpers for Site Visit 2.0 (Module 9).
  *
  * Every function in this module is PURE: it performs no DB/IO, does not read
  * the global clock, and does not call `Math.random()` implicitly. Any source
@@ -7,7 +7,6 @@
  * deterministic and property-testable.
  *
  * Requirements:
- *   - 12.3 — OTP check-in verification (accept iff entered === generated).
  *   - 12.4 — Geo distance + 500m geofence threshold.
  *   - 12.6 — Visit analytics aggregation (count, avg rating, avg duration).
  */
@@ -18,31 +17,18 @@ export const EARTH_RADIUS_M = 6_371_000
 /** Default geofence radius in meters (Req 12.4). */
 export const DEFAULT_GEOFENCE_RADIUS_M = 500
 
-/** Default OTP length in digits. */
-export const DEFAULT_OTP_LENGTH = 6
-
 const toRadians = (degrees: number): number => (degrees * Math.PI) / 180
 
-/**
- * Great-circle (haversine) distance in meters between two latitude/longitude
- * coordinates. The result is always non-negative and is `0` for identical
- * points.
- *
- * Requirements: 12.4.
- *
- * @throws if any coordinate is not a finite number.
- */
+/** Great-circle distance in meters between two WGS-84 coordinates. */
 export function haversineMeters(
     lat1: number,
     lng1: number,
     lat2: number,
-    lng2: number
+    lng2: number,
 ): number {
     for (const value of [lat1, lng1, lat2, lng2]) {
         if (typeof value !== 'number' || !Number.isFinite(value)) {
-            throw new Error(
-                `haversineMeters expects finite coordinates, received: ${String(value)}`
-            )
+            throw new Error(`haversineMeters expects finite coordinates, received: ${String(value)}`)
         }
     }
 
@@ -50,109 +36,27 @@ export function haversineMeters(
     const dLng = toRadians(lng2 - lng1)
     const lat1Rad = toRadians(lat1)
     const lat2Rad = toRadians(lat2)
-
     const a =
         Math.sin(dLat / 2) ** 2 +
         Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(dLng / 2) ** 2
-    // Clamp to [0, 1] to guard against tiny floating-point overshoot before asin.
     const c = 2 * Math.asin(Math.min(1, Math.sqrt(a)))
-
     return EARTH_RADIUS_M * c
 }
 
-/**
- * Whether an agent is within the geofence of a project.
- *
- * The check-in is accepted if and only if the haversine distance between the
- * agent and the project is **less than or equal to** `radiusM`; equivalently,
- * it is rejected if and only if the distance exceeds `radiusM` (design
- * Property 46).
- *
- * Requirements: 12.4.
- */
+/** Whether coordinates are within the configured project geofence. */
 export function withinGeofence(
     agentLat: number,
     agentLng: number,
     projLat: number,
     projLng: number,
-    radiusM: number = DEFAULT_GEOFENCE_RADIUS_M
+    radiusM: number = DEFAULT_GEOFENCE_RADIUS_M,
 ): boolean {
     if (typeof radiusM !== 'number' || !Number.isFinite(radiusM)) {
-        throw new Error(
-            `withinGeofence expects a finite radius, received: ${String(radiusM)}`
-        )
+        throw new Error(`withinGeofence expects a finite radius, received: ${String(radiusM)}`)
     }
     return haversineMeters(agentLat, agentLng, projLat, projLng) <= radiusM
 }
 
-/**
- * Generate a numeric OTP string of the given length.
- *
- * Randomness is injected via `random`, a function returning a value in the
- * half-open interval `[0, 1)` (matching `Math.random`'s contract). Each digit
- * is derived independently, and leading zeros are preserved so the result is
- * always exactly `length` characters long.
- *
- * Keeping randomness injectable (rather than calling `Math.random` directly)
- * makes generation deterministic and property-testable.
- *
- * Requirements: 12.2, 12.3.
- *
- * @param random A function returning a number in `[0, 1)`.
- * @param length Number of digits in the OTP (default 6). Must be a positive integer.
- * @returns A numeric string of exactly `length` digits.
- * @throws if `length` is not a positive integer.
- */
-export function generateOtp(
-    random: () => number,
-    length: number = DEFAULT_OTP_LENGTH
-): string {
-    if (!Number.isInteger(length) || length <= 0) {
-        throw new Error(
-            `generateOtp expects a positive integer length, received: ${String(length)}`
-        )
-    }
-
-    let otp = ''
-    for (let i = 0; i < length; i++) {
-        const r = random()
-        if (typeof r !== 'number' || !Number.isFinite(r) || r < 0 || r >= 1) {
-            throw new Error(
-                `generateOtp expects random() to return a value in [0, 1), received: ${String(r)}`
-            )
-        }
-        // Map [0, 1) -> {0..9}; Math.min guards the (impossible) r === 1 edge.
-        const digit = Math.min(9, Math.floor(r * 10))
-        otp += String(digit)
-    }
-    return otp
-}
-
-/**
- * Verify a submitted OTP against the stored OTP.
- *
- * Verification succeeds if and only if the entered code is exactly equal to
- * the generated code (design Property 45). A `null`/`undefined` stored code
- * (no OTP issued) can never be verified.
- *
- * Requirements: 12.3.
- */
-export function verifyOtp(
-    generated: string | null | undefined,
-    entered: string | null | undefined
-): boolean {
-    if (typeof generated !== 'string' || typeof entered !== 'string') {
-        return false
-    }
-    return generated === entered
-}
-
-/**
- * A single completed visit used for analytics aggregation. Both fields are
- * optional: a visit contributes to the average rating only when it has a
- * `buyerRating`, and to the average duration only when it has a
- * `visitDurationMin`.
- */
 export interface VisitRecord {
     /** Buyer rating (1..5), if the visit was rated. */
     buyerRating?: number | null

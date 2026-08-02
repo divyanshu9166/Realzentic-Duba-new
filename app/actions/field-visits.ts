@@ -9,12 +9,9 @@ import {
   haversineMeters,
   computeVisitAnalytics,
   DEFAULT_GEOFENCE_RADIUS_M,
-  DEFAULT_OTP_LENGTH,
   type VisitRecord,
 } from '@/lib/geo'
 import {
-  sendCheckinOtpSchema,
-  verifyCheckinOtpSchema,
   geoCheckinSchema,
   submitVisitFeedbackSchema,
   visitAnalyticsSchema,
@@ -24,23 +21,9 @@ import {
   updateVisitPhotosSchema,
   type CreateFieldVisitInput,
 } from '@/lib/validations/field-visits'
-import {
-  generateSecureOtp,
-  issueOtpState,
-  otpResendDelaySeconds,
-  verifyOtpState,
-} from '@/lib/site-visit-otp'
-import { sendTextMessage } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
 import { normalizePhoneForMetaUae, isValidE164, phonesMatch } from '@/lib/whatsapp/phone-utils'
 
 const ACTIVE_VISIT_STATUSES = ['Scheduled', 'In Progress'] as const
-const SITE_VISIT_OTP_SECRET = process.env.SITE_VISIT_OTP_SECRET || process.env.SESSION_SECRET || (() => {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('SITE_VISIT_OTP_SECRET or SESSION_SECRET must be configured in production')
-  }
-  return 'local-site-visit-otp-secret'
-})()
 
 function isManagerRole(role: string): boolean {
   return role === 'ADMIN' || role === 'MANAGER'
@@ -99,7 +82,6 @@ function serializeVisit(visit: any) {
     geoCheckinLat: visit.geoCheckinLat,
     geoCheckinLng: visit.geoCheckinLng,
     geoCheckinTime: visit.geoCheckinTime?.toISOString() ?? null,
-    otpVerified: visit.otpVerified,
     buyerRating: visit.buyerRating,
     feedbackLiked: visit.feedbackLiked,
     feedbackDisliked: visit.feedbackDisliked,
@@ -287,8 +269,8 @@ export async function updateFieldVisit(input: unknown) {
       if (data.status === 'Completed') {
         return { success: false, error: 'Use the verified feedback workflow to complete this visit' }
       }
-      if (data.status === 'In Progress' && (!existing.otpVerified || existing.geoCheckinTime == null)) {
-        return { success: false, error: 'OTP verification and geo check-in are required before starting the visit' }
+      if (data.status === 'In Progress' && existing.geoCheckinTime == null) {
+        return { success: false, error: 'Location check-in is required before starting the visit' }
       }
     }
 
@@ -470,8 +452,6 @@ export async function rescheduleFieldVisit(input: unknown) {
         buyerPhone,
         projectId: data.projectId,
         unitIds: data.unitIds,
-        otpCode: null,
-        otpVerified: false,
         geoCheckinLat: null,
         geoCheckinLng: null,
         geoCheckinTime: null,
@@ -593,9 +573,8 @@ export async function getSiteVisitReferenceData() {
 // ═══════════════════════════════════════════════════════════
 // SITE VISIT 2.0 (Module 9, Req 12.1–12.6)
 //
-// OTP check-in, geo check-in validation, structured feedback,
-// follow-up/deal creation, and visit analytics. All geometric,
-// OTP, and aggregation math is delegated to the pure helpers in
+// Geo check-in validation, structured feedback, follow-up/deal creation,
+// and visit analytics. All geometric and aggregation math is delegated to the pure helpers in
 // `lib/geo.ts`; everything here is the I/O + persistence shell.
 // ═══════════════════════════════════════════════════════════
 
@@ -605,244 +584,6 @@ function revalidateVisitPaths() {
   for (const path of SITE_VISIT_PATHS) revalidatePath(path)
 }
 
-// ─── OTP DELIVERY TRANSPORT (Req 12.2) ───────────────────
-//
-// Sends a one-time code to the buyer over WhatsApp, falling back to SMS.
-// Transports are injectable so the dispatch flow can be exercised without a
-// live Meta/SMS account; the defaults use the real Meta Cloud API and the
-// env-configured SMS gateway respectively.
-
-export type OtpChannel = 'whatsapp' | 'sms'
-
-/**
- * Outcome of an OTP delivery attempt. Discriminated on `ok` so that a
- * successful result is guaranteed to carry a `channel` and a failed one
- * an `error` — callers can narrow without optional-chaining.
- */
-export type OtpDeliveryResult =
-  | { ok: true; channel: OtpChannel }
-  | { ok: false; error: string }
-
-export interface OtpTransports {
-  sendWhatsApp?: (phoneE164: string, otp: string) => Promise<void>
-  sendSms?: (phoneE164: string, otp: string) => Promise<void>
-}
-
-/** Default WhatsApp OTP sender — resolves the first configured account. */
-async function defaultSendWhatsAppOtp(phoneE164: string, otp: string): Promise<void> {
-  const config = await prisma.waWhatsappConfig.findFirst()
-  if (!config) throw new Error('WhatsApp is not configured')
-
-  const accessToken = decrypt(config.access_token)
-  await sendTextMessage({
-    phoneNumberId: config.phone_number_id,
-    accessToken,
-    to: phoneE164,
-    text: `Your site-visit verification code is ${otp}. Share it with your agent to confirm your visit.`,
-  })
-}
-
-/**
- * Default SMS OTP sender. A real SMS gateway is configured via env
- * (`SMS_OTP_WEBHOOK_URL`); without it the SMS leg is unavailable and the
- * caller surfaces a delivery error rather than silently "succeeding".
- */
-async function defaultSendSmsOtp(phoneE164: string, otp: string): Promise<void> {
-  const endpoint = process.env.SMS_OTP_WEBHOOK_URL
-  if (!endpoint) throw new Error('SMS gateway is not configured')
-
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(process.env.SMS_OTP_API_KEY ? { Authorization: `Bearer ${process.env.SMS_OTP_API_KEY}` } : {}),
-    },
-    body: JSON.stringify({
-      to: phoneE164,
-      message: `Your site-visit verification code is ${otp}.`,
-    }),
-  })
-  if (!res.ok) throw new Error(`SMS gateway error: ${res.status}`)
-}
-
-/** Try WhatsApp first, then SMS. Returns the channel that succeeded. */
-async function deliverOtp(
-  phoneE164: string,
-  otp: string,
-  transports?: OtpTransports,
-): Promise<OtpDeliveryResult> {
-  const sendWhatsApp = transports?.sendWhatsApp ?? defaultSendWhatsAppOtp
-  const sendSms = transports?.sendSms ?? defaultSendSmsOtp
-
-  try {
-    await sendWhatsApp(phoneE164, otp)
-    return { ok: true, channel: 'whatsapp' }
-  } catch (waErr) {
-    const waMsg = waErr instanceof Error ? waErr.message : String(waErr)
-    try {
-      await sendSms(phoneE164, otp)
-      return { ok: true, channel: 'sms' }
-    } catch (smsErr) {
-      const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr)
-      return { ok: false, error: `WhatsApp failed (${waMsg}); SMS failed (${smsMsg})` }
-    }
-  }
-}
-
-// ─── SEND CHECK-IN OTP (Req 12.2) ────────────────────────
-
-/**
- * Generate a one-time code for a site visit and send it to the buyer over
- * WhatsApp (with SMS fallback). The code is persisted on the visit and the
- * `otpVerified` flag is reset so a fresh code must be entered.
- *
- * @param input  visitId + buyerPhone (+ optional otpLength).
- * @param transports  optional transport overrides for testing.
- */
-export async function sendCheckinOtp(
-  input: unknown,
-  transports?: OtpTransports,
-): Promise<
-  | { success: true; data: { visitId: number; channel: 'whatsapp' | 'sms' } }
-  | { success: false; error: string }
-> {
-  const parsed = sendCheckinOtpSchema.safeParse(input)
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
-
-  const { visitId, buyerPhone, otpLength } = parsed.data
-
-  let session
-  try {
-    session = await requireAuth()
-  } catch {
-    return { success: false, error: 'Unauthorized' }
-  }
-  const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
-  if (!visit) return { success: false, error: 'Visit not found' }
-  try {
-    assertVisitExecutionAccess(session, visit)
-  } catch {
-    return { success: false, error: 'Forbidden' }
-  }
-  if (!ACTIVE_VISIT_STATUSES.includes(visit.status as (typeof ACTIVE_VISIT_STATUSES)[number])) {
-    return { success: false, error: `OTP cannot be sent for a ${visit.status} visit` }
-  }
-
-  const phoneE164 = normalizePhoneForMetaUae(buyerPhone)
-  if (!isValidE164(phoneE164)) {
-    return { success: false, error: `Invalid phone number: ${buyerPhone}` }
-  }
-  const storedPhone = visit.buyerPhone ? normalizePhoneForMetaUae(visit.buyerPhone) : null
-  if (storedPhone && storedPhone !== phoneE164) {
-    return { success: false, error: 'Buyer phone does not match the number saved on this visit' }
-  }
-
-  const retryAfter = otpResendDelaySeconds(visit.otpCode)
-  if (retryAfter > 0) return { success: false, error: `Wait ${retryAfter}s before requesting another OTP` }
-
-  const otp = generateSecureOtp(otpLength ?? DEFAULT_OTP_LENGTH)
-  const otpState = issueOtpState({ visitId, otp, secret: SITE_VISIT_OTP_SECRET })
-
-  // Persist only a protected state; the plaintext code exists solely long
-  // enough to dispatch it to the buyer.
-  const reservation = await prisma.fieldVisit.updateMany({
-    where: { id: visitId, otpCode: visit.otpCode },
-    data: { otpCode: otpState, otpVerified: false, buyerPhone: phoneE164 },
-  })
-  if (reservation.count !== 1) {
-    return { success: false, error: 'Another OTP request is already in progress. Please wait and try again.' }
-  }
-
-  const delivery = await deliverOtp(phoneE164, otp, transports)
-  if (!delivery.ok) {
-    await prisma.fieldVisit.updateMany({ where: { id: visitId, otpCode: otpState }, data: { otpCode: null } })
-    return { success: false, error: `Could not send OTP. ${delivery.error ?? ''}`.trim() }
-  }
-
-  revalidateVisitPaths()
-  return { success: true, data: { visitId, channel: delivery.channel } }
-}
-
-// ─── VERIFY CHECK-IN OTP (Req 12.3) ──────────────────────
-
-/**
- * Verify a buyer-entered OTP against the stored code. On a match the visit's
- * `otpVerified` flag is set; on a mismatch the check-in is rejected with an
- * error and the flag is left unchanged (Req 12.3).
- */
-export async function verifyCheckinOtp(
-  input: unknown,
-): Promise<
-  | { success: true; data: { visitId: number; otpVerified: boolean } }
-  | { success: false; error: string }
-> {
-  const parsed = verifyCheckinOtpSchema.safeParse(input)
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
-
-  const { visitId, enteredOtp } = parsed.data
-
-  let session
-  try {
-    session = await requireAuth()
-  } catch {
-    return { success: false, error: 'Unauthorized' }
-  }
-  const visit = await prisma.fieldVisit.findUnique({ where: { id: visitId } })
-  if (!visit) return { success: false, error: 'Visit not found' }
-  try {
-    assertVisitExecutionAccess(session, visit)
-  } catch {
-    return { success: false, error: 'Forbidden' }
-  }
-  if (!ACTIVE_VISIT_STATUSES.includes(visit.status as (typeof ACTIVE_VISIT_STATUSES)[number])) {
-    return { success: false, error: `OTP cannot be verified for a ${visit.status} visit` }
-  }
-  if (visit.otpVerified) return { success: true, data: { visitId, otpVerified: true } }
-
-  const verification = verifyOtpState({
-    visitId,
-    enteredOtp: enteredOtp.trim(),
-    state: visit.otpCode,
-    secret: SITE_VISIT_OTP_SECRET,
-  })
-  if (!verification.ok) {
-    const attemptUpdate = await prisma.fieldVisit.updateMany({
-      where: { id: visitId, otpCode: visit.otpCode },
-      data: { otpCode: verification.nextState, otpVerified: false },
-    })
-    if (attemptUpdate.count !== 1) {
-      return { success: false, error: 'OTP state changed. Please enter the latest code or request a new one.' }
-    }
-    const error = verification.reason === 'expired'
-      ? 'OTP expired. Request a new code.'
-      : verification.reason === 'locked'
-        ? 'Too many incorrect attempts. Request a new code.'
-        : verification.reason === 'missing'
-          ? 'Request a new OTP before verifying.'
-          : `The entered OTP is incorrect. ${verification.attemptsRemaining} attempts remaining.`
-    return { success: false, error }
-  }
-
-  const verified = await prisma.fieldVisit.updateMany({
-    where: { id: visitId, otpCode: visit.otpCode, otpVerified: false },
-    data: { otpVerified: true, otpCode: null },
-  })
-  if (verified.count !== 1) {
-    return { success: false, error: 'OTP state changed. Please enter the latest code or request a new one.' }
-  }
-
-  revalidateVisitPaths()
-  return { success: true, data: { visitId, otpVerified: true } }
-}
-
-// ─── GEO CHECK-IN (Req 12.4) ─────────────────────────────
-
-/**
- * Validate that the agent is within the project geofence (default 500m) and
- * record the check-in coordinates and time. The trusted project coordinates
- * are always resolved from the database. A check-in farther than the radius
- * is rejected with an error and nothing is persisted (Req 12.4).
- */
 export async function geoCheckin(input: unknown) {
   const parsed = geoCheckinSchema.safeParse(input)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
@@ -865,7 +606,6 @@ export async function geoCheckin(input: unknown) {
   if (visit.status !== 'Scheduled' && visit.status !== 'In Progress') {
     return { success: false, error: `Cannot check in to a ${visit.status} visit` }
   }
-  if (!visit.otpVerified) return { success: false, error: 'Verify the buyer OTP before geo check-in' }
   if (accuracyM != null && accuracyM > 250) {
     return { success: false, error: `GPS accuracy is too low (±${Math.round(accuracyM)}m). Move outdoors and try again.` }
   }
@@ -938,8 +678,8 @@ export async function submitVisitFeedback(input: unknown) {
   } catch {
     return { success: false, error: 'Forbidden' }
   }
-  if (!visit.otpVerified || visit.geoCheckinTime == null) {
-    return { success: false, error: 'OTP verification and geo check-in are required before completing the visit' }
+  if (visit.geoCheckinTime == null) {
+    return { success: false, error: 'Location check-in is required before completing the visit' }
   }
   if (visit.status !== 'In Progress') {
     return { success: false, error: `Feedback cannot complete a ${visit.status} visit` }
@@ -989,7 +729,6 @@ export async function submitVisitFeedback(input: unknown) {
         where: {
           id: data.visitId,
           status: 'In Progress',
-          otpVerified: true,
           geoCheckinTime: { not: null },
         },
         data: {
@@ -1089,7 +828,6 @@ export async function getVisitAnalytics(input: unknown = {}) {
   try {
     const where: Record<string, unknown> = {
       status: 'Completed',
-      otpVerified: true,
       geoCheckinTime: { not: null },
     }
     if (staffId) where.staffId = staffId

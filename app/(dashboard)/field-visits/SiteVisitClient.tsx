@@ -4,7 +4,6 @@
  * Site Visit 2.0 client UI (Req 12.2–12.6).
  *
  * Owns the interactive agent workflow:
- *   - OTP check-in: send an OTP to the buyer, then verify the entered code.
  *   - Geo check-in: capture the agent's browser location and validate it is
  *     within the project geofence (default 500m).
  *   - Structured feedback: rating, liked/disliked/concerns, duration, and a
@@ -18,7 +17,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-    MapPin, Fingerprint, Send, CheckCircle2, AlertTriangle, Star,
+    MapPin, CheckCircle2, AlertTriangle, Star,
     ClipboardList, BarChart3, Loader2, Crosshair, Navigation, Plus,
     CalendarClock, Building2, Phone, UserRound, Pencil,
 } from 'lucide-react';
@@ -26,8 +25,6 @@ import {
     createFieldVisit,
     rescheduleFieldVisit,
     updateFieldVisit,
-    sendCheckinOtp,
-    verifyCheckinOtp,
     geoCheckin,
     submitVisitFeedback,
     getVisitAnalytics,
@@ -40,7 +37,6 @@ export interface VisitItem {
     customer: string;
     address: string;
     status: string;
-    otpVerified: boolean;
     checkedIn: boolean;
     buyerRating: number | null;
     followUpAction: string | null;
@@ -419,7 +415,6 @@ function VisitsPanel({
                             <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {visit.buyerPhone ?? 'No phone'}</span>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
-                            <StatusPill ok={visit.otpVerified} label={visit.otpVerified ? 'OTP verified' : 'OTP pending'} />
                             <StatusPill ok={visit.checkedIn} label={visit.checkedIn ? 'Geo checked-in' : 'Geo pending'} />
                             {visit.unitIds.length > 0 && <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] text-muted">{visit.unitIds.length} unit{visit.unitIds.length === 1 ? '' : 's'}</span>}
                         </div>
@@ -480,15 +475,12 @@ function CheckinPanel({
 
     // Local optimistic flags so the UI advances through the steps without a full
     // reload; the server remains the source of truth on refresh.
-    const [otpVerified, setOtpVerified] = useState(false);
     const [checkedIn, setCheckedIn] = useState(false);
 
-    const effectiveOtpVerified = otpVerified || Boolean(visit?.otpVerified);
     const effectiveCheckedIn = checkedIn || Boolean(visit?.checkedIn);
 
     function handleSelect(id: number | '') {
         setSelectedId(id);
-        setOtpVerified(false);
         setCheckedIn(false);
     }
 
@@ -528,7 +520,6 @@ function CheckinPanel({
                         </div>
                         <p className="text-xs text-muted">Agent: <span className="text-foreground">{visit.staffName ?? '—'}</span></p>
                         <div className="flex flex-wrap gap-2 pt-1">
-                            <StatusPill ok={effectiveOtpVerified} label={effectiveOtpVerified ? 'OTP Verified' : 'OTP Pending'} />
                             <StatusPill ok={effectiveCheckedIn} label={effectiveCheckedIn ? 'Checked In' : 'Not Checked In'} />
                         </div>
                     </div>
@@ -539,8 +530,7 @@ function CheckinPanel({
             <div className="lg:col-span-2 space-y-5">
                 {visit && (
                     <>
-                        <OtpStep key={`otp-${visit.id}`} visit={visit} onVerified={() => { setOtpVerified(true); onChanged(); }} verified={effectiveOtpVerified} />
-                        <GeoStep key={`geo-${visit.id}`} visit={visit} enabled={effectiveOtpVerified} checkedIn={effectiveCheckedIn} onCheckedIn={() => { setCheckedIn(true); onChanged(); }} />
+                        <GeoStep key={`geo-${visit.id}`} visit={visit} checkedIn={effectiveCheckedIn} onCheckedIn={() => { setCheckedIn(true); onChanged(); }} />
                         <FeedbackStep
                             key={`feedback-${visit.id}`}
                             visit={visit}
@@ -599,103 +589,12 @@ function BannerView({ banner }: { banner: Banner | null }) {
     );
 }
 
-// ── Step 1: OTP ──────────────────────────────────────────
-
-function OtpStep({ visit, verified, onVerified }: { visit: VisitItem; verified: boolean; onVerified: () => void }) {
-    const [phone, setPhone] = useState(visit.buyerPhone ?? '');
-    const [otp, setOtp] = useState('');
-    const [sending, setSending] = useState(false);
-    const [verifying, setVerifying] = useState(false);
-    const [sent, setSent] = useState(false);
-    const [banner, setBanner] = useState<Banner | null>(null);
-
-    async function handleSend() {
-        setSending(true);
-        setBanner(null);
-        const res = await sendCheckinOtp({ visitId: visit.id, buyerPhone: phone });
-        if (res.success) {
-            setSent(true);
-            const channel = (res.data as { channel?: string } | undefined)?.channel;
-            setBanner({ type: 'success', text: `OTP sent${channel ? ` via ${channel}` : ''}.` });
-        } else {
-            setBanner({ type: 'error', text: res.error ?? 'Could not send OTP' });
-        }
-        setSending(false);
-    }
-
-    async function handleVerify() {
-        setVerifying(true);
-        setBanner(null);
-        const res = await verifyCheckinOtp({ visitId: visit.id, enteredOtp: otp });
-        if (res.success) {
-            setBanner({ type: 'success', text: 'OTP verified.' });
-            onVerified();
-        } else {
-            setBanner({ type: 'error', text: res.error ?? 'Incorrect OTP' });
-        }
-        setVerifying(false);
-    }
-
-    return (
-        <StepCard title="1 · OTP Check-In" icon={Fingerprint}>
-            {verified ? (
-                <p className="text-sm text-emerald-700 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" /> Buyer OTP has been verified for this visit.
-                </p>
-            ) : (
-                <div className="space-y-3">
-                    <div className="flex flex-col sm:flex-row gap-2">
-                        <input
-                            type="tel"
-                            placeholder="Buyer phone (e.g. +971 50 123 4567)"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            className="flex-1 px-3 py-2.5 bg-surface rounded-xl border border-border text-sm text-foreground"
-                        />
-                        <button
-                            onClick={handleSend}
-                            disabled={sending || phone.trim().length < 8}
-                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-all"
-                        >
-                            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                            {sent ? 'Resend' : 'Send OTP'}
-                        </button>
-                    </div>
-
-                    {sent && (
-                        <div className="flex flex-col sm:flex-row gap-2">
-                            <input
-                                inputMode="numeric"
-                                placeholder="Enter OTP from buyer"
-                                value={otp}
-                                onChange={(e) => setOtp(e.target.value)}
-                                className="flex-1 px-3 py-2.5 bg-surface rounded-xl border border-border text-sm text-foreground tracking-widest"
-                            />
-                            <button
-                                onClick={handleVerify}
-                                disabled={verifying || otp.trim().length < 4}
-                                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-all"
-                            >
-                                {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                                Verify
-                            </button>
-                        </div>
-                    )}
-
-                    <BannerView banner={banner} />
-                </div>
-            )}
-        </StepCard>
-    );
-}
-
-// ── Step 2: Geo check-in ─────────────────────────────────
+// ── Step 1: Geo check-in ─────────────────────────────────
 
 function GeoStep({
-    visit, enabled, checkedIn, onCheckedIn,
+    visit, checkedIn, onCheckedIn,
 }: {
     visit: VisitItem;
-    enabled: boolean;
     checkedIn: boolean;
     onCheckedIn: () => void;
 }) {
@@ -745,7 +644,7 @@ function GeoStep({
     }
 
     return (
-        <StepCard title="2 · Geo Check-In" icon={Navigation} disabled={!enabled && !checkedIn}>
+        <StepCard title="1 · Location Check-In" icon={Navigation}>
             {checkedIn ? (
                 <p className="text-sm text-emerald-700 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4" /> Geo check-in recorded for this visit.
@@ -784,7 +683,7 @@ function GeoStep({
     );
 }
 
-// ── Step 3: Structured feedback ──────────────────────────
+// ── Step 2: Structured feedback ──────────────────────────
 
 function FeedbackStep({
     visit, enabled, leads, stages, contacts, staff, projects, onSubmitted,
@@ -873,7 +772,7 @@ function FeedbackStep({
     }
 
     return (
-        <StepCard title="3 · Visit Feedback" icon={ClipboardList} disabled={!enabled}>
+        <StepCard title="2 · Visit Feedback" icon={ClipboardList} disabled={!enabled}>
             {done ? (
                 <p className="text-sm text-emerald-700 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4" /> Feedback recorded for {visit.displayId}.
