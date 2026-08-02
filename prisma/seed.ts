@@ -30,6 +30,10 @@ async function upsertProject(input: {
     ...input,
     photoUrls: [],
     brochureUrl: null,
+    geofenceRadiusM: 200,
+    // Seed coordinates are deliberate demo arrival points, so they are ready
+    // to use immediately after a local database reset.
+    locationConfirmedAt: new Date('2026-08-02T00:00:00.000Z'),
   }
   return existing
     ? prisma.project.update({ where: { id: existing.id }, data })

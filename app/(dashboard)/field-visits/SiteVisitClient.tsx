@@ -5,7 +5,7 @@
  *
  * Owns the interactive agent workflow:
  *   - Geo check-in: capture the agent's browser location and validate it is
- *     within the project geofence (default 500m).
+ *     within the confirmed project geofence.
  *   - Structured feedback: rating, liked/disliked/concerns, duration, and a
  *     follow-up action (none / schedule lead follow-up / create deal).
  *   - Analytics: visit count, average buyer rating, average duration.
@@ -43,6 +43,7 @@ export interface VisitItem {
     liveLocationAvailable: boolean;
     liveDistanceM: number | null;
     liveLocationAccuracyM: number | null;
+    liveGeofenceRadiusM: number | null;
     buyerRating: number | null;
     followUpAction: string | null;
     projectId: number | null;
@@ -87,6 +88,11 @@ export interface ProjectItem {
     location: string;
     emirate: string;
     hasCoordinates: boolean;
+    locationReady: boolean;
+    latitude: number | null;
+    longitude: number | null;
+    geofenceRadiusM: number;
+    locationConfirmedAt: string | null;
     units: Array<{
         id: number;
         label: string;
@@ -364,12 +370,20 @@ function VisitsPanel({
                                 <select value={projectId} onChange={(event) => selectProject(event.target.value)} className="feedback-input">
                                     <option value="">Select a project…</option>
                                     {projects.map((project) => (
-                                        <option key={project.id} value={project.id} disabled={!project.hasCoordinates}>
-                                            {project.name} — {project.location}{project.hasCoordinates ? '' : ' (add map coordinates)'}
+                                        <option key={project.id} value={project.id} disabled={!project.locationReady}>
+                                            {project.name} — {project.location}{project.locationReady ? '' : project.hasCoordinates ? ' (confirm map pin)' : ' (add map coordinates)'}
                                         </option>
                                     ))}
                                 </select>
                             </Field>
+                            {selectedProject && (
+                                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-800">
+                                    <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Confirmed UAE pin · {selectedProject.geofenceRadiusM}m geofence</span>
+                                    {selectedProject.latitude != null && selectedProject.longitude != null && (
+                                        <a href={`https://www.openstreetmap.org/?mlat=${selectedProject.latitude}&mlon=${selectedProject.longitude}#map=17/${selectedProject.latitude}/${selectedProject.longitude}`} target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">Preview map</a>
+                                    )}
+                                </div>
+                            )}
                             <Field label="Dubai visit date & time">
                                 <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="feedback-input" />
                             </Field>
@@ -401,7 +415,7 @@ function VisitsPanel({
                             </div>
                         )}
 
-                        <Field label="Meeting point / project address">
+                        <Field label="Buyer-facing meeting instructions">
                             <input value={address} onChange={(event) => setAddress(event.target.value)} className="feedback-input" />
                         </Field>
                         <Field label="Internal preparation notes">
@@ -441,10 +455,10 @@ function VisitsPanel({
                             )}
                             {canManage && visit.liveLocationAvailable && !visit.checkedIn && !visit.liveLinked && (
                                 <StatusPill
-                                    ok={visit.liveDistanceM != null && visit.liveDistanceM <= 500}
+                                    ok={visit.liveDistanceM != null && visit.liveDistanceM <= (visit.liveGeofenceRadiusM ?? 500)}
                                     label={visit.liveDistanceM == null
                                         ? 'Agent live · select this visit'
-                                        : `Agent live · ${Math.round(visit.liveDistanceM)}m from project`}
+                                        : `Agent live · ${Math.round(visit.liveDistanceM)}m / ${visit.liveGeofenceRadiusM ?? 500}m geofence`}
                                 />
                             )}
                             {visit.unitIds.length > 0 && <span className="rounded-full bg-surface px-2.5 py-1 text-[11px] text-muted">{visit.unitIds.length} unit{visit.unitIds.length === 1 ? '' : 's'}</span>}
@@ -503,6 +517,7 @@ function CheckinPanel({
         visits.some((visit) => visit.id === initialVisitId) ? initialVisitId! : visits[0]?.id ?? '',
     );
     const visit = useMemo(() => visits.find((v) => v.id === selectedId) ?? null, [visits, selectedId]);
+    const visitProject = useMemo(() => projects.find((project) => project.id === visit?.projectId) ?? null, [projects, visit?.projectId]);
 
     // Local optimistic flags so the UI advances through the steps without a full
     // reload; the server remains the source of truth on refresh.
@@ -552,6 +567,7 @@ function CheckinPanel({
                         <p className="text-xs text-muted">Agent: <span className="text-foreground">{visit.staffName ?? '—'}</span></p>
                         <div className="flex flex-wrap gap-2 pt-1">
                             <StatusPill ok={effectiveCheckedIn} label={effectiveCheckedIn ? 'Checked In' : 'Not Checked In'} />
+                            <StatusPill ok={Boolean(visitProject?.locationReady)} label={visitProject?.locationReady ? `${visitProject.geofenceRadiusM}m project geofence` : 'Project pin needs setup'} />
                         </div>
                     </div>
                 )}
@@ -561,7 +577,7 @@ function CheckinPanel({
             <div className="lg:col-span-2 space-y-5">
                 {visit && (
                     <>
-                        <GeoStep key={`geo-${visit.id}`} visit={visit} checkedIn={effectiveCheckedIn} onCheckedIn={() => { setCheckedIn(true); onChanged(); }} />
+                        <GeoStep key={`geo-${visit.id}`} visit={visit} project={visitProject} checkedIn={effectiveCheckedIn} onCheckedIn={() => { setCheckedIn(true); onChanged(); }} />
                         <FeedbackStep
                             key={`feedback-${visit.id}`}
                             visit={visit}
@@ -623,9 +639,10 @@ function BannerView({ banner }: { banner: Banner | null }) {
 // ── Step 1: Geo check-in ─────────────────────────────────
 
 function GeoStep({
-    visit, checkedIn, onCheckedIn,
+    visit, project, checkedIn, onCheckedIn,
 }: {
     visit: VisitItem;
+    project: ProjectItem | null;
     checkedIn: boolean;
     onCheckedIn: () => void;
 }) {
@@ -683,7 +700,9 @@ function GeoStep({
             ) : (
                 <div className="space-y-3">
                     <p className="text-xs text-muted">
-                        Your browser location is validated against the project geofence (within 500m).
+                        {project?.locationReady
+                            ? `Your browser location is validated against this project’s confirmed ${project.geofenceRadiusM}m geofence.`
+                            : 'Your browser location will be validated once the manager confirms this project’s map pin.'}
                     </p>
 
                     {visit.projectId == null && (
@@ -691,10 +710,15 @@ function GeoStep({
                             This legacy visit has no linked project. A manager must schedule a new project-linked visit before geo check-in.
                         </div>
                     )}
+                    {visit.projectId != null && !project?.locationReady && (
+                        <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                            This project&apos;s arrival pin has not been confirmed. Ask a manager to configure it in Properties before geo check-in.
+                        </div>
+                    )}
 
                     <button
                         onClick={handleCheckin}
-                        disabled={busy || visit.projectId == null}
+                        disabled={busy || visit.projectId == null || !project?.locationReady}
                         className="flex items-center justify-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-all"
                     >
                         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crosshair className="w-4 h-4" />}

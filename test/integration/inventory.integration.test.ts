@@ -39,6 +39,7 @@ import {
     createProject,
     createUnit,
     revisePrice,
+    saveProjectLocation,
     sweepExpiredHolds,
 } from '@/app/actions/properties'
 import {
@@ -125,6 +126,50 @@ describe('Inventory service — DB integration', () => {
         })
         expect(res.success).toBe(false)
         if (!res.success) expect(typeof res.error).toBe('string')
+    })
+
+    it('saves a confirmed UAE arrival point and project-specific geofence', async () => {
+        const project = await makeProject(cleanup)
+        const result = await saveProjectLocation({
+            projectId: project.id,
+            latitude: 25.0808,
+            longitude: 55.1403,
+            geofenceRadiusM: 175,
+            locationConfirmed: true,
+        })
+
+        expect(result).toMatchObject({
+            success: true,
+            data: { id: project.id, latitude: 25.0808, longitude: 55.1403, geofenceRadiusM: 175 },
+        })
+        const saved = await prisma.project.findUnique({ where: { id: project.id } })
+        expect(saved).toMatchObject({
+            latitude: 25.0808,
+            longitude: 55.1403,
+            geofenceRadiusM: 175,
+            locationConfirmedAt: expect.any(Date),
+        })
+    })
+
+    it('rejects an unconfirmed or non-UAE project map pin', async () => {
+        const project = await makeProject(cleanup)
+        const unconfirmed = await saveProjectLocation({
+            projectId: project.id,
+            latitude: 25.0808,
+            longitude: 55.1403,
+            geofenceRadiusM: 200,
+            locationConfirmed: false,
+        })
+        expect(unconfirmed.success).toBe(false)
+
+        const outsideUae = await saveProjectLocation({
+            projectId: project.id,
+            latitude: 26.783,
+            longitude: 75.863,
+            geofenceRadiusM: 200,
+            locationConfirmed: true,
+        })
+        expect(outsideUae).toEqual({ success: false, error: 'Project coordinates must be within the UAE' })
     })
 
     it('createUnit rejects an out-of-range value and persists nothing', async () => {

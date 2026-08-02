@@ -33,6 +33,7 @@ import {
     withinGeofence,
     type AgentPresence,
 } from '@/lib/geo'
+import { isProjectLocationReady } from '@/lib/project-location'
 import {
     recordLocationSchema,
     liveLocationsSchema,
@@ -168,11 +169,11 @@ export async function recordAgentLocation(
         ) {
             const project = await prisma.project.findUnique({
                 where: { id: linkedVisit.projectId },
-                select: { latitude: true, longitude: true },
+                select: { latitude: true, longitude: true, geofenceRadiusM: true, locationConfirmedAt: true },
             })
-            if (project?.latitude != null && project.longitude != null) {
+            if (project && isProjectLocationReady(project) && project.latitude != null && project.longitude != null) {
                 const distanceM = haversineMeters(parsed.data.latitude, parsed.data.longitude, project.latitude, project.longitude)
-                if (withinGeofence(parsed.data.latitude, parsed.data.longitude, project.latitude, project.longitude, DEFAULT_GEOFENCE_RADIUS_M)) {
+                if (withinGeofence(parsed.data.latitude, parsed.data.longitude, project.latitude, project.longitude, project.geofenceRadiusM ?? DEFAULT_GEOFENCE_RADIUS_M)) {
                     visitCheckin = { visitId: linkedVisit.id, distanceM }
                 }
             }

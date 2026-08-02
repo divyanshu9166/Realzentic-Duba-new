@@ -12,6 +12,7 @@ import { notFound } from 'next/navigation';
 import { Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { getProjectDetail } from '@/app/actions/properties';
+import { getSession } from '@/lib/auth-helpers';
 import ProjectDetailClient, { type ProjectDetail } from './ProjectDetailClient';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,8 @@ export default async function ProjectDetailPage({ params }: PageProps) {
     }
 
     const project = res.data as ProjectDetail;
+    const session = await getSession();
+    const canManage = session?.user.role === 'ADMIN' || session?.user.role === 'MANAGER';
 
     return (
         <div className="space-y-5">
@@ -57,7 +60,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
                 <span className="text-foreground font-medium truncate">{project.name}</span>
             </div>
 
-            <ProjectDetailClient project={project} />
+            <ProjectDetailClient project={project} canManage={canManage} />
         </div>
     );
 }

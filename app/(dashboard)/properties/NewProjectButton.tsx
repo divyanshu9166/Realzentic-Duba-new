@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Plus, Loader2, ImagePlus, X, FileText } from 'lucide-react'
 import { createProject } from '@/app/actions/properties'
+import ProjectLocationPicker from '@/components/ProjectLocationPicker'
+import { DEFAULT_PROJECT_GEOFENCE_RADIUS_M } from '@/lib/project-location'
 
 const TYPES = ['Residential', 'Commercial', 'Mixed']
 const STATUSES: Array<{ value: string; label: string }> = [
@@ -28,6 +30,7 @@ export default function NewProjectButton() {
     const [form, setForm] = useState({
         name: '', location: '', city: '', emirate: '', type: 'Residential', status: 'UnderConstruction',
         dldProjectRegNo: '', dldProjectRegExpiry: '', escrowAccountNo: '', trakheesiPermitNo: '', saleType: 'Off-Plan (Primary)', isFreeholdZone: false, builderName: '', possessionDate: '',
+        latitude: null as number | null, longitude: null as number | null, geofenceRadiusM: DEFAULT_PROJECT_GEOFENCE_RADIUS_M, locationConfirmed: false,
     })
 
     async function uploadFiles(files: FileList, folder: string): Promise<string[]> {
@@ -95,11 +98,15 @@ export default function NewProjectButton() {
                 possessionDate: form.possessionDate || undefined,
                 photoUrls,
                 brochureUrl: brochureUrl || undefined,
+                latitude: form.latitude ?? undefined,
+                longitude: form.longitude ?? undefined,
+                geofenceRadiusM: form.geofenceRadiusM,
+                locationConfirmed: form.locationConfirmed,
             })
             if (!res.success) { toast.error(res.error); return }
             toast.success('Project created')
             setOpen(false)
-            setForm({ name: '', location: '', city: '', emirate: '', type: 'Residential', status: 'UnderConstruction', dldProjectRegNo: '', dldProjectRegExpiry: '', escrowAccountNo: '', trakheesiPermitNo: '', saleType: 'Off-Plan (Primary)', isFreeholdZone: false, builderName: '', possessionDate: '' })
+            setForm({ name: '', location: '', city: '', emirate: '', type: 'Residential', status: 'UnderConstruction', dldProjectRegNo: '', dldProjectRegExpiry: '', escrowAccountNo: '', trakheesiPermitNo: '', saleType: 'Off-Plan (Primary)', isFreeholdZone: false, builderName: '', possessionDate: '', latitude: null, longitude: null, geofenceRadiusM: DEFAULT_PROJECT_GEOFENCE_RADIUS_M, locationConfirmed: false })
             setPhotoUrls([])
             setBrochureUrl('')
             router.refresh()
@@ -116,7 +123,7 @@ export default function NewProjectButton() {
 
             {open && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>
-                    <div className="glass-card w-full max-w-lg p-5 space-y-4 bg-background" onClick={(e) => e.stopPropagation()}>
+                    <div className="glass-card max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto bg-background p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
                         <h2 className="text-lg font-semibold text-foreground">New Project</h2>
                         <div className="space-y-3">
                             <div>
@@ -184,6 +191,18 @@ export default function NewProjectButton() {
                                 <label className="block text-xs text-muted mb-1">Possession Date</label>
                                 <input type="date" value={form.possessionDate} onChange={(e) => setForm((f) => ({ ...f, possessionDate: e.target.value }))} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm" />
                             </div>
+
+                            <ProjectLocationPicker
+                                value={{
+                                    latitude: form.latitude,
+                                    longitude: form.longitude,
+                                    geofenceRadiusM: form.geofenceRadiusM,
+                                    locationConfirmed: form.locationConfirmed,
+                                }}
+                                onChange={(location) => setForm((current) => ({ ...current, ...location }))}
+                                initialSearch={[form.name, form.location, form.city, form.emirate, 'UAE'].filter(Boolean).join(', ')}
+                                disabled={saving || uploading}
+                            />
 
                             {/* Project images */}
                             <div>

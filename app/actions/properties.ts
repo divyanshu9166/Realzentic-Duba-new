@@ -30,7 +30,7 @@ import type { Prisma } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 
 import { prisma } from '@/lib/db'
-import { getSession } from '@/lib/auth-helpers'
+import { getSession, requireRole } from '@/lib/auth-helpers'
 import { groqChat } from '@/lib/ai-agent/groq'
 import { idSchema, moneyAmount, percentage, unitStatusEnum } from '@/lib/validations/common'
 import {
@@ -38,6 +38,7 @@ import {
     createProjectSchema,
     createTowerSchema,
     createUnitSchema,
+    saveProjectLocationSchema,
 } from '@/lib/validations/properties'
 import {
     canTransition,
@@ -129,15 +130,86 @@ function serializeUnit<T extends UnitWithMoney>(unit: T) {
  * (Req 1.1, 1.10). Returns the created project on success.
  */
 export async function createProject(data: unknown): Promise<Result<unknown>> {
+    try {
+        await requireRole('ADMIN', 'MANAGER')
+    } catch (err) {
+        const message = err instanceof Error && (err.message === 'Unauthorized' || err.message === 'Forbidden')
+            ? err.message
+            : 'Forbidden'
+        return { success: false, error: message }
+    }
     const parsed = createProjectSchema.safeParse(data)
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
 
     try {
-        const project = await prisma.project.create({ data: parsed.data })
+        const { locationConfirmed, ...projectData } = parsed.data
+        const project = await prisma.project.create({
+            data: {
+                ...projectData,
+                locationConfirmedAt: projectData.latitude != null && projectData.longitude != null && locationConfirmed
+                    ? new Date()
+                    : null,
+            },
+        })
         revalidatePath(PROPERTIES_PATH)
         return { success: true, data: project }
     } catch (err) {
         return { success: false, error: errorMessage(err, 'Failed to create project') }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Project location governance — site-visit map pin + geofence
+// ---------------------------------------------------------------------------
+
+/**
+ * Save the reviewed arrival point for a project. This is deliberately a
+ * dedicated action instead of trusting the free-text project address: only an
+ * ADMIN or MANAGER can confirm the exact pin used for agent geo check-ins.
+ */
+export async function saveProjectLocation(data: unknown): Promise<Result<{
+    id: number
+    latitude: number
+    longitude: number
+    geofenceRadiusM: number
+    locationConfirmedAt: string
+}>> {
+    const parsed = saveProjectLocationSchema.safeParse(data)
+    if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
+
+    try {
+        await requireRole('ADMIN', 'MANAGER')
+        const project = await prisma.project.update({
+            where: { id: parsed.data.projectId },
+            data: {
+                latitude: parsed.data.latitude,
+                longitude: parsed.data.longitude,
+                geofenceRadiusM: parsed.data.geofenceRadiusM,
+                locationConfirmedAt: new Date(),
+            },
+            select: {
+                id: true,
+                latitude: true,
+                longitude: true,
+                geofenceRadiusM: true,
+                locationConfirmedAt: true,
+            },
+        })
+        revalidatePath(PROPERTIES_PATH)
+        revalidatePath(`${PROPERTIES_PATH}/${project.id}`)
+        revalidatePath('/field-visits')
+        return {
+            success: true,
+            data: {
+                id: project.id,
+                latitude: project.latitude!,
+                longitude: project.longitude!,
+                geofenceRadiusM: project.geofenceRadiusM,
+                locationConfirmedAt: project.locationConfirmedAt!.toISOString(),
+            },
+        }
+    } catch (err) {
+        return { success: false, error: errorMessage(err, 'Failed to save project location') }
     }
 }
 
@@ -481,6 +553,9 @@ export async function getProjectDetail(projectId: unknown): Promise<Result<unkno
 
         const detail = {
             ...project,
+            possessionDate: project.possessionDate?.toISOString() ?? null,
+            dldProjectRegExpiry: project.dldProjectRegExpiry?.toISOString() ?? null,
+            locationConfirmedAt: project.locationConfirmedAt?.toISOString() ?? null,
             towers: project.towers.map((tower) => ({
                 ...tower,
                 units: tower.units.map(serializeUnit),

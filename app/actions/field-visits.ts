@@ -11,6 +11,7 @@ import {
   DEFAULT_GEOFENCE_RADIUS_M,
   type VisitRecord,
 } from '@/lib/geo'
+import { isProjectLocationReady } from '@/lib/project-location'
 import {
   geoCheckinSchema,
   submitVisitFeedbackSchema,
@@ -86,6 +87,7 @@ function serializeVisit(visit: any) {
     liveLocationAvailable: false,
     liveDistanceM: null,
     liveLocationAccuracyM: null,
+    liveGeofenceRadiusM: null,
     buyerRating: visit.buyerRating,
     feedbackLiked: visit.feedbackLiked,
     feedbackDisliked: visit.feedbackDisliked,
@@ -116,7 +118,7 @@ async function validateScheduledVisit(
     prisma.staff.findUnique({ where: { id: data.staffId }, select: { status: true } }),
     prisma.project.findUnique({
       where: { id: data.projectId },
-      select: { id: true, latitude: true, longitude: true },
+      select: { id: true, latitude: true, longitude: true, geofenceRadiusM: true, locationConfirmedAt: true },
     }),
     data.unitIds.length > 0
       ? prisma.unit.findMany({
@@ -137,8 +139,8 @@ async function validateScheduledVisit(
 
   if (!staff || staff.status !== 'Active') return { ok: false, error: 'Assign an active staff member' }
   if (!project) return { ok: false, error: 'Project not found' }
-  if (project.latitude == null || project.longitude == null) {
-    return { ok: false, error: 'Add latitude and longitude to the project before scheduling a geo-verified visit' }
+  if (!isProjectLocationReady(project)) {
+    return { ok: false, error: 'Configure and confirm the project’s UAE map pin before scheduling a geo-verified visit' }
   }
   if (
     units.length !== data.unitIds.length ||
@@ -398,7 +400,7 @@ export async function getFieldVisits(filters: {
       const projects = projectIds.length > 0
         ? await prisma.project.findMany({
           where: { id: { in: projectIds } },
-          select: { id: true, latitude: true, longitude: true },
+          select: { id: true, latitude: true, longitude: true, geofenceRadiusM: true, locationConfirmedAt: true },
         })
         : []
       const projectById = new Map(projects.map((project) => [project.id, project]))
@@ -422,6 +424,7 @@ export async function getFieldVisits(filters: {
             liveLocationAvailable: Boolean(liveRow),
             liveDistanceM,
             liveLocationAccuracyM: liveRow?.accuracyM ?? null,
+            liveGeofenceRadiusM: project?.geofenceRadiusM ?? null,
           }
         }),
       }
@@ -544,6 +547,8 @@ export async function getSiteVisitProjects() {
         emirate: true,
         latitude: true,
         longitude: true,
+        geofenceRadiusM: true,
+        locationConfirmedAt: true,
         towers: {
           select: {
             name: true,
@@ -564,6 +569,11 @@ export async function getSiteVisitProjects() {
         location: project.location,
         emirate: project.emirate,
         hasCoordinates: project.latitude != null && project.longitude != null,
+        locationReady: isProjectLocationReady(project),
+        latitude: project.latitude,
+        longitude: project.longitude,
+        geofenceRadiusM: project.geofenceRadiusM,
+        locationConfirmedAt: project.locationConfirmedAt?.toISOString() ?? null,
         units: project.towers.flatMap((tower) => tower.units.map((unit) => ({
           id: unit.id,
           label: `${tower.name} · ${unit.unitNumber} · Floor ${unit.floorNumber}`,
@@ -680,13 +690,16 @@ export async function geoCheckin(input: unknown) {
   }
   const project = await prisma.project.findUnique({
     where: { id: visit.projectId },
-    select: { latitude: true, longitude: true },
+    select: { latitude: true, longitude: true, geofenceRadiusM: true, locationConfirmedAt: true },
   })
-  if (project?.latitude == null || project.longitude == null) {
-    return { success: false, error: 'Project location is unavailable for this visit' }
+  if (!project || !isProjectLocationReady(project)) {
+    return { success: false, error: 'The project map pin must be configured and confirmed before geo check-in' }
   }
 
-  const radius = DEFAULT_GEOFENCE_RADIUS_M
+  if (project.latitude == null || project.longitude == null) {
+    return { success: false, error: 'Project location is unavailable for this visit' }
+  }
+  const radius = project.geofenceRadiusM ?? DEFAULT_GEOFENCE_RADIUS_M
   const distanceM = haversineMeters(agentLat, agentLng, project.latitude, project.longitude)
 
   if (!withinGeofence(agentLat, agentLng, project.latitude, project.longitude, radius)) {

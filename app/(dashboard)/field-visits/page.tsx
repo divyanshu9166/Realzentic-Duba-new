@@ -69,6 +69,7 @@ export default async function FieldVisitsPage({
         liveLocationAvailable: Boolean(v.liveLocationAvailable),
         liveDistanceM: typeof v.liveDistanceM === 'number' ? v.liveDistanceM : null,
         liveLocationAccuracyM: typeof v.liveLocationAccuracyM === 'number' ? v.liveLocationAccuracyM : null,
+        liveGeofenceRadiusM: typeof v.liveGeofenceRadiusM === 'number' ? v.liveGeofenceRadiusM : null,
         projectId: v.projectId ?? null,
         staffId: v.staffId,
         staffName: v.staff?.name ?? null,
@@ -111,6 +112,11 @@ export default async function FieldVisitsPage({
         location: project.location,
         emirate: project.emirate,
         hasCoordinates: project.hasCoordinates,
+        locationReady: project.locationReady,
+        latitude: project.latitude,
+        longitude: project.longitude,
+        geofenceRadiusM: project.geofenceRadiusM,
+        locationConfirmedAt: project.locationConfirmedAt,
         units: project.units,
     }));
 

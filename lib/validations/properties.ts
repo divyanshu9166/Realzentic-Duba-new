@@ -8,6 +8,12 @@ import {
     unitStatusEnum,
     unitTypeEnum,
 } from '@/lib/validations/common'
+import {
+    DEFAULT_PROJECT_GEOFENCE_RADIUS_M,
+    MAX_PROJECT_GEOFENCE_RADIUS_M,
+    MIN_PROJECT_GEOFENCE_RADIUS_M,
+    isWithinUaeCoordinates,
+} from '@/lib/project-location'
 
 /**
  * Inventory validation schemas for the Real Estate CRM (Module 1).
@@ -73,9 +79,51 @@ const longitude = z
     .min(-180, 'Longitude must be at least -180')
     .max(180, 'Longitude must not exceed 180')
 
+const geofenceRadiusM = z
+    .number({ message: 'Geofence radius must be a number' })
+    .int('Geofence radius must be a whole number')
+    .min(MIN_PROJECT_GEOFENCE_RADIUS_M, `Geofence radius must be at least ${MIN_PROJECT_GEOFENCE_RADIUS_M}m`)
+    .max(MAX_PROJECT_GEOFENCE_RADIUS_M, `Geofence radius must not exceed ${MAX_PROJECT_GEOFENCE_RADIUS_M}m`)
+
+function validateProjectCoordinates(
+    value: { latitude?: number; longitude?: number; locationConfirmed?: boolean },
+    ctx: z.RefinementCtx,
+) {
+    const hasLatitude = value.latitude != null
+    const hasLongitude = value.longitude != null
+    if (hasLatitude !== hasLongitude) {
+        ctx.addIssue({
+            code: 'custom',
+            path: [hasLatitude ? 'longitude' : 'latitude'],
+            message: 'Latitude and longitude must be provided together',
+        })
+        return
+    }
+    if (!hasLatitude || !hasLongitude) {
+        if (value.locationConfirmed) {
+            ctx.addIssue({ code: 'custom', path: ['locationConfirmed'], message: 'Choose a UAE map point before confirming the location' })
+        }
+        return
+    }
+    if (!isWithinUaeCoordinates(value.latitude!, value.longitude!)) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['latitude'],
+            message: 'Project coordinates must be within the UAE',
+        })
+    }
+    if (!value.locationConfirmed) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['locationConfirmed'],
+            message: 'Confirm the map pin before saving a project location',
+        })
+    }
+}
+
 // ─── Project (Requirements 1.1, 1.10) ────────────────
 
-export const createProjectSchema = z.object({
+const projectSchema = z.object({
     name: requiredString('Project name'),
     location: requiredString('Location'),
     city: requiredString('City'),
@@ -97,10 +145,26 @@ export const createProjectSchema = z.object({
     photoUrls: z.array(z.string().trim().url('Each photo URL must be valid')).default([]),
     latitude: latitude.optional(),
     longitude: longitude.optional(),
+    geofenceRadiusM: geofenceRadiusM.default(DEFAULT_PROJECT_GEOFENCE_RADIUS_M),
+    /** UI-only acknowledgement; persisted as locationConfirmedAt by the action. */
+    locationConfirmed: z.boolean().optional(),
     possessionDate: z.coerce.date().optional(),
 })
 
-export const updateProjectSchema = createProjectSchema.partial()
+export const createProjectSchema = projectSchema.superRefine(validateProjectCoordinates)
+export const updateProjectSchema = projectSchema.partial().superRefine(validateProjectCoordinates)
+
+export const saveProjectLocationSchema = z.object({
+    projectId: idSchema,
+    latitude,
+    longitude,
+    geofenceRadiusM,
+    locationConfirmed: z.literal(true, { error: 'Confirm the map pin before saving the project location' }),
+}).superRefine((value, ctx) => {
+    if (!isWithinUaeCoordinates(value.latitude, value.longitude)) {
+        ctx.addIssue({ code: 'custom', path: ['latitude'], message: 'Project coordinates must be within the UAE' })
+    }
+})
 
 // ─── Tower (Requirement 1.2) ─────────────────────────
 

@@ -25,6 +25,7 @@ import type { InventoryAnalytics } from '@/lib/inventory';
 import { isGoldenVisaEligible } from '@/lib/golden-visa';
 import AddInventoryButton from './AddInventoryButton';
 import WaitlistPanel from './WaitlistPanel';
+import ProjectLocationEditor from './ProjectLocationEditor';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,10 @@ export interface ProjectDetail {
     totalUnits: number;
     description: string | null;
     photoUrls: string[];
+    latitude: number | null;
+    longitude: number | null;
+    geofenceRadiusM: number | null;
+    locationConfirmedAt: string | null;
     possessionDate: string | null;
     towers: TowerRow[];
 }
@@ -487,7 +492,7 @@ function TowerView({ tower }: { tower: TowerRow }) {
 
 type ViewTab = 'floors' | 'analytics' | 'waitlist';
 
-export default function ProjectDetailClient({ project }: { project: ProjectDetail }) {
+export default function ProjectDetailClient({ project, canManage = false }: { project: ProjectDetail; canManage?: boolean }) {
     const [activeTower, setActiveTower] = useState<number>(project.towers[0]?.id ?? 0);
     const [viewTab, setViewTab] = useState<ViewTab>('floors');
 
@@ -541,6 +546,18 @@ export default function ProjectDetailClient({ project }: { project: ProjectDetai
                         {project.description && (
                             <p className="text-xs text-muted line-clamp-2">{project.description}</p>
                         )}
+                        <ProjectLocationEditor
+                            projectId={project.id}
+                            name={project.name}
+                            location={project.location}
+                            city={project.city}
+                            emirate={project.emirate}
+                            latitude={project.latitude}
+                            longitude={project.longitude}
+                            geofenceRadiusM={project.geofenceRadiusM}
+                            locationConfirmedAt={project.locationConfirmedAt}
+                            canManage={canManage}
+                        />
                     </div>
                 </div>
             </div>

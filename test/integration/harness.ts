@@ -101,6 +101,10 @@ export async function makeContact(cleanup: Cleanup, overrides: Record<string, un
 
 /** Create a Project → Tower → (optional) Unit fixture graph. */
 export async function makeProject(cleanup: Cleanup, overrides: Record<string, unknown> = {}) {
+    const coordinatesAreProvided = typeof overrides.latitude === 'number' && typeof overrides.longitude === 'number'
+    const confirmation = coordinatesAreProvided && !Object.prototype.hasOwnProperty.call(overrides, 'locationConfirmedAt')
+        ? { locationConfirmedAt: new Date() }
+        : {}
     const project = await prisma.project.create({
         data: {
             name: `Test Project ${uid()}`,
@@ -109,7 +113,9 @@ export async function makeProject(cleanup: Cleanup, overrides: Record<string, un
             emirate: 'Dubai',
             type: 'Residential',
             status: 'UnderConstruction',
+            geofenceRadiusM: 200,
             ...overrides,
+            ...confirmation,
         },
     })
     cleanup.add(() => prisma.project.delete({ where: { id: project.id } }))

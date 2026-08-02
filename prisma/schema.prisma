@@ -1727,6 +1727,8 @@ model Project {
   photoUrls           String[]
   latitude            Float?
   longitude           Float?
+  geofenceRadiusM     Int           @default(200)
+  locationConfirmedAt DateTime?
   possessionDate      DateTime?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt

@@ -168,6 +168,47 @@ describe('Site Visit role boundaries and manager workflow', () => {
         expect(staffEdit).toEqual({ success: false, error: 'Forbidden' })
     })
 
+    it('requires a confirmed project pin and applies its own geofence radius', async () => {
+        const [staff, unconfirmedProject, configuredProject] = await Promise.all([
+            makeStaff(cleanup),
+            makeProject(cleanup, { latitude: 25.0808, longitude: 55.1403, locationConfirmedAt: null }),
+            makeProject(cleanup, { latitude: 25.0808, longitude: 55.1403, geofenceRadiusM: 75 }),
+        ])
+        const scheduledAt = new Date(Date.now() + 5 * 24 * 60 * 60_000).toISOString()
+        const payload = {
+            staffId: staff.id,
+            customer: 'Geo Buyer',
+            address: 'Dubai Marina, Dubai',
+            scheduledAt,
+            type: 'Property Viewing',
+            buyerPhone: '+971501234590',
+            unitIds: [],
+            notes: '',
+        }
+        actAs('MANAGER', staff.id)
+        const blocked = await createFieldVisit({ ...payload, projectId: unconfirmedProject.id })
+        expect(blocked).toEqual({ success: false, error: 'Configure and confirm the project’s UAE map pin before scheduling a geo-verified visit' })
+
+        const visit = await makeVisit({ staffId: staff.id, projectId: configuredProject.id })
+        actAs('STAFF', staff.id)
+        const tooFar = await geoCheckin({
+            visitId: visit.id,
+            // Roughly 111m north of the pin, outside this project's 75m radius.
+            agentLat: 25.0818,
+            agentLng: 55.1403,
+            accuracyM: 10,
+        })
+        expect(tooFar).toMatchObject({ success: false, error: expect.stringContaining('within 75m') })
+
+        const withinRadius = await geoCheckin({
+            visitId: visit.id,
+            agentLat: 25.0808,
+            agentLng: 55.1403,
+            accuracyM: 10,
+        })
+        expect(withinRadius).toMatchObject({ success: true, data: { visitId: visit.id } })
+    })
+
     it('only creates a deal for the buyer verified on the visit', async () => {
         const [staff, project, stage, buyer, unrelated] = await Promise.all([
             makeStaff(cleanup),
