@@ -30,7 +30,7 @@ import type { Prisma } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 
 import { prisma } from '@/lib/db'
-import { getSession, requireRole } from '@/lib/auth-helpers'
+import { getSession, requireAuth, requireRole } from '@/lib/auth-helpers'
 import { groqChat } from '@/lib/ai-agent/groq'
 import { idSchema, moneyAmount, percentage, unitStatusEnum } from '@/lib/validations/common'
 import {
@@ -39,6 +39,7 @@ import {
     createTowerSchema,
     createUnitSchema,
     saveProjectLocationSchema,
+    updateUnitSchema,
 } from '@/lib/validations/properties'
 import {
     canTransition,
@@ -79,6 +80,19 @@ import { isValidE164, normalizePhoneForMetaUae } from '@/lib/whatsapp/phone-util
 export type Result<T> =
     | { success: true; data: T }
     | { success: false; error: string }
+
+/** Inventory mutations are restricted to the people who manage stock. */
+async function requireInventoryManager(): Promise<{ success: true } | { success: false; error: string }> {
+    try {
+        await requireRole('ADMIN', 'MANAGER')
+        return { success: true }
+    } catch (err) {
+        const message = err instanceof Error && err.message === 'Unauthorized'
+            ? 'Unauthorized'
+            : 'Access denied. ADMIN or MANAGER role required.'
+        return { success: false, error: message }
+    }
+}
 
 /** Path of the inventory UI; revalidated after any inventory mutation. */
 const PROPERTIES_PATH = '/properties'
@@ -223,6 +237,8 @@ export async function saveProjectLocation(data: unknown): Promise<Result<{
  * error rather than a raw constraint violation.
  */
 export async function createTower(data: unknown): Promise<Result<unknown>> {
+    const access = await requireInventoryManager()
+    if (!access.success) return access
     const parsed = createTowerSchema.safeParse(data)
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
 
@@ -230,7 +246,16 @@ export async function createTower(data: unknown): Promise<Result<unknown>> {
     if (!project) return { success: false, error: 'projectId: project not found' }
 
     try {
-        const tower = await prisma.tower.create({ data: parsed.data })
+        const tower = await prisma.$transaction(async (tx) => {
+            const created = await tx.tower.create({ data: parsed.data })
+            await tx.floor.createMany({
+                data: Array.from({ length: created.totalFloors }, (_, index) => ({
+                    towerId: created.id,
+                    floorNumber: index + 1,
+                })),
+            })
+            return created
+        })
         revalidatePath(PROPERTIES_PATH)
         return { success: true, data: tower }
     } catch (err) {
@@ -248,11 +273,16 @@ export async function createTower(data: unknown): Promise<Result<unknown>> {
  * field error.
  */
 export async function createFloor(data: unknown): Promise<Result<unknown>> {
+    const access = await requireInventoryManager()
+    if (!access.success) return access
     const parsed = createFloorSchema.safeParse(data)
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
 
     const tower = await prisma.tower.findUnique({ where: { id: parsed.data.towerId } })
     if (!tower) return { success: false, error: 'towerId: tower not found' }
+    if (parsed.data.floorNumber > tower.totalFloors) {
+        return { success: false, error: `floorNumber: must be between 0 and ${tower.totalFloors}` }
+    }
 
     try {
         const floor = await prisma.floor.create({ data: parsed.data })
@@ -277,11 +307,16 @@ export async function createFloor(data: unknown): Promise<Result<unknown>> {
  * surfaces the unique `(towerId, unitNumber)` constraint as a field error.
  */
 export async function createUnit(data: unknown): Promise<Result<unknown>> {
+    const access = await requireInventoryManager()
+    if (!access.success) return access
     const parsed = createUnitSchema.safeParse(data)
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
 
     const tower = await prisma.tower.findUnique({ where: { id: parsed.data.towerId } })
     if (!tower) return { success: false, error: 'towerId: tower not found' }
+    if (parsed.data.floorNumber > tower.totalFloors) {
+        return { success: false, error: `floorNumber: must be between 0 and ${tower.totalFloors}` }
+    }
 
     let unitData: Prisma.UnitUncheckedCreateInput
     try {
@@ -328,6 +363,14 @@ function buildUnitCreateData(
         type: input.type,
         netArea: input.netArea,
         builtUpArea: input.builtUpArea,
+        plotArea: input.plotArea,
+        bedroomCount: input.bedroomCount,
+        bathroomCount: input.bathroomCount,
+        maidRoom: input.maidRoom,
+        driverRoom: input.driverRoom,
+        privateGarden: input.privateGarden,
+        privatePool: input.privatePool,
+        furnishingStatus: input.furnishingStatus,
         facing: input.facing,
         status: input.status,
         basePricePerSqft: input.basePricePerSqft,
@@ -337,6 +380,82 @@ function buildUnitCreateData(
         parkingType: input.parkingType,
         parkingCount: input.parkingCount,
         bookingId: input.bookingId,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Unit editing — keep the price and inventory fields in one validated update
+// ---------------------------------------------------------------------------
+
+/**
+ * Update the descriptive and pricing fields of an existing unit. Status and
+ * booking state deliberately remain owned by their transactional workflows so
+ * an edit cannot accidentally bypass the inventory state machine.
+ */
+export async function updateUnit(unitId: unknown, data: unknown): Promise<Result<unknown>> {
+    const access = await requireInventoryManager()
+    if (!access.success) return access
+
+    const parsedId = idSchema.safeParse(unitId)
+    if (!parsedId.success) return { success: false, error: firstIssue(parsedId.error) }
+    const parsed = updateUnitSchema.safeParse(data)
+    if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
+
+    try {
+        const current = await prisma.unit.findUnique({
+            where: { id: parsedId.data },
+            include: { tower: { select: { projectId: true, totalFloors: true } } },
+        })
+        if (!current) return { success: false, error: 'Unit not found' }
+        if ((parsed.data.floorNumber ?? current.floorNumber) > current.tower.totalFloors) {
+            return { success: false, error: `floorNumber: must be between 0 and ${current.tower.totalFloors}` }
+        }
+
+        const pricingChanged = parsed.data.basePricePerSqft !== undefined
+            || parsed.data.builtUpArea !== undefined
+            || parsed.data.floorRisePremium !== undefined
+            || parsed.data.viewPremium !== undefined
+
+        const merged = {
+            towerId: current.towerId,
+            floorNumber: parsed.data.floorNumber ?? current.floorNumber,
+            unitNumber: parsed.data.unitNumber ?? current.unitNumber,
+            type: parsed.data.type ?? current.type,
+            netArea: parsed.data.netArea ?? current.netArea,
+            builtUpArea: parsed.data.builtUpArea ?? current.builtUpArea,
+            plotArea: parsed.data.plotArea === null ? undefined : parsed.data.plotArea ?? current.plotArea ?? undefined,
+            bedroomCount: parsed.data.bedroomCount === null ? undefined : parsed.data.bedroomCount ?? current.bedroomCount ?? undefined,
+            bathroomCount: parsed.data.bathroomCount === null ? undefined : parsed.data.bathroomCount ?? current.bathroomCount ?? undefined,
+            maidRoom: parsed.data.maidRoom ?? current.maidRoom,
+            driverRoom: parsed.data.driverRoom ?? current.driverRoom,
+            privateGarden: parsed.data.privateGarden ?? current.privateGarden,
+            privatePool: parsed.data.privatePool ?? current.privatePool,
+            furnishingStatus: parsed.data.furnishingStatus === null ? undefined : parsed.data.furnishingStatus ?? current.furnishingStatus ?? undefined,
+            facing: parsed.data.facing ?? current.facing,
+            status: current.status,
+            basePricePerSqft: parsed.data.basePricePerSqft ?? Number(current.basePricePerSqft),
+            floorRisePremium: parsed.data.floorRisePremium ?? Number(current.floorRisePremium),
+            viewPremium: parsed.data.viewPremium ?? Number(current.viewPremium),
+            // Preserve a manually overridden total when descriptive fields are
+            // edited; recalculate only when a pricing input changed.
+            totalPrice: parsed.data.totalPrice === null
+                ? undefined
+                : parsed.data.totalPrice ?? (!pricingChanged ? Number(current.totalPrice) : undefined),
+            parkingType: parsed.data.parkingType === null ? undefined : parsed.data.parkingType ?? current.parkingType ?? undefined,
+            parkingCount: parsed.data.parkingCount ?? current.parkingCount,
+        }
+        const normalized = createUnitSchema.safeParse(merged)
+        if (!normalized.success) return { success: false, error: firstIssue(normalized.error) }
+
+        const unitData = buildUnitCreateData(normalized.data)
+        const { towerId: _towerId, bookingId: _bookingId, ...updateData } = unitData
+        const updated = await prisma.unit.update({ where: { id: parsedId.data }, data: updateData })
+        revalidatePath(PROPERTIES_PATH)
+        revalidatePath(`${PROPERTIES_PATH}/${current.tower.projectId}`)
+        return { success: true, data: serializeUnit(updated) }
+    } catch (err) {
+        if (isUniqueViolation(err)) return { success: false, error: 'unitNumber: unit already exists in this tower' }
+        return { success: false, error: errorMessage(err, 'Failed to update unit') }
     }
 }
 
@@ -356,10 +475,12 @@ const bulkCreateUnitsSchema = z
             .object({
                 start: z
                     .number({ message: 'Floor range start must be a number' })
-                    .int('Floor range start must be a whole number'),
+                    .int('Floor range start must be a whole number')
+                    .min(0, 'Floor range start must not be negative'),
                 end: z
                     .number({ message: 'Floor range end must be a number' })
-                    .int('Floor range end must be a whole number'),
+                    .int('Floor range end must be a whole number')
+                    .min(0, 'Floor range end must not be negative'),
             })
             .refine((r) => r.start <= r.end, {
                 message: 'Floor range start must not exceed end',
@@ -388,6 +509,8 @@ const bulkCreateUnitsSchema = z
  * → "501"), which keeps them unique within the tower.
  */
 export async function bulkCreateUnits(input: unknown): Promise<Result<{ count: number }>> {
+    const access = await requireInventoryManager()
+    if (!access.success) return access
     const parsed = bulkCreateUnitsSchema.safeParse(input)
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
 
@@ -395,6 +518,9 @@ export async function bulkCreateUnits(input: unknown): Promise<Result<{ count: n
 
     const tower = await prisma.tower.findUnique({ where: { id: towerId } })
     if (!tower) return { success: false, error: 'towerId: tower not found' }
+    if (floorRange.end > tower.totalFloors) {
+        return { success: false, error: `floorRange: must be between 0 and ${tower.totalFloors}` }
+    }
 
     // ── Validate every generated unit BEFORE any write (Req 1.9 / 1.10). ──
     const payloads: Prisma.UnitUncheckedCreateInput[] = []
@@ -434,6 +560,13 @@ export async function bulkCreateUnits(input: unknown): Promise<Result<{ count: n
     // ── Single transaction: all-or-nothing (Req 1.9). ──
     try {
         const count = await prisma.$transaction(async (tx) => {
+            await tx.floor.createMany({
+                data: Array.from(
+                    { length: floorRange.end - floorRange.start + 1 },
+                    (_, index) => ({ towerId, floorNumber: floorRange.start + index }),
+                ),
+                skipDuplicates: true,
+            })
             for (const data of payloads) {
                 await tx.unit.create({ data })
             }
@@ -551,8 +684,11 @@ export async function getProjectDetail(projectId: unknown): Promise<Result<unkno
 
         if (!project) return { success: false, error: 'Project not found' }
 
+        const inventoryUnitCount = project.towers.reduce((count, tower) => count + tower.units.length, 0)
+
         const detail = {
             ...project,
+            inventoryUnitCount,
             possessionDate: project.possessionDate?.toISOString() ?? null,
             dldProjectRegExpiry: project.dldProjectRegExpiry?.toISOString() ?? null,
             locationConfirmedAt: project.locationConfirmedAt?.toISOString() ?? null,
@@ -598,6 +734,7 @@ export async function filterUnits(
                 facing: unit.facing,
                 floorNumber: unit.floorNumber,
                 builtUpArea: unit.builtUpArea,
+                plotArea: unit.plotArea,
                 totalPrice: Number(unit.totalPrice),
             }
             return matchesUnitFilters(filterable, filters ?? {})
@@ -733,6 +870,8 @@ export async function changeUnitStatus(
     toStatus: unknown,
     actor?: InventoryActor
 ): Promise<Result<unknown>> {
+    const access = await requireInventoryManager()
+    if (!access.success) return access
     const parsed = changeUnitStatusSchema.safeParse({ unitId, toStatus })
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
 
@@ -751,6 +890,12 @@ export async function changeUnitStatus(
 
             const from = current.status
             const to = parsed.data.toStatus
+            if (to === 'Blocked') {
+                return {
+                    success: false as const,
+                    error: 'Use the timed hold action to block a unit',
+                }
+            }
             if (!canTransition(from, to)) {
                 // Leave the unit unchanged and identify both states (Req 2.2).
                 return {
@@ -761,7 +906,13 @@ export async function changeUnitStatus(
 
             const updated = await tx.unit.update({
                 where: { id: current.id },
-                data: { status: to },
+                data: {
+                    status: to,
+                    holdByStaffId: null,
+                    holdByPartnerId: null,
+                    holdCreatedAt: null,
+                    holdExpiresAt: null,
+                },
             })
 
             await recordUnitAudit(
@@ -817,6 +968,8 @@ export async function blockUnit(
     holdHours?: unknown,
     actor?: InventoryActor
 ): Promise<Result<unknown>> {
+    const access = await requireInventoryManager()
+    if (!access.success) return access
     const parsed = blockUnitSchema.safeParse({ unitId, holdHours })
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
 
@@ -968,6 +1121,8 @@ export async function revisePrice(
     reason: unknown,
     actor?: InventoryActor
 ): Promise<Result<unknown>> {
+    const access = await requireInventoryManager()
+    if (!access.success) return access
     const parsed = revisePriceSchema.safeParse({ unitId, newPrice, reason })
     if (!parsed.success) return { success: false, error: firstIssue(parsed.error) }
 
@@ -1004,6 +1159,50 @@ export async function revisePrice(
         return result
     } catch (err) {
         return { success: false, error: errorMessage(err, 'Failed to revise unit price') }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Unit price history — read-only audit trail for the unit workspace
+// ---------------------------------------------------------------------------
+
+export interface UnitPriceHistoryRow {
+    id: number
+    oldPrice: number
+    newPrice: number
+    changedById: number | null
+    effectiveDate: string
+    reason: string
+}
+
+export async function getUnitPriceHistory(unitId: unknown): Promise<Result<UnitPriceHistoryRow[]>> {
+    try {
+        await requireAuth()
+    } catch (err) {
+        return { success: false, error: err instanceof Error && err.message === 'Unauthorized' ? 'Unauthorized' : 'Access denied' }
+    }
+
+    const parsedId = idSchema.safeParse(unitId)
+    if (!parsedId.success) return { success: false, error: firstIssue(parsedId.error) }
+
+    try {
+        const history = await prisma.unitPriceHistory.findMany({
+            where: { unitId: parsedId.data },
+            orderBy: { effectiveDate: 'desc' },
+        })
+        return {
+            success: true,
+            data: history.map((row) => ({
+                id: row.id,
+                oldPrice: Number(row.oldPrice),
+                newPrice: Number(row.newPrice),
+                changedById: row.changedById,
+                effectiveDate: row.effectiveDate.toISOString(),
+                reason: row.reason,
+            })),
+        }
+    } catch (err) {
+        return { success: false, error: errorMessage(err, 'Failed to load price history') }
     }
 }
 

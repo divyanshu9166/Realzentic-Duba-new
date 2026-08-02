@@ -18,7 +18,7 @@
 import { useState, useMemo } from 'react';
 import {
     Building2, MapPin, ShieldCheck, SlidersHorizontal,
-    BarChart3, ChevronDown, ChevronUp, Home, X, Clock,
+    BarChart3, ChevronDown, ChevronUp, Home, X, Clock, ExternalLink,
 } from 'lucide-react';
 import { getInventoryAnalytics } from '@/app/actions/properties';
 import type { InventoryAnalytics } from '@/lib/inventory';
@@ -26,6 +26,7 @@ import { isGoldenVisaEligible } from '@/lib/golden-visa';
 import AddInventoryButton from './AddInventoryButton';
 import WaitlistPanel from './WaitlistPanel';
 import ProjectLocationEditor from './ProjectLocationEditor';
+import UnitInventoryModal from './UnitInventoryModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,14 @@ export interface UnitRow {
     facing: string;
     netArea: number;
     builtUpArea: number;
+    plotArea: number | null;
+    bedroomCount: number | null;
+    bathroomCount: number | null;
+    maidRoom: boolean;
+    driverRoom: boolean;
+    privateGarden: boolean;
+    privatePool: boolean;
+    furnishingStatus: string | null;
     basePricePerSqft: number | null;
     floorRisePremium: number | null;
     viewPremium: number | null;
@@ -67,6 +76,7 @@ export interface ProjectDetail {
     status: string;
     builderName: string | null;
     totalUnits: number;
+    inventoryUnitCount: number;
     description: string | null;
     photoUrls: string[];
     latitude: number | null;
@@ -142,11 +152,13 @@ interface Filters {
     maxPrice: string;
     minArea: string;
     maxArea: string;
+    minPlotArea: string;
+    maxPlotArea: string;
 }
 
 const EMPTY_FILTERS: Filters = {
     type: '', status: '', facing: '', floor: '',
-    minPrice: '', maxPrice: '', minArea: '', maxArea: '',
+    minPrice: '', maxPrice: '', minArea: '', maxArea: '', minPlotArea: '', maxPlotArea: '',
 };
 
 function hasActiveFilters(f: Filters): boolean {
@@ -163,6 +175,8 @@ function applyFilters(units: UnitRow[], f: Filters): UnitRow[] {
         if (f.maxPrice && (u.totalPrice ?? 0) > Number(f.maxPrice)) return false;
         if (f.minArea && u.builtUpArea < Number(f.minArea)) return false;
         if (f.maxArea && u.builtUpArea > Number(f.maxArea)) return false;
+        if (f.minPlotArea && (u.plotArea == null || u.plotArea < Number(f.minPlotArea))) return false;
+        if (f.maxPlotArea && (u.plotArea == null || u.plotArea > Number(f.maxPlotArea))) return false;
         return true;
     });
 }
@@ -262,6 +276,15 @@ function FilterPanel({
                             <label className="block text-[11px] font-medium text-muted mb-1">Max Area (sq ft)</label>
                             <input type="number" min={0} value={filters.maxArea} onChange={(e) => set('maxArea', e.target.value)} placeholder="e.g. 2000" className="w-full text-xs" />
                         </div>
+                        {/* Villa plot area */}
+                        <div>
+                            <label className="block text-[11px] font-medium text-muted mb-1">Min Plot (sq ft)</label>
+                            <input type="number" min={0} value={filters.minPlotArea} onChange={(e) => set('minPlotArea', e.target.value)} placeholder="e.g. 3000" className="w-full text-xs" />
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-medium text-muted mb-1">Max Plot (sq ft)</label>
+                            <input type="number" min={0} value={filters.maxPlotArea} onChange={(e) => set('maxPlotArea', e.target.value)} placeholder="e.g. 8000" className="w-full text-xs" />
+                        </div>
                     </div>
                     {active && (
                         <button onClick={onReset} className="flex items-center gap-1.5 text-xs text-muted hover:text-danger transition-colors">
@@ -276,13 +299,19 @@ function FilterPanel({
 
 // ─── Floor grid ───────────────────────────────────────────────────────────────
 
-function UnitCell({ unit }: { unit: UnitRow }) {
+function UnitCell({ unit, onSelect }: { unit: UnitRow; onSelect: (unit: UnitRow) => void }) {
     const [hovered, setHovered] = useState(false);
     const bg = STATUS_BG[unit.status] ?? 'bg-surface text-foreground border-border';
 
     return (
         <div
-            className={`relative border rounded-lg p-1.5 text-center cursor-default transition-all ${bg}`}
+            className={`relative border rounded-lg p-1.5 text-center cursor-pointer transition-all hover:scale-[1.03] hover:shadow-sm ${bg}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onSelect(unit)}
+            onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') onSelect(unit)
+            }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
@@ -298,6 +327,8 @@ function UnitCell({ unit }: { unit: UnitRow }) {
                         <p>Floor: <span className="text-foreground">{unit.floorNumber}</span></p>
                         <p>Status: <span className="text-foreground">{unit.status}</span></p>
                         <p>Area: <span className="text-foreground">{unit.builtUpArea} sq ft</span></p>
+                        {unit.plotArea != null && <p>Plot: <span className="text-foreground">{unit.plotArea} sq ft</span></p>}
+                        {unit.bedroomCount != null && <p>Bedrooms: <span className="text-foreground">{unit.bedroomCount}</span></p>}
                         <p>Price: <span className="text-foreground">{formatAed(unit.totalPrice)}</span></p>
                         {isGoldenVisaEligible(unit.totalPrice) && (
                             <p className="font-medium text-amber-700">Golden Visa eligibility indicator</p>
@@ -310,12 +341,14 @@ function UnitCell({ unit }: { unit: UnitRow }) {
     );
 }
 
-function FloorGrid({ tower, filteredUnits }: { tower: TowerRow; filteredUnits: UnitRow[] }) {
+function FloorGrid({ tower, filteredUnits, onSelect }: { tower: TowerRow; filteredUnits: UnitRow[]; onSelect: (unit: UnitRow) => void }) {
     const filteredIds = useMemo(() => new Set(filteredUnits.map((u) => u.id)), [filteredUnits]);
 
     // Group units by floor, sorted descending (top floor first like a real building)
     const byFloor = useMemo(() => {
         const map = new Map<number, UnitRow[]>();
+        for (let floor = 1; floor <= tower.totalFloors; floor++) map.set(floor, []);
+        for (const floor of tower.floors) map.set(floor.floorNumber, []);
         for (const u of tower.units) {
             if (!map.has(u.floorNumber)) map.set(u.floorNumber, []);
             map.get(u.floorNumber)!.push(u);
@@ -325,7 +358,7 @@ function FloorGrid({ tower, filteredUnits }: { tower: TowerRow; filteredUnits: U
             units.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true }));
         }
         return Array.from(map.entries()).sort((a, b) => b[0] - a[0]); // descending floor
-    }, [tower.units]);
+    }, [tower.floors, tower.totalFloors, tower.units]);
 
     if (filteredUnits.length === 0 && tower.units.length > 0) {
         return (
@@ -337,7 +370,7 @@ function FloorGrid({ tower, filteredUnits }: { tower: TowerRow; filteredUnits: U
         );
     }
 
-    if (tower.units.length === 0) {
+    if (tower.units.length === 0 && byFloor.length === 0) {
         return (
             <div className="py-16 text-center text-muted">
                 <Home className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -355,16 +388,29 @@ function FloorGrid({ tower, filteredUnits }: { tower: TowerRow; filteredUnits: U
                         {/* Floor label */}
                         <div className="w-12 flex-shrink-0 flex items-center justify-center">
                             <span className="text-[11px] font-medium text-muted">F{floor}</span>
+                            {tower.floors.find((item) => item.floorNumber === floor)?.floorPlanUrl && (
+                                <a
+                                    href={tower.floors.find((item) => item.floorNumber === floor)?.floorPlanUrl ?? '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-accent hover:text-accent-hover"
+                                    title={`Open floor ${floor} plan`}
+                                    onClick={(event) => event.stopPropagation()}
+                                >
+                                    <ExternalLink className="h-3 w-3" />
+                                </a>
+                            )}
                         </div>
                         {/* Units row */}
                         <div className="flex flex-wrap gap-1 flex-1">
+                            {units.length === 0 && <span className="self-center py-1 text-[11px] text-muted/70">No inventory configured</span>}
                             {units.map((u) => (
                                 <div
                                     key={u.id}
                                     className={`transition-opacity ${filteredIds.has(u.id) ? 'opacity-100' : 'opacity-20'}`}
                                     style={{ width: '60px' }}
                                 >
-                                    <UnitCell unit={u} />
+                                    <UnitCell unit={u} onSelect={onSelect} />
                                 </div>
                             ))}
                         </div>
@@ -461,13 +507,27 @@ function ProjectAnalytics({ projectId }: { projectId: number }) {
 
 // ─── Tower view ────────────────────────────────────────────────────────────────
 
-function TowerView({ tower }: { tower: TowerRow }) {
+function TowerView({ tower, projectId, canManage }: { tower: TowerRow; projectId: number; canManage: boolean }) {
     const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+    const [selectedUnit, setSelectedUnit] = useState<UnitRow | null>(null);
+    const [addingUnit, setAddingUnit] = useState(false);
 
     const filteredUnits = useMemo(() => applyFilters(tower.units, filters), [tower.units, filters]);
 
     return (
         <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted">Select a unit to view its complete inventory record.</p>
+                {canManage && (
+                    <button
+                        type="button"
+                        onClick={() => setAddingUnit(true)}
+                        className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/15"
+                    >
+                        Add single unit
+                    </button>
+                )}
+            </div>
             <FilterPanel
                 tower={tower}
                 filters={filters}
@@ -483,7 +543,23 @@ function TowerView({ tower }: { tower: TowerRow }) {
                 </span>
             </div>
 
-            <FloorGrid tower={tower} filteredUnits={filteredUnits} />
+            <FloorGrid tower={tower} filteredUnits={filteredUnits} onSelect={setSelectedUnit} />
+
+            {(selectedUnit || addingUnit) && (
+                <UnitInventoryModal
+                    key={selectedUnit?.id ?? 'new-unit'}
+                    projectId={projectId}
+                    towerId={tower.id}
+                    floorCount={tower.totalFloors}
+                    defaultType={tower.units[0]?.type ?? 'Villa'}
+                    unit={selectedUnit}
+                    canManage={canManage}
+                    onClose={() => {
+                        setSelectedUnit(null)
+                        setAddingUnit(false)
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -540,9 +616,14 @@ export default function ProjectDetailClient({ project, canManage = false }: { pr
                             <span className="flex items-center gap-1">
                                 <Building2 className="w-3 h-3" />
                                 {project.towers.length} tower{project.towers.length !== 1 ? 's' : ''},{' '}
-                                {project.totalUnits} unit{project.totalUnits !== 1 ? 's' : ''}
+                                {project.inventoryUnitCount} unit{project.inventoryUnitCount !== 1 ? 's' : ''}
                             </span>
                         </div>
+                        {project.totalUnits !== project.inventoryUnitCount && (
+                            <p className="text-xs text-amber-700">
+                                Inventory count differs from the project setup ({project.totalUnits} configured, {project.inventoryUnitCount} units recorded).
+                            </p>
+                        )}
                         {project.description && (
                             <p className="text-xs text-muted line-clamp-2">{project.description}</p>
                         )}
@@ -580,10 +661,11 @@ export default function ProjectDetailClient({ project, canManage = false }: { pr
                         </button>
                     ))}
                 </div>
-                <AddInventoryButton
+                {canManage && <AddInventoryButton
                     projectId={project.id}
                     towers={project.towers.map((t) => ({ id: t.id, name: t.name }))}
-                />
+                    canManage={canManage}
+                />}
             </div>
 
             {viewTab === 'analytics' && <ProjectAnalytics projectId={project.id} />}
@@ -629,7 +711,7 @@ export default function ProjectDetailClient({ project, canManage = false }: { pr
                                         </h3>
                                         <Badge label={tower.status} tint="bg-surface-light text-muted border-border" />
                                     </div>
-                                    <TowerView tower={tower} />
+                                    <TowerView tower={tower} projectId={project.id} canManage={canManage} />
                                 </div>
                             )}
                         </>

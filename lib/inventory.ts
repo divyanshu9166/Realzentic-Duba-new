@@ -128,6 +128,8 @@ export interface FilterableUnit {
     floorNumber: number
     /** Super-built-up area in square feet, used as the "area" filter basis. */
     builtUpArea: number
+    /** Optional villa plot area in square feet. */
+    plotArea?: number | null
     /** Total price (money), used as the "price" filter basis. */
     totalPrice: number
 }
@@ -146,6 +148,8 @@ export interface UnitFilters {
     maxPrice?: number
     minArea?: number
     maxArea?: number
+    minPlotArea?: number
+    maxPlotArea?: number
 }
 
 function matchesScalar<T>(value: T, filter: T | T[] | undefined): boolean {
@@ -173,6 +177,9 @@ export function matchesUnitFilters<U extends FilterableUnit>(
     if (filters.maxPrice !== undefined && unit.totalPrice > filters.maxPrice) return false
     if (filters.minArea !== undefined && unit.builtUpArea < filters.minArea) return false
     if (filters.maxArea !== undefined && unit.builtUpArea > filters.maxArea) return false
+
+    if (filters.minPlotArea !== undefined && (unit.plotArea == null || unit.plotArea < filters.minPlotArea)) return false
+    if (filters.maxPlotArea !== undefined && (unit.plotArea == null || unit.plotArea > filters.maxPlotArea)) return false
 
     return true
 }

@@ -186,7 +186,8 @@ export const createFloorSchema = z.object({
     towerId: idSchema,
     floorNumber: z
         .number({ message: 'Floor number must be a number' })
-        .int('Floor number must be a whole number'),
+        .int('Floor number must be a whole number')
+        .min(0, 'Floor number must not be negative'),
     floorPlanUrl: optionalUrl,
 })
 
@@ -198,11 +199,20 @@ export const createUnitSchema = z.object({
     towerId: idSchema,
     floorNumber: z
         .number({ message: 'Floor number must be a number' })
-        .int('Floor number must be a whole number'),
+        .int('Floor number must be a whole number')
+        .min(0, 'Floor number must not be negative'),
     unitNumber: requiredString('Unit number'),
     type: unitTypeEnum,
     netArea: areaSqft('Net / suite area'),
     builtUpArea: areaSqft('Built-up area (BUA)'),
+    plotArea: areaSqft('Plot area').optional(),
+    bedroomCount: nonNegativeInt('Bedroom count').optional(),
+    bathroomCount: nonNegativeInt('Bathroom count').optional(),
+    maidRoom: z.boolean().default(false),
+    driverRoom: z.boolean().default(false),
+    privateGarden: z.boolean().default(false),
+    privatePool: z.boolean().default(false),
+    furnishingStatus: optionalString,
     facing: unitFacingEnum,
     status: unitStatusEnum.default('Available'),
     basePricePerSqft: moneyAmount,
@@ -216,7 +226,19 @@ export const createUnitSchema = z.object({
     bookingId: idSchema.optional(),
 })
 
-export const updateUnitSchema = createUnitSchema.partial()
+// Unit status and booking references are changed through their transactional
+// workflow actions, never through a general edit form.
+export const updateUnitSchema = createUnitSchema
+    .omit({ status: true, bookingId: true })
+    .extend({
+        plotArea: areaSqft('Plot area').nullable().optional(),
+        bedroomCount: nonNegativeInt('Bedroom count').nullable().optional(),
+        bathroomCount: nonNegativeInt('Bathroom count').nullable().optional(),
+        furnishingStatus: optionalString.nullable().optional(),
+        parkingType: optionalString.nullable().optional(),
+        totalPrice: moneyAmount.nullable().optional(),
+    })
+    .partial()
 
 // ─── Inferred types ──────────────────────────────────
 

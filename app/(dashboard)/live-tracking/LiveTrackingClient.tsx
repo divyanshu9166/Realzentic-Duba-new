@@ -20,7 +20,10 @@ import { getLiveAgentLocations, type LiveAgentLocation } from '@/app/actions/age
 const POLL_MS = 15_000;
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+// Use the higher-contrast English-label CARTO Voyager basemap instead of the
+// default OSM raster layer, whose Dubai tiles are rendered with local-script labels.
+const ENGLISH_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+const ENGLISH_TILE_ATTRIBUTION = '&copy; OpenStreetMap contributors &copy; CARTO';
 
 const PRESENCE_COLOR: Record<string, string> = {
     online: '#10b981', // emerald
@@ -138,8 +141,8 @@ export default function LiveTrackingClient() {
             .then((L) => {
                 if (cancelled || !mapElRef.current || mapRef.current) return;
                 const map = L.map(mapElRef.current, { zoomControl: true }).setView([25.2048, 55.2708], 11); // Dubai
-                L.tileLayer(OSM_TILE_URL, {
-                    attribution: '&copy; OpenStreetMap contributors',
+                L.tileLayer(ENGLISH_TILE_URL, {
+                    attribution: ENGLISH_TILE_ATTRIBUTION,
                     maxZoom: 19,
                 }).addTo(map);
                 mapRef.current = map;

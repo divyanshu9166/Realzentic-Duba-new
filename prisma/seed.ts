@@ -183,7 +183,24 @@ async function main() {
   const unitSpecs = [
     { towerId: marinaTower.id, floorNumber: 12, unitNumber: 'A-1204', type: 'Apartment2' as const, netArea: 1040, builtUpArea: 1260, facing: 'NE' as const, basePricePerSqft: 1750, totalPrice: 2205000 },
     { towerId: marinaTower.id, floorNumber: 22, unitNumber: 'A-2201', type: 'Penthouse' as const, netArea: 2640, builtUpArea: 3090, facing: 'W' as const, basePricePerSqft: 2350, totalPrice: 7350000 },
-    { towerId: hillsTower.id, floorNumber: 1, unitNumber: 'V-18', type: 'Villa' as const, netArea: 3560, builtUpArea: 4210, facing: 'E' as const, basePricePerSqft: 1560, totalPrice: 6567600 },
+    {
+      towerId: hillsTower.id, floorNumber: 1, unitNumber: 'V-18', type: 'Villa' as const,
+      netArea: 3560, builtUpArea: 4210, plotArea: 5200, bedroomCount: 4, bathroomCount: 5,
+      maidRoom: true, driverRoom: true, privateGarden: true, privatePool: true,
+      furnishingStatus: 'Semi-Furnished', facing: 'E' as const, basePricePerSqft: 1560, totalPrice: 6567600,
+    },
+    {
+      towerId: hillsTower.id, floorNumber: 1, unitNumber: 'V-19', type: 'Villa' as const,
+      netArea: 3560, builtUpArea: 4210, plotArea: 5050, bedroomCount: 4, bathroomCount: 5,
+      maidRoom: true, driverRoom: false, privateGarden: true, privatePool: false,
+      furnishingStatus: 'Unfurnished', facing: 'N' as const, basePricePerSqft: 1560, totalPrice: 6567600,
+    },
+    {
+      towerId: hillsTower.id, floorNumber: 2, unitNumber: 'V-20', type: 'Villa' as const,
+      netArea: 3800, builtUpArea: 4500, plotArea: 6100, bedroomCount: 5, bathroomCount: 6,
+      maidRoom: true, driverRoom: true, privateGarden: true, privatePool: true,
+      furnishingStatus: 'Furnished', facing: 'W' as const, basePricePerSqft: 1650, totalPrice: 7425000,
+    },
   ]
   const units = []
   for (const unit of unitSpecs) {

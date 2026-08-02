@@ -18,9 +18,11 @@ const FACINGS = ['N', 'S', 'E', 'W', 'NE', 'NW', 'SE', 'SW']
 export default function AddInventoryButton({
     projectId,
     towers,
+    canManage,
 }: {
     projectId: number
     towers: Array<{ id: number; name: string }>
+    canManage: boolean
 }) {
     const router = useRouter()
     const [open, setOpen] = useState(false)
@@ -83,6 +85,8 @@ export default function AddInventoryButton({
     }
 
     const field = 'w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm'
+
+    if (!canManage) return null
 
     return (
         <>

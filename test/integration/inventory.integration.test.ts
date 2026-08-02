@@ -41,6 +41,7 @@ import {
     revisePrice,
     saveProjectLocation,
     sweepExpiredHolds,
+    updateUnit,
 } from '@/app/actions/properties'
 import {
     Cleanup,
@@ -51,13 +52,16 @@ import {
     prisma,
     uid,
 } from './harness'
+import { resetTestSession, setTestSession } from './_session'
 
 let cleanup: Cleanup
 beforeEach(() => {
     cleanup = new Cleanup()
+    resetTestSession()
 })
 afterEach(async () => {
     await cleanup.run()
+    resetTestSession()
 })
 afterAll(async () => {
     await disconnect()
@@ -192,6 +196,76 @@ describe('Inventory service — DB integration', () => {
         expect(after).toBe(before)
     })
 
+    it('updateUnit persists villa attributes without bypassing the current status', async () => {
+        const project = await makeProject(cleanup)
+        const tower = await makeTower(cleanup, project.id)
+        const unit = await makeUnit(cleanup, tower.id, { status: 'Available', totalPrice: 6500000 })
+
+        const res = await updateUnit(unit.id, {
+            type: 'Villa',
+            unitNumber: unit.unitNumber,
+            floorNumber: 1,
+            netArea: 3200,
+            builtUpArea: 4100,
+            plotArea: 5200,
+            bedroomCount: 4,
+            bathroomCount: 5,
+            facing: 'E',
+            basePricePerSqft: 1550,
+            floorRisePremium: 0,
+            viewPremium: 0,
+            totalPrice: 6500000,
+            parkingType: 'Garage',
+            parkingCount: 2,
+            maidRoom: true,
+            driverRoom: true,
+            privateGarden: true,
+            privatePool: false,
+            furnishingStatus: 'Semi-Furnished',
+        })
+
+        expect(res.success).toBe(true)
+        const row = await prisma.unit.findUnique({ where: { id: unit.id } })
+        expect(row).toMatchObject({
+            type: 'Villa',
+            status: 'Available',
+            plotArea: 5200,
+            bedroomCount: 4,
+            bathroomCount: 5,
+            maidRoom: true,
+            driverRoom: true,
+            privateGarden: true,
+            furnishingStatus: 'Semi-Furnished',
+        })
+    })
+
+    it('inventory mutations reject a normal staff session', async () => {
+        const project = await makeProject(cleanup)
+        setTestSession({
+            user: {
+                id: 'staff-user',
+                email: 'staff@test.local',
+                name: 'Staff User',
+                role: 'STAFF',
+                staffId: null,
+            },
+        })
+
+        const res = await createUnit({
+            towerId: 999999,
+            floorNumber: 1,
+            unitNumber: uid('STAFF'),
+            type: 'Villa',
+            netArea: 1000,
+            builtUpArea: 1200,
+            facing: 'N',
+            basePricePerSqft: 1000,
+        })
+
+        expect(res).toEqual({ success: false, error: 'Access denied. ADMIN or MANAGER role required.' })
+        expect(project.id).toBeGreaterThan(0)
+    })
+
     // 3.6 / Property 7: block requires Available (Req 2.3)
     it('blockUnit succeeds on an Available unit and fails on a non-Available unit', async () => {
         const project = await makeProject(cleanup)
@@ -240,6 +314,25 @@ describe('Inventory service — DB integration', () => {
         const u2 = await makeUnit(cleanup, tower.id, { status: 'Available' })
         const bad = await blockUnit(u2.id, 200)
         expect(bad.success).toBe(false)
+    })
+
+    it('changing a held unit clears all stale hold metadata', async () => {
+        const project = await makeProject(cleanup)
+        const tower = await makeTower(cleanup, project.id)
+        const unit = await makeUnit(cleanup, tower.id, { status: 'Available' })
+
+        await blockUnit(unit.id, 24)
+        const res = await changeUnitStatus(unit.id, 'Booked')
+        expect(res.success).toBe(true)
+
+        const row = await prisma.unit.findUnique({ where: { id: unit.id } })
+        expect(row).toMatchObject({
+            status: 'Booked',
+            holdByStaffId: null,
+            holdByPartnerId: null,
+            holdCreatedAt: null,
+            holdExpiresAt: null,
+        })
     })
 
     // 3.8 / Property 9: expired holds revert to Available (Req 2.6)

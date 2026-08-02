@@ -20,7 +20,11 @@ import {
 const DUBAI_CENTER: [number, number] = [25.2048, 55.2708]
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+// CARTO Voyager keeps the Latin/English label style while adding stronger
+// road, water, and land contrast. The public OSM raster layer renders
+// local-script labels in this region and does not provide a language switch.
+const ENGLISH_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'
+const ENGLISH_TILE_ATTRIBUTION = '&copy; OpenStreetMap contributors &copy; CARTO'
 
 export interface ProjectLocationValue {
     latitude: number | null
@@ -162,8 +166,8 @@ export default function ProjectLocationPicker({ value, onChange, initialSearch =
                     ? [current.latitude, current.longitude]
                     : DUBAI_CENTER
                 const map = L.map(mapElementRef.current, { zoomControl: true }).setView(initialPoint, current.latitude != null ? 16 : 11)
-                L.tileLayer(OSM_TILE_URL, {
-                    attribution: '&copy; OpenStreetMap contributors',
+                L.tileLayer(ENGLISH_TILE_URL, {
+                    attribution: ENGLISH_TILE_ATTRIBUTION,
                     maxZoom: 19,
                 }).addTo(map)
                 map.on('click', (event) => setPoint(event.latlng.lat, event.latlng.lng))

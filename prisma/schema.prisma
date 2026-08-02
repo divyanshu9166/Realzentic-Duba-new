@@ -1775,6 +1775,14 @@ model Unit {
   type             UnitType
   netArea          Float
   builtUpArea      Float
+  plotArea         Float?
+  bedroomCount     Int?
+  bathroomCount    Int?
+  maidRoom         Boolean    @default(false)
+  driverRoom       Boolean    @default(false)
+  privateGarden    Boolean    @default(false)
+  privatePool      Boolean    @default(false)
+  furnishingStatus String?
   areaUnit         String     @default("sqft")
   facing           UnitFacing
   status           UnitStatus @default(Available)
