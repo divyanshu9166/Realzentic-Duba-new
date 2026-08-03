@@ -572,9 +572,9 @@ export function SocialInbox({ platform }: { platform?: Platform }) {
   const fbColor = PLATFORM_COLOR.facebook
 
   return (
-    // Mobile: subtract the fixed bottom nav (~60px + 16px pad + safe-area) so the
-    // composer stays reachable above it. Desktop (md+) keeps the original height.
-    <div className="-m-3.5 sm:-m-6 flex flex-col h-[calc(100dvh-3.5rem-76px-env(safe-area-inset-bottom))] md:h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
+    // Mobile: use the full viewport below the top bar now that the fixed bottom
+    // navigation has been removed. Desktop (md+) keeps the original height.
+    <div className="-m-3.5 sm:-m-6 flex flex-col h-[calc(100dvh-3.5rem-env(safe-area-inset-bottom))] md:h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
 
       {/* ── Mobile segmented channel control ─────────────────────────────── */}
       {!platform && (

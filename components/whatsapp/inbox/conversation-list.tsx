@@ -186,7 +186,7 @@ export function ConversationList({
             <p className="text-sm text-muted">No conversations found</p>
           </div>
         ) : (
-          <div className="flex flex-col pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0">
+          <div className="flex flex-col pb-[env(safe-area-inset-bottom)] md:pb-0">
             {filtered.map((conv) => (
               <ConversationItem
                 key={conv.id}

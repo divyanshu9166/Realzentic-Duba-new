@@ -156,6 +156,7 @@ function LoginContent() {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => { setMode('admin'); setError(''); }}
+              type="button"
               className="tap-press group flex flex-col items-center gap-3 p-5 rounded-2xl border border-border hover:border-accent/50 hover:bg-accent-light transition-all"
             >
               <div className="w-12 h-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center group-hover:scale-105 transition-transform">

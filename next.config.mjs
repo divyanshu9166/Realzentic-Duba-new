@@ -15,12 +15,33 @@ const nextConfig = {
   compress: true,
   // Remove X-Powered-By header (minor security + bandwidth saving)
   poweredByHeader: false,
+  // Allow ngrok (and other tunnel) origins to connect to the Next.js dev server
+  // WebSocket HMR endpoint. Without this, Next.js returns 503 on WebSocket
+  // upgrades from non-localhost hosts, preventing React from hydrating and
+  // making all onClick handlers non-functional.
+  allowedDevOrigins: [
+    '*.ngrok-free.dev',
+    '*.ngrok-free.app',
+    '*.ngrok.io',
+    '*.ngrok.app',
+  ],
   turbopack: {
     root: projectRoot,
   },
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000', 'localhost:3001', '127.0.0.1:3000', '127.0.0.1:3001', '*.github.dev', 'realzentic.autozentic.com']
+      allowedOrigins: [
+        'localhost:3000',
+        'localhost:3001',
+        '127.0.0.1:3000',
+        '127.0.0.1:3001',
+        '*.github.dev',
+        'realzentic.autozentic.com',
+        '*.ngrok-free.app',
+        '*.ngrok.io',
+        '*.ngrok-free.dev',
+        '*.ngrok.app',
+      ]
     }
   },
   // Rewrite /uploads/* → /api/uploads/* so images stored with old paths still work

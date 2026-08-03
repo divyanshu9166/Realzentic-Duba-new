@@ -76,7 +76,7 @@ export function MessageComposer({
   );
 
   return (
-    <div className="shrink-0 border-t border-border bg-surface p-3 pb-[calc(0.75rem+60px+env(safe-area-inset-bottom))] md:pb-3">
+    <div className="shrink-0 border-t border-border bg-surface p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
       {replyTo && (
         <div className="mb-2">
           <ReplyQuote
