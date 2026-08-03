@@ -631,6 +631,7 @@ model StoreSettings {
   vatTrn            String?
   vatRate           Float    @default(5.0)
   currency          String   @default("AED")
+  taxInvoiceFooter  String?
   logo              String?
   // Geofence for GPS attendance
   storeLat          Float?
@@ -2830,16 +2831,22 @@ model Invoice {
   rentalDeal   RentalDeal? @relation(fields: [rentalDealId], references: [id], onDelete: SetNull)
   leaseId      Int?
   lease        Lease?      @relation(fields: [leaseId], references: [id], onDelete: SetNull)
-  type         String      @default("SERVICE") // SERVICE | COMMISSION | RENT | SECURITY_DEPOSIT | OTHER
-  status       String      @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
+  type         String      @default("SERVICE") // SERVICE | COMMISSION | RENT | SECURITY_DEPOSIT | CREDIT_NOTE | OTHER
+  status       String      @default("DRAFT") // DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | CREDITED | VOID
   issueDate    DateTime    @default(now())
+  supplyDate   DateTime?
   dueDate      DateTime?
+  taxTreatment String      @default("STANDARD_5") // STANDARD_5 | ZERO_RATED | EXEMPT | OUT_OF_SCOPE
+  currency     String      @default("AED")
   subtotal     Int
   vatAmount    Int         @default(0)
   total        Int
   balanceDue   Int
   lineItems    Json
   notes        String?
+  creditOfId   Int?
+  creditOf     Invoice?    @relation("InvoiceCredit", fields: [creditOfId], references: [id], onDelete: SetNull)
+  creditNotes  Invoice[]   @relation("InvoiceCredit")
   fileUrl      String?
   createdById  Int?
   createdAt    DateTime    @default(now())
@@ -2855,6 +2862,7 @@ model Invoice {
   @@index([dealId])
   @@index([rentalDealId])
   @@index([leaseId])
+  @@index([creditOfId])
 }
 
 model Contract {
@@ -2921,32 +2929,37 @@ model VendorBill {
 }
 
 model CommissionLedger {
-  id               Int                @id @default(autoincrement())
-  displayId        String             @unique
-  beneficiaryType  String             @default("AGENT") // AGENT | COMPANY
-  staffId          Int?
-  staff            Staff?             @relation(fields: [staffId], references: [id], onDelete: SetNull)
-  dealId           Int?
-  deal             Deal?              @relation(fields: [dealId], references: [id], onDelete: SetNull)
-  rentalDealId     Int?
-  rentalDeal       RentalDeal?        @relation(fields: [rentalDealId], references: [id], onDelete: SetNull)
-  invoiceId        Int?
-  invoice          Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  basisAmount      Int
-  rate             Float              @default(0)
-  amount           Int
-  status           String             @default("PENDING") // PENDING | APPROVED | PAID | VOID
-  approvedAt       DateTime?
-  paidAt           DateTime?
-  paymentReference String?
-  notes            String?
-  sourceKey        String?            @unique
-  reversalOfId     Int?
-  reversalOf       CommissionLedger?  @relation("CommissionReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
-  reversals        CommissionLedger[] @relation("CommissionReversal")
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  splits           CommissionSplit[]
+  id                    Int                @id @default(autoincrement())
+  displayId             String             @unique
+  beneficiaryType       String             @default("AGENT") // AGENT | COMPANY
+  staffId               Int?
+  staff                 Staff?             @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  dealId                Int?
+  deal                  Deal?              @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  rentalDealId          Int?
+  rentalDeal            RentalDeal?        @relation(fields: [rentalDealId], references: [id], onDelete: SetNull)
+  invoiceId             Int?
+  invoice               Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  basisAmount           Int
+  rate                  Float              @default(0)
+  amount                Int
+  status                String             @default("PENDING") // PENDING | APPROVED | PAID | VOID
+  approvedAt            DateTime?
+  paidAt                DateTime?
+  paymentReference      String?
+  brokerageAgreementRef String?
+  dldRegistrationDate   DateTime?
+  payoutEligibleAt      DateTime?
+  eligibilityStatus     String             @default("PENDING_REGISTRATION") // PENDING_REGISTRATION | ELIGIBLE | HOLD | CLAWBACK
+  eligibilityNote       String?
+  notes                 String?
+  sourceKey             String?            @unique
+  reversalOfId          Int?
+  reversalOf            CommissionLedger?  @relation("CommissionReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversals             CommissionLedger[] @relation("CommissionReversal")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  splits                CommissionSplit[]
 
   @@index([staffId, status])
   @@index([beneficiaryType, status])

@@ -44,6 +44,13 @@ export interface MortgageEligibilityInput {
     purchaseType?: MortgagePurchaseType
     /** Debt-burden-ratio cap as a fraction (default 0.5 = 50%). */
     dbr?: number
+    /**
+     * Optional lender stress-test rate. If omitted, the calculator uses the
+     * current rate + 2 percentage points, within the CBUAE stress-test range.
+     */
+    stressRatePct?: number
+    /** Monthly rent used for the CBUAE investment-property DBR deduction. */
+    investmentMonthlyRent?: number
 }
 
 export interface MortgageEligibilityResult {
@@ -55,6 +62,12 @@ export interface MortgageEligibilityResult {
     ltvCap: number
     /** Monetary limit created by the LTV cap. */
     maxLoanByLtv: number
+    /** CBUAE maximum-financing limit based on annual income. */
+    maxLoanByIncome: number
+    /** Rate used for the conservative affordability stress test. */
+    stressRatePct: number
+    /** Monthly income used for DBR after the investment-rent deduction. */
+    dbrIncomeUsed: number
 }
 
 /**
@@ -70,7 +83,7 @@ export function mortgageLtvCap(
     if (purchaseType === 'OFF_PLAN') return 0.5
     if (purchaseType === 'SECONDARY_OR_INVESTMENT') return applicantType === 'UAE_NATIONAL' ? 0.65 : 0.6
     if (applicantType === 'UAE_NATIONAL') return propertyValue <= 5_000_000 ? 0.85 : 0.75
-    return propertyValue < 5_000_000 ? 0.75 : 0.65
+    return propertyValue <= 5_000_000 ? 0.8 : 0.7
 }
 
 /**
@@ -84,13 +97,27 @@ export function mortgageEligibility(input: MortgageEligibilityInput): MortgageEl
     const obligations = num(input.monthlyObligations)
     const dbr = clamp(num(input.dbr) || 0.5, 0, 1)
     const tenure = Math.max(0, Math.trunc(num(input.tenureMonths)))
-    const r = num(input.annualRatePct) / 12 / 100
+    const currentRatePct = Math.max(0, num(input.annualRatePct))
+    const stressRatePct = input.stressRatePct == null
+        ? currentRatePct + 2
+        : Math.max(0, num(input.stressRatePct))
 
     const propertyValue = num(input.propertyValue)
-    const ltvCap = mortgageLtvCap(propertyValue, input.applicantType, input.purchaseType)
+    const applicantType = input.applicantType ?? 'EXPATRIATE'
+    const purchaseType = input.purchaseType ?? 'FIRST_HOME'
+    const ltvCap = mortgageLtvCap(propertyValue, applicantType, purchaseType)
     const maxLoanByLtv = round2(Math.max(0, propertyValue * ltvCap))
-    const maxEmi = round2(Math.max(0, income * dbr - obligations))
-    if (maxEmi <= 0 || tenure <= 0 || maxLoanByLtv <= 0) return { maxEmi, eligibleLoan: 0, ltvCap, maxLoanByLtv }
+    const rentDeduction = purchaseType === 'SECONDARY_OR_INVESTMENT'
+        ? (Math.max(0, num(input.investmentMonthlyRent)) * 2) / 12
+        : 0
+    const dbrIncomeUsed = round2(Math.max(0, income - rentDeduction))
+    const maxEmi = round2(Math.max(0, dbrIncomeUsed * dbr - obligations))
+    const maxLoanByIncome = round2(Math.max(0, income * 12 * (applicantType === 'UAE_NATIONAL' ? 8 : 7)))
+    if (maxEmi <= 0 || tenure <= 0 || maxLoanByLtv <= 0 || maxLoanByIncome <= 0) {
+        return { maxEmi, eligibleLoan: 0, ltvCap, maxLoanByLtv, maxLoanByIncome, stressRatePct, dbrIncomeUsed }
+    }
+
+    const r = stressRatePct / 12 / 100
 
     // Undiscounted sum of all EMIs — the mathematical upper bound for the
     // principal. With any positive interest the reverse-amortized principal is
@@ -112,7 +139,15 @@ export function mortgageEligibility(input: MortgageEligibilityInput): MortgageEl
     // Clamp to the undiscounted sum: positive interest can only reduce the
     // supportable principal, never increase it past EMI × tenure.
     eligibleLoan = Math.min(eligibleLoan, undiscounted)
-    return { maxEmi, eligibleLoan: round2(Math.min(eligibleLoan, maxLoanByLtv)), ltvCap, maxLoanByLtv }
+    return {
+        maxEmi,
+        eligibleLoan: round2(Math.min(eligibleLoan, maxLoanByLtv, maxLoanByIncome)),
+        ltvCap,
+        maxLoanByLtv,
+        maxLoanByIncome,
+        stressRatePct,
+        dbrIncomeUsed,
+    }
 }
 
 // ─── Rental yield ─────────────────────────────────────────────────────────────
@@ -122,10 +157,19 @@ export interface RentalYieldInput {
     monthlyRent: number
     /** Annual ownership costs (maintenance, tax, etc.) — default 0. */
     annualExpenses?: number
+    /** Expected annual vacancy allowance as a percentage of gross rent. */
+    vacancyRatePct?: number
+    /** Property-management fee as a percentage of gross rent. */
+    managementFeePct?: number
+    /** Annual service charges, kept separate from other operating expenses. */
+    annualServiceCharges?: number
 }
 
 export interface RentalYieldResult {
     annualRent: number
+    vacancyLoss: number
+    managementFee: number
+    annualNetIncome: number
     grossYieldPct: number
     netYieldPct: number
 }
@@ -138,9 +182,20 @@ export function rentalYield(input: RentalYieldInput): RentalYieldResult {
     const value = num(input.propertyValue)
     const annualRent = num(input.monthlyRent) * 12
     const expenses = num(input.annualExpenses)
+    const vacancyLoss = annualRent * clamp(num(input.vacancyRatePct), 0, 100) / 100
+    const managementFee = annualRent * clamp(num(input.managementFeePct), 0, 100) / 100
+    const serviceCharges = num(input.annualServiceCharges)
+    const annualNetIncome = annualRent - vacancyLoss - managementFee - expenses - serviceCharges
     const gross = value > 0 ? (annualRent / value) * 100 : 0
-    const net = value > 0 ? ((annualRent - expenses) / value) * 100 : 0
-    return { annualRent: round2(annualRent), grossYieldPct: round2(gross), netYieldPct: round2(net) }
+    const net = value > 0 ? (annualNetIncome / value) * 100 : 0
+    return {
+        annualRent: round2(annualRent),
+        vacancyLoss: round2(vacancyLoss),
+        managementFee: round2(managementFee),
+        annualNetIncome: round2(annualNetIncome),
+        grossYieldPct: round2(gross),
+        netYieldPct: round2(net),
+    }
 }
 
 // ─── Appreciation projection ───────────────────────────────────────────────────
@@ -175,6 +230,24 @@ export function appreciationProjection(input: AppreciationInput): AppreciationRe
 }
 
 // ─── VAT on property ─────────────────────────────────────────────────────────
+
+export type UaeVatTreatment =
+    | 'COMMERCIAL_PROPERTY'
+    | 'NEW_RESIDENTIAL_FIRST_SUPPLY'
+    | 'EXISTING_RESIDENTIAL'
+    | 'REAL_ESTATE_SERVICE'
+    | 'MIXED_USE'
+
+/**
+ * Return the VAT rate for the selected UAE real-estate treatment. For mixed
+ * use, `commercialSharePct` produces a blended headline rate for the entered
+ * base; the underlying invoice still needs proper FTA apportionment.
+ */
+export function vatRateForTreatment(treatment: UaeVatTreatment, commercialSharePct = 0): number {
+    if (treatment === 'COMMERCIAL_PROPERTY' || treatment === 'REAL_ESTATE_SERVICE') return 0.05
+    if (treatment === 'MIXED_USE') return 0.05 * clamp(num(commercialSharePct), 0, 100) / 100
+    return 0
+}
 
 /**
  * VAT amount on a base value at a given fractional rate (e.g. 0.05). Pure

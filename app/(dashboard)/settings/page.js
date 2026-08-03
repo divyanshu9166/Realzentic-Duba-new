@@ -442,6 +442,7 @@ export default function SettingsPage() {
         invoicePrefix: form.invoicePrefix.value,
         invoicePadding: form.invoicePadding.value ? parseInt(form.invoicePadding.value) : undefined,
         invoiceTerms: form.invoiceTerms.value,
+        taxInvoiceFooter: form.taxInvoiceFooter.value,
         bankName: form.bankName.value,
         bankAccountName: form.bankAccountName.value,
         bankAccountNumber: form.bankAccountNumber.value,
@@ -660,7 +661,9 @@ export default function SettingsPage() {
                   </div>
                   <div className="mt-3">
                     <label className="block text-xs font-medium text-muted mb-1.5">Invoice Terms</label>
-                    <textarea rows={2} name="invoiceTerms" defaultValue={storeSettings?.invoiceTerms || ''} className="w-full" placeholder="e.g. Goods once sold will not be taken back." />
+                      <textarea rows={2} name="invoiceTerms" defaultValue={storeSettings?.invoiceTerms || ''} className="w-full" placeholder="e.g. Goods once sold will not be taken back." />
+                      <label className="block text-xs font-medium text-muted mt-3">Tax invoice footer / compliance note</label>
+                      <textarea rows={2} name="taxInvoiceFooter" defaultValue={storeSettings?.taxInvoiceFooter || ''} className="w-full" placeholder="e.g. Thank you. Please quote the invoice number with your payment." />
                   </div>
                 </div>
                 {/* GPS Attendance Settings */}

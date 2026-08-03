@@ -12,9 +12,8 @@
 
 import { useMemo, useState } from 'react'
 import { Landmark, Home, TrendingUp, Receipt, Percent } from 'lucide-react'
-import { vatRateForProperty } from '@/lib/cost-sheet'
 import { computeEmi, totalInterest, validateDownPayment, estimateDldFeeAndRegistration } from '@/lib/emi'
-import { mortgageEligibility, rentalYield, appreciationProjection, vatAmount } from '@/lib/finance-calculators'
+import { mortgageEligibility, rentalYield, appreciationProjection, vatAmount, vatRateForTreatment, type UaeVatTreatment } from '@/lib/finance-calculators'
 import { formatCurrency } from '@/lib/currency'
 
 const TABS = [
@@ -27,7 +26,15 @@ type TabId = (typeof TABS)[number]['id']
 
 // Illustrative rates only — lender offers must be verified before advising a buyer.
 const BANK_RATES: Array<{ bank: string; rate: number }> = [
-    { bank: 'Scenario A', rate: 4.5 }, { bank: 'Scenario B', rate: 5 }, { bank: 'Scenario C', rate: 5.5 },
+    { bank: 'Illustrative low', rate: 4.5 }, { bank: 'Illustrative mid', rate: 5 }, { bank: 'Illustrative high', rate: 5.5 },
+]
+
+const VAT_TREATMENTS: Array<{ value: UaeVatTreatment; label: string }> = [
+    { value: 'COMMERCIAL_PROPERTY', label: 'Commercial property — standard rated' },
+    { value: 'NEW_RESIDENTIAL_FIRST_SUPPLY', label: 'New residential — first supply within 3 years' },
+    { value: 'EXISTING_RESIDENTIAL', label: 'Existing residential — subsequent supply' },
+    { value: 'REAL_ESTATE_SERVICE', label: 'Real-estate / brokerage service' },
+    { value: 'MIXED_USE', label: 'Mixed-use property — review apportionment' },
 ]
 
 function Field({ label, value, onChange, type = 'number', placeholder, min, max }: {
@@ -56,15 +63,15 @@ export default function CalculatorsClient() {
 
     // 1. Dubai Land Department fees
     const [sdValue, setSdValue] = useState('5000000')
-    const [buyerType, setBuyerType] = useState<'Individual' | 'Company'>('Individual')
     const [mortgageForDld, setMortgageForDld] = useState('0')
     const dld = useMemo(() => {
         const base = Number(sdValue)
-        if (!base || base <= 0 || base > 999_999_999) return null
+        const mortgage = Number(mortgageForDld)
+        if (!base || base <= 0 || base > 999_999_999 || !Number.isFinite(mortgage) || mortgage < 0 || mortgage > base) return null
         try {
-            return estimateDldFeeAndRegistration(base, buyerType, Number(mortgageForDld))
+            return estimateDldFeeAndRegistration(base, 'Individual', mortgage)
         } catch { return null }
-    }, [sdValue, buyerType, mortgageForDld])
+    }, [sdValue, mortgageForDld])
 
     // 2. Mortgage
     const [pValue, setPValue] = useState('5000000')
@@ -72,8 +79,9 @@ export default function CalculatorsClient() {
     const [rate, setRate] = useState('8.5')
     const [years, setYears] = useState('20')
     const effectiveYears = Math.min(25, Math.max(1, Number(years) || 20))
+    const effectiveRate = rate.trim() === '' ? 8.5 : Number(rate)
     const loan = useMemo(() => {
-        const value = Number(pValue), dp = Number(down), r = Number(rate), n = effectiveYears * 12
+        const value = Number(pValue), dp = Number(down), r = effectiveRate, n = effectiveYears * 12
         if (!value || value <= 0 || value > 999_999_999) return null
         if (!validateDownPayment(value, dp)) return null
         if (!Number.isFinite(r) || r < 0 || !Number.isInteger(n) || n < 1) return null
@@ -83,7 +91,7 @@ export default function CalculatorsClient() {
             const interest = totalInterest(principal, r, n)
             return { principal, emi, interest, total: principal + interest }
         } catch { return null }
-    }, [pValue, down, rate, effectiveYears])
+    }, [pValue, down, effectiveRate, effectiveYears])
     const bankEmis = useMemo(() => {
         const value = Number(pValue), dp = Number(down), n = effectiveYears * 12
         if (!validateDownPayment(value, dp) || !Number.isInteger(n) || n < 1) return []
@@ -96,31 +104,46 @@ export default function CalculatorsClient() {
     // Eligibility
     const [income, setIncome] = useState('100000')
     const [obligations, setObligations] = useState('0')
+    const [investmentRent, setInvestmentRent] = useState('0')
     const [applicantType, setApplicantType] = useState<'UAE_NATIONAL' | 'EXPATRIATE'>('EXPATRIATE')
     const [purchaseType, setPurchaseType] = useState<'FIRST_HOME' | 'SECONDARY_OR_INVESTMENT' | 'OFF_PLAN'>('FIRST_HOME')
     const elig = useMemo(() => mortgageEligibility({
         monthlyIncome: Number(income), monthlyObligations: Number(obligations),
-        annualRatePct: Number(rate) || 8.5, tenureMonths: effectiveYears * 12,
+        annualRatePct: effectiveRate, tenureMonths: effectiveYears * 12,
         propertyValue: Number(pValue), applicantType, purchaseType,
-    }), [income, obligations, rate, effectiveYears, pValue, applicantType, purchaseType])
+        investmentMonthlyRent: Number(investmentRent),
+    }), [income, obligations, investmentRent, effectiveRate, effectiveYears, pValue, applicantType, purchaseType])
 
     // 3. Yield & appreciation
     const [ryValue, setRyValue] = useState('8000000')
     const [rent, setRent] = useState('25000')
     const [expenses, setExpenses] = useState('30000')
-    const ry = useMemo(() => rentalYield({ propertyValue: Number(ryValue), monthlyRent: Number(rent), annualExpenses: Number(expenses) }), [ryValue, rent, expenses])
+    const [vacancyRate, setVacancyRate] = useState('5')
+    const [managementFee, setManagementFee] = useState('5')
+    const [serviceCharges, setServiceCharges] = useState('0')
+    const ry = useMemo(() => rentalYield({
+        propertyValue: Number(ryValue),
+        monthlyRent: Number(rent),
+        annualExpenses: Number(expenses),
+        vacancyRatePct: Number(vacancyRate),
+        managementFeePct: Number(managementFee),
+        annualServiceCharges: Number(serviceCharges),
+    }), [ryValue, rent, expenses, vacancyRate, managementFee, serviceCharges])
     const [growth, setGrowth] = useState('8')
     const [appYears, setAppYears] = useState('5')
     const app = useMemo(() => appreciationProjection({ currentValue: Number(ryValue), annualGrowthPct: Number(growth), years: Number(appYears) }), [ryValue, growth, appYears])
 
     // 4. VAT
     const [vatBase, setVatBase] = useState('5000000')
-    const [propertyUse, setPropertyUse] = useState<'Residential' | 'Commercial'>('Residential')
+    const [vatTreatment, setVatTreatment] = useState<UaeVatTreatment>('COMMERCIAL_PROPERTY')
+    const [commercialShare, setCommercialShare] = useState('50')
     const vat = useMemo(() => {
         const base = Number(vatBase)
-        const rate = vatRateForProperty(propertyUse)
+        const rate = vatRateForTreatment(vatTreatment, Number(commercialShare))
         return { rate, amount: vatAmount(base, rate), total: base + vatAmount(base, rate) }
-    }, [vatBase, propertyUse])
+    }, [vatBase, vatTreatment, commercialShare])
+
+    const requestedMortgageIsWithinGuidance = loan ? loan.principal <= elig.eligibleLoan + 0.01 : false
 
     return (
         <div className="space-y-5 max-w-4xl">
@@ -143,14 +166,7 @@ export default function CalculatorsClient() {
             {/* 1. DLD fees */}
             {tab === 'dld' && (
                 <div className="space-y-4">
-                    <div className="glass-card p-5 grid gap-3 sm:grid-cols-3">
-                        <div>
-                            <label className="block text-xs text-muted mb-1">Buyer Type</label>
-                            <select value={buyerType} onChange={(e) => setBuyerType(e.target.value as 'Individual' | 'Company')} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
-                                <option value="Individual">Individual</option>
-                                <option value="Company">Company</option>
-                            </select>
-                        </div>
+                    <div className="glass-card p-5 grid gap-3 sm:grid-cols-2">
                         <Field label="Property Value (AED)" value={sdValue} onChange={setSdValue} />
                         <Field label="Mortgage Amount (AED, optional)" value={mortgageForDld} onChange={setMortgageForDld} />
                     </div>
@@ -208,15 +224,23 @@ export default function CalculatorsClient() {
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                             <Field label="Monthly Income (AED)" value={income} onChange={setIncome} />
                             <Field label="Existing Obligations (AED)" value={obligations} onChange={setObligations} />
+                            {purchaseType === 'SECONDARY_OR_INVESTMENT' && <Field label="Monthly rent from property (AED)" value={investmentRent} onChange={setInvestmentRent} />}
                             <select value={applicantType} onChange={(e) => setApplicantType(e.target.value as 'UAE_NATIONAL' | 'EXPATRIATE')} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm"><option value="EXPATRIATE">Expatriate</option><option value="UAE_NATIONAL">UAE National</option></select>
                             <select value={purchaseType} onChange={(e) => setPurchaseType(e.target.value as 'FIRST_HOME' | 'SECONDARY_OR_INVESTMENT' | 'OFF_PLAN')} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm"><option value="FIRST_HOME">First Home</option><option value="SECONDARY_OR_INVESTMENT">Secondary / Investment</option><option value="OFF_PLAN">Off-Plan</option></select>
                         </div>
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             <Stat label="Max Affordable Installment" value={formatCurrency(elig.maxEmi)} />
                             <Stat label="Eligible Mortgage" value={formatCurrency(elig.eligibleLoan)} tint="text-emerald-600" />
                             <Stat label="Applicable LTV Cap" value={`${(elig.ltvCap * 100).toFixed(0)}%`} />
+                            <Stat label="Income-based loan cap" value={formatCurrency(elig.maxLoanByIncome)} />
                         </div>
-                        <p className="text-[11px] text-muted">Indicative only: eligible loan at {rate || 8.5}% for {effectiveYears} years. Banks may apply a lower DBR/LTV or shorter tenor after underwriting.</p>
+                        <div className={`rounded-lg px-3 py-2 text-xs ${requestedMortgageIsWithinGuidance ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                            {loan ? (requestedMortgageIsWithinGuidance
+                                ? `Requested mortgage ${formatCurrency(loan.principal)} is within the indicative affordability ceiling.`
+                                : `Requested mortgage ${formatCurrency(loan.principal)} is above the indicative affordability ceiling of ${formatCurrency(elig.eligibleLoan)}.`)
+                                : 'Enter a valid property value and down payment to compare the requested mortgage with the indicative ceiling.'}
+                        </div>
+                        <p className="text-[11px] text-muted">Indicative only: affordability is stress-tested at {elig.stressRatePct.toFixed(1)}% for {effectiveYears} years, with a 50% DBR ceiling, CBUAE LTV cap, and income-based financing cap. Lenders may apply stricter underwriting, fees, or a shorter tenor.</p>
                     </div>
                 </div>
             )}
@@ -226,16 +250,21 @@ export default function CalculatorsClient() {
                 <div className="space-y-4">
                     <div className="glass-card p-5 space-y-3">
                         <h2 className="text-sm font-semibold text-foreground">Rental Yield</h2>
-                        <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                             <Field label="Property Value (AED)" value={ryValue} onChange={setRyValue} />
                             <Field label="Monthly Rent (AED)" value={rent} onChange={setRent} />
-                            <Field label="Annual Expenses (AED)" value={expenses} onChange={setExpenses} />
+                            <Field label="Other annual costs (AED)" value={expenses} onChange={setExpenses} />
+                            <Field label="Vacancy allowance (%)" value={vacancyRate} onChange={setVacancyRate} min={0} max={100} />
+                            <Field label="Management fee (%)" value={managementFee} onChange={setManagementFee} min={0} max={100} />
+                            <Field label="Annual service charges (AED)" value={serviceCharges} onChange={setServiceCharges} />
                         </div>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             <Stat label="Annual Rent" value={formatCurrency(ry.annualRent)} />
                             <Stat label="Gross Yield" value={`${ry.grossYieldPct}%`} tint="text-accent" />
                             <Stat label="Net Yield" value={`${ry.netYieldPct}%`} tint="text-emerald-600" />
+                            <Stat label="Annual Net Income" value={formatCurrency(ry.annualNetIncome)} />
                         </div>
+                        <p className="text-[11px] text-muted">Net yield accounts for vacancy, management fees, service charges, and other annual operating costs. Financing, acquisition costs, and tax advice are not included.</p>
                     </div>
 
                     <div className="glass-card p-5 space-y-3">
@@ -266,19 +295,19 @@ export default function CalculatorsClient() {
                     <div className="glass-card p-5 grid gap-3 sm:grid-cols-2">
                         <Field label="Base Value (AED)" value={vatBase} onChange={setVatBase} />
                         <div>
-                            <label className="block text-xs text-muted mb-1">Property Use</label>
-                            <select value={propertyUse} onChange={(e) => setPropertyUse(e.target.value as 'Residential' | 'Commercial')} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
-                                <option value="Residential">Residential (0%)</option>
-                                <option value="Commercial">Commercial (5%)</option>
+                            <label className="block text-xs text-muted mb-1">FTA VAT treatment</label>
+                            <select value={vatTreatment} onChange={(e) => setVatTreatment(e.target.value as UaeVatTreatment)} className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm">
+                                {VAT_TREATMENTS.map((treatment) => <option key={treatment.value} value={treatment.value}>{treatment.label}</option>)}
                             </select>
                         </div>
+                        {vatTreatment === 'MIXED_USE' && <Field label="Commercial share (%)" value={commercialShare} onChange={setCommercialShare} min={0} max={100} />}
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                         <Stat label="VAT Rate" value={`${(vat.rate * 100).toFixed(0)}%`} />
                         <Stat label="VAT Amount" value={formatCurrency(vat.amount)} tint="text-accent" />
                         <Stat label="Total with VAT" value={formatCurrency(vat.total)} tint="text-emerald-600" />
                     </div>
-                    <p className="text-[11px] text-muted">Residential transactions need zero-rated versus exempt accounting review; commercial property is modeled at the 5% standard VAT rate.</p>
+                    <p className="text-[11px] text-muted">Commercial property and real-estate services are modeled at 5%. New residential first supply is generally zero-rated, while subsequent residential supply is generally exempt; mixed-use transactions need FTA apportionment and professional review.</p>
                 </div>
             )}
         </div>

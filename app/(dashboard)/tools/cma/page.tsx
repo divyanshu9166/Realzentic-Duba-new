@@ -1,4 +1,4 @@
-import CmaClient from './CmaClient'
+import { notFound } from 'next/navigation'
 
 export const metadata = {
     title: 'Dynamic CMA | Realzentic',
@@ -6,5 +6,5 @@ export const metadata = {
 }
 
 export default function CmaPage() {
-    return <CmaClient />
+    notFound()
 }

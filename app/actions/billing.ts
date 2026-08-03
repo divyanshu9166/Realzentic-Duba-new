@@ -7,6 +7,7 @@ import { requireRole } from '@/lib/auth-helpers'
 import { uploadFile } from '@/lib/r2'
 import { contractSchema, commissionSchema, invoicePaymentSchema, invoiceSchema } from '@/lib/validations/billing'
 import { vendorBillPaymentSchema, vendorBillSchema } from '@/lib/validations/vendor-bill'
+import { roundMoney } from '@/lib/money'
 
 function displayId(prefix: string) {
   return `${prefix}-DXB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
@@ -27,12 +28,18 @@ function dateOrNull(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+function taxLabel(treatment: string) {
+  return ({ STANDARD_5: 'Standard-rated 5%', ZERO_RATED: 'Zero-rated 0%', EXEMPT: 'Exempt', OUT_OF_SCOPE: 'Out of scope' } as Record<string, string>)[treatment] ?? treatment
+}
+
 function mapInvoice(invoice: any) {
   return {
     id: invoice.id, displayId: invoice.displayId, contactId: invoice.contactId, contactName: invoice.contact?.name ?? null,
     dealId: invoice.dealId, rentalDealId: invoice.rentalDealId, leaseId: invoice.leaseId, type: invoice.type,
     status: invoice.status, issueDate: invoice.issueDate.toISOString(), dueDate: invoice.dueDate?.toISOString() ?? null,
-    subtotal: invoice.subtotal, vatAmount: invoice.vatAmount, total: invoice.total, balanceDue: invoice.balanceDue,
+    supplyDate: invoice.supplyDate?.toISOString() ?? null, taxTreatment: invoice.taxTreatment, taxLabel: taxLabel(invoice.taxTreatment), currency: invoice.currency,
+    vatRate: invoice.subtotal ? roundMoney((invoice.vatAmount / invoice.subtotal) * 100) : 0,
+    subtotal: invoice.subtotal, vatAmount: invoice.vatAmount, total: invoice.total, balanceDue: invoice.balanceDue, creditOfId: invoice.creditOfId ?? null,
     lineItems: invoice.lineItems, notes: invoice.notes, fileUrl: invoice.fileUrl,
   }
 }
@@ -55,7 +62,9 @@ function mapCommission(commission: any) {
     rate: commission.rate, amount: commission.amount, status: commission.status,
     approvedAt: commission.approvedAt?.toISOString() ?? null, paidAt: commission.paidAt?.toISOString() ?? null,
     paymentReference: commission.paymentReference, notes: commission.notes, sourceKey: commission.sourceKey ?? null,
-    reversalOfId: commission.reversalOfId ?? null,
+    reversalOfId: commission.reversalOfId ?? null, brokerageAgreementRef: commission.brokerageAgreementRef ?? null,
+    dldRegistrationDate: commission.dldRegistrationDate?.toISOString() ?? null, payoutEligibleAt: commission.payoutEligibleAt?.toISOString() ?? null,
+    eligibilityStatus: commission.eligibilityStatus ?? 'PENDING_REGISTRATION', eligibilityNote: commission.eligibilityNote ?? null,
     splits: (commission.splits ?? []).map((split: any) => ({ id: split.id, beneficiaryType: split.beneficiaryType, staffId: split.staffId, amount: split.amount, rate: split.rate, notes: split.notes })),
   }
 }
@@ -64,7 +73,7 @@ function mapVendorBill(bill: any) {
   return { id: bill.id, displayId: bill.displayId, vendorId: bill.vendorId ?? null, vendorName: bill.vendor?.name ?? bill.vendorName, vendorPhone: bill.vendor?.phone ?? bill.vendorPhone, description: bill.description, category: bill.category, issueDate: bill.issueDate.toISOString(), dueDate: bill.dueDate?.toISOString() ?? null, status: bill.status, subtotal: bill.subtotal, vatAmount: bill.vatAmount, total: bill.total, balanceDue: bill.balanceDue, notes: bill.notes }
 }
 
-const invoiceInclude = { contact: { select: { name: true } } } as const
+const invoiceInclude = { contact: { select: { name: true, address: true, email: true, phone: true, vatTrn: true } } } as const
 const contractInclude = { contact: { select: { name: true } } } as const
 const commissionInclude = { staff: { select: { name: true } }, splits: true } as const
 const vendorBillInclude = { vendor: { select: { id: true, name: true, phone: true } } } as const
@@ -144,15 +153,19 @@ export async function createInvoice(data: unknown) {
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid invoice' }
     const input = parsed.data
     const referenceError = await validateInvoiceReferences(input); if (referenceError) return { success: false, error: referenceError }
+    const vatRate = input.taxTreatment === 'STANDARD_5' ? (input.vatRate ?? 5) : 0
+    if (input.taxTreatment === 'STANDARD_5' && vatRate !== 5) return { success: false, error: 'UAE standard VAT must be 5%. Select another tax treatment for 0% or exempt supplies.' }
+    const supplyDate = dateOrNull(input.supplyDate) ?? new Date()
+    if (input.supplyDate && !supplyDate) return { success: false, error: 'Supply date is invalid' }
     const dueDate = dateOrNull(input.dueDate)
     if (input.dueDate && !dueDate) return { success: false, error: 'Due date is invalid' }
     const lineItems = input.lineItems.map(item => ({ description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, amount: Math.round(item.quantity * item.unitPrice) }))
     const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0)
-    const vatAmount = Math.round(subtotal * input.vatRate / 100)
+    const vatAmount = Math.round(subtotal * vatRate / 100)
     const total = subtotal + vatAmount
     const invoice = await prisma.$transaction(async tx => tx.invoice.create({ data: {
       displayId: await nextInvoiceDisplayId(tx), contactId: input.contactId ?? null, dealId: input.dealId ?? null, rentalDealId: input.rentalDealId ?? null,
-      leaseId: input.leaseId ?? null, type: input.type, status: input.status, dueDate, subtotal, vatAmount, total, balanceDue: total,
+      leaseId: input.leaseId ?? null, type: input.type, status: input.status, supplyDate, dueDate, taxTreatment: input.taxTreatment, currency: 'AED', subtotal, vatAmount, total, balanceDue: total,
       lineItems, notes: input.notes || null, createdById: Number(session.user.id),
     }, include: invoiceInclude }))
     revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapInvoice(invoice) }
@@ -169,8 +182,9 @@ export async function recordInvoicePayment(data: unknown) {
     const result = await prisma.$transaction(async tx => {
       const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } })
       if (!invoice) throw new Error('Invoice not found')
-      if (invoice.status === 'VOID') throw new Error('Void invoices cannot receive payments')
-      if (input.amount > invoice.balanceDue) throw new Error(`Payment exceeds the outstanding balance of AED ${invoice.balanceDue}`)
+      if (!['ISSUED', 'OVERDUE', 'PARTIALLY_PAID'].includes(invoice.status)) throw new Error('Only issued invoices can receive payments')
+      if (invoice.type === 'CREDIT_NOTE') throw new Error('Credit notes cannot receive payments')
+      if (input.amount > Number(invoice.balanceDue)) throw new Error(`Payment exceeds the outstanding balance of AED ${invoice.balanceDue}`)
       const payment = await tx.dailyPayment.create({ data: {
         displayId: displayId('PAY'), amount: input.amount, vatAmount: 0, type: 'IN', method: input.method,
         reference: input.reference || null, date: paymentDate, status: 'Reconciled', receivedByStaffId: session.user.staffId ?? null,
@@ -194,23 +208,69 @@ export async function updateInvoiceStatus(id: number, status: string) {
   } catch { return { success: false, error: 'Could not update invoice status' } }
 }
 
+/** Issue one full tax credit note against an invoice without mutating its history. */
+export async function createInvoiceCreditNote(invoiceId: number, reason: string) {
+  try {
+    const session = await requireRole('ADMIN', 'MANAGER')
+    if (!Number.isInteger(invoiceId) || invoiceId <= 0 || !reason?.trim()) return { success: false, error: 'Invoice and credit-note reason are required' }
+    const result = await prisma.$transaction(async tx => {
+      const original = await tx.invoice.findUnique({ where: { id: invoiceId }, include: invoiceInclude })
+      if (!original) throw new Error('Invoice not found')
+      if (original.type === 'CREDIT_NOTE' || original.status === 'VOID') throw new Error('This invoice cannot be credited')
+      if (original.balanceDue !== original.total) throw new Error('Only unpaid invoices can receive a full credit note; partial credits need a separate adjustment workflow')
+      if (await tx.dailyPayment.count({ where: { invoiceId: original.id, isReversal: false } })) throw new Error('This invoice already has payments; reverse or refund the payment before crediting it')
+      const existing = await tx.invoice.findFirst({ where: { creditOfId: original.id, type: 'CREDIT_NOTE', status: { not: 'VOID' } }, include: invoiceInclude })
+      if (existing) return existing
+      const originalItems = Array.isArray(original.lineItems) ? original.lineItems as Array<{ description?: string; quantity?: number; unitPrice?: number; amount?: number }> : []
+      const lineItems = originalItems.map(item => ({ description: `Credit: ${String(item.description ?? 'Service')}`, quantity: Number(item.quantity ?? 1), unitPrice: -Math.abs(Math.round(Number(item.unitPrice ?? 0))), amount: -Math.abs(Math.round(Number(item.amount ?? 0))) }))
+      const credit = await tx.invoice.create({ data: {
+        displayId: await nextInvoiceDisplayId(tx), contactId: original.contactId, dealId: original.dealId, rentalDealId: original.rentalDealId, leaseId: original.leaseId,
+        type: 'CREDIT_NOTE', status: 'ISSUED', supplyDate: new Date(), taxTreatment: original.taxTreatment, currency: 'AED', dueDate: null,
+        subtotal: -Math.abs(original.subtotal), vatAmount: -Math.abs(original.vatAmount), total: -Math.abs(original.total), balanceDue: -Math.abs(original.total),
+        lineItems, notes: reason.trim(), creditOfId: original.id, createdById: Number(session.user.id),
+      }, include: invoiceInclude })
+      await tx.invoice.update({ where: { id: original.id }, data: { status: 'CREDITED', balanceDue: 0 } })
+      return credit
+    })
+    revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapInvoice(result) }
+  } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Could not create credit note' } }
+}
+
 export async function generateInvoiceDocument(invoiceId: number, kind: 'invoice' | 'receipt' = 'invoice') {
   try {
     await requireRole('ADMIN', 'MANAGER')
-    const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: invoiceInclude })
+    const [invoice, settings] = await Promise.all([
+      prisma.invoice.findUnique({ where: { id: invoiceId }, include: invoiceInclude }),
+      prisma.storeSettings.findUnique({ where: { id: 1 } }),
+    ])
     if (!invoice) return { success: false, error: 'Invoice not found' }
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-    doc.setFontSize(18); doc.text(kind === 'receipt' ? 'PAYMENT RECEIPT' : 'TAX INVOICE', 20, 22)
-    doc.setFontSize(10); doc.text(invoice.displayId, 20, 30); doc.text(`Issue date: ${invoice.issueDate.toISOString().slice(0, 10)}`, 20, 36)
-    if (invoice.contact?.name) doc.text(`Customer: ${invoice.contact.name}`, 20, 42)
-    let y = 56; doc.setFontSize(11)
+    const money = (value: unknown) => `AED ${Number(value ?? 0).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const title = kind === 'receipt' ? 'PAYMENT RECEIPT' : invoice.type === 'CREDIT_NOTE' ? 'TAX CREDIT NOTE' : 'TAX INVOICE'
+    doc.setFontSize(18); doc.text(title, 20, 22)
+    doc.setFontSize(11); doc.text(settings?.storeName || 'Realzentic Dubai', 20, 32)
+    doc.setFontSize(9)
+    let headerY = 38
+    for (const line of [settings?.address, settings?.phone, settings?.email, settings?.vatTrn ? `TRN: ${settings.vatTrn}` : null].filter(Boolean)) { doc.text(String(line), 20, headerY); headerY += 5 }
+    doc.setFontSize(10); doc.text(`Invoice no: ${invoice.displayId}`, 125, 32); doc.text(`Issue date: ${invoice.issueDate.toISOString().slice(0, 10)}`, 125, 38)
+    doc.text(`Supply date: ${(invoice.supplyDate ?? invoice.issueDate).toISOString().slice(0, 10)}`, 125, 44); doc.text(`Currency: ${invoice.currency || 'AED'}`, 125, 50)
+    let y = Math.max(headerY + 8, 62); doc.setFontSize(10)
+    doc.text('Recipient', 20, y); y += 5
+    if (invoice.contact) { doc.text(invoice.contact.name, 20, y); y += 5; for (const line of [invoice.contact.address, invoice.contact.phone, invoice.contact.email, invoice.contact.vatTrn ? `TRN: ${invoice.contact.vatTrn}` : null].filter(Boolean)) { doc.text(String(line), 20, y); y += 5 } }
+    y += 5; doc.setFontSize(10); doc.text(`VAT treatment: ${taxLabel(invoice.taxTreatment)}`, 20, y); y += 8
+    doc.setFontSize(11)
+    doc.text('Description', 20, y); doc.text('Qty', 110, y); doc.text('Unit price', 130, y); doc.text('Amount', 165, y); y += 6
     for (const item of invoice.lineItems as Array<{ description: string; quantity: number; unitPrice: number; amount: number }>) {
-      doc.text(`${item.description} x ${item.quantity}`, 20, y); doc.text(`AED ${item.amount.toLocaleString()}`, 155, y); y += 7
+      doc.text(String(item.description).slice(0, 55), 20, y); doc.text(String(item.quantity), 110, y); doc.text(money(item.unitPrice), 130, y); doc.text(money(item.amount), 165, y); y += 7
     }
-    y += 5; doc.text(`Subtotal: AED ${invoice.subtotal.toLocaleString()}`, 130, y); y += 7
-    doc.text(`VAT: AED ${invoice.vatAmount.toLocaleString()}`, 130, y); y += 7
-    doc.setFontSize(13); doc.text(`Total: AED ${invoice.total.toLocaleString()}`, 130, y); y += 7
-    doc.setFontSize(10); doc.text(`Balance due: AED ${invoice.balanceDue.toLocaleString()}`, 130, y)
+    y += 5; doc.setFontSize(10); doc.text(`Subtotal: ${money(invoice.subtotal)}`, 130, y); y += 7
+    doc.text(`VAT (${invoice.subtotal ? roundMoney((invoice.vatAmount / invoice.subtotal) * 100) : 0}%): ${money(invoice.vatAmount)}`, 130, y); y += 7
+    doc.setFontSize(13); doc.text(`Total: ${money(invoice.total)}`, 130, y); y += 7
+    doc.setFontSize(10); doc.text(`Balance due: ${money(invoice.balanceDue)}`, 130, y); y += 9
+    if (invoice.notes) { doc.text('Notes:', 20, y); y += 5; doc.text(doc.splitTextToSize(invoice.notes, 170), 20, y); y += 12 }
+    if (settings?.bankName || settings?.bankIban) { doc.text('Payment details:', 20, y); y += 5; doc.text([settings.bankName, settings.bankAccountName, settings.bankIban ? `IBAN: ${settings.bankIban}` : null].filter(Boolean).join(' · '), 20, y); y += 8 }
+    if (settings?.invoiceTerms) { doc.text(doc.splitTextToSize(settings.invoiceTerms, 170), 20, y); y += 10 }
+    if (settings?.taxInvoiceFooter) doc.text(doc.splitTextToSize(settings.taxInvoiceFooter, 170), 20, y)
     const buffer = Buffer.from(doc.output('arraybuffer') as ArrayBuffer)
     const fileUrl = await uploadFile(buffer, `${invoice.displayId}-${kind}.pdf`, 'application/pdf', 'billing')
     await prisma.invoice.update({ where: { id: invoice.id }, data: { fileUrl } })
@@ -279,6 +339,10 @@ export async function createCommission(data: unknown) {
     if (input.beneficiaryType === 'AGENT' && !input.staffId) return { success: false, error: 'An agent is required for an agent commission' }
     if (Math.abs(input.amount - Math.round(input.basisAmount * input.rate / 100)) > 1) return { success: false, error: 'Commission amount must equal basis amount multiplied by rate' }
     if (input.staffId && !(await prisma.staff.findFirst({ where: { id: input.staffId, status: { not: 'Inactive' } }, select: { id: true } }))) return { success: false, error: 'Staff member not found' }
+    const dldRegistrationDate = dateOrNull(input.dldRegistrationDate)
+    const payoutEligibleAt = dateOrNull(input.payoutEligibleAt)
+    if (input.dldRegistrationDate && !dldRegistrationDate) return { success: false, error: 'DLD registration date is invalid' }
+    if (input.payoutEligibleAt && !payoutEligibleAt) return { success: false, error: 'Payout eligibility date is invalid' }
     const splitTotal = input.splits.reduce((sum, split) => sum + split.amount, 0)
     if (input.splits.length > 0 && splitTotal !== input.amount) return { success: false, error: 'Commission splits must add up to the ledger amount' }
     for (const split of input.splits) {
@@ -288,7 +352,11 @@ export async function createCommission(data: unknown) {
     const commission = await prisma.commissionLedger.create({ data: {
       displayId: displayId('COM'), beneficiaryType: input.beneficiaryType, staffId: input.beneficiaryType === 'AGENT' ? input.staffId : null,
       dealId: input.dealId ?? null, rentalDealId: input.rentalDealId ?? null, invoiceId: input.invoiceId ?? null,
-      basisAmount: input.basisAmount, rate: input.rate, amount: input.amount, status: 'PENDING', notes: input.notes || null,
+      basisAmount: input.basisAmount, rate: input.rate, amount: input.amount, status: 'PENDING',
+      brokerageAgreementRef: input.brokerageAgreementRef || null, dldRegistrationDate, payoutEligibleAt,
+      eligibilityStatus: dldRegistrationDate || payoutEligibleAt ? 'ELIGIBLE' : 'PENDING_REGISTRATION',
+      eligibilityNote: input.eligibilityNote || (!input.brokerageAgreementRef ? 'Brokerage agreement reference is missing; confirm the signed commission terms before approval.' : null),
+      notes: input.notes || null,
       splits: input.splits.length > 0 ? { create: input.splits.map(split => ({ beneficiaryType: split.beneficiaryType, staffId: split.beneficiaryType === 'AGENT' ? split.staffId : null, amount: split.amount, rate: split.rate, notes: split.notes || null })) } : undefined,
     }, include: commissionInclude })
     revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapCommission(commission) }
@@ -300,12 +368,34 @@ export async function updateCommissionStatus(id: number, status: string, payment
     await requireRole('ADMIN', 'MANAGER')
     const allowed = ['PENDING', 'APPROVED', 'PAID', 'VOID']
     if (!Number.isInteger(id) || !allowed.includes(status)) return { success: false, error: 'Invalid commission status' }
+    const current = await prisma.commissionLedger.findUnique({ where: { id }, select: { status: true, beneficiaryType: true, dldRegistrationDate: true, payoutEligibleAt: true, eligibilityStatus: true } })
+    if (!current) return { success: false, error: 'Commission not found' }
+    if (status === 'PAID' && current.status !== 'APPROVED') return { success: false, error: 'Approve the commission before marking it paid' }
+    if (status === 'PAID' && !paymentReference?.trim()) return { success: false, error: 'Payment reference is required for a paid commission' }
+    if (status === 'PAID' && current.beneficiaryType === 'AGENT' && !current.dldRegistrationDate && !current.payoutEligibleAt) return { success: false, error: 'Record the DLD registration date or an approved payout-eligibility date before paying an agent commission' }
     const commission = await prisma.commissionLedger.update({ where: { id }, data: {
-      status, approvedAt: status === 'APPROVED' ? new Date() : undefined, paidAt: status === 'PAID' ? new Date() : undefined,
+      status, approvedAt: status === 'APPROVED' ? new Date() : status === 'PENDING' ? null : undefined, paidAt: status === 'PAID' ? new Date() : status === 'PENDING' ? null : undefined,
       paymentReference: paymentReference?.trim() || undefined,
     }, include: commissionInclude })
     revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapCommission(commission) }
   } catch { return { success: false, error: 'Could not update commission status' } }
+}
+
+/** Record the brokerage agreement and DLD-registration evidence used for payout approval. */
+export async function updateCommissionCompliance(id: number, data: { brokerageAgreementRef?: string; dldRegistrationDate?: string; payoutEligibleAt?: string; eligibilityNote?: string }) {
+  try {
+    await requireRole('ADMIN', 'MANAGER')
+    if (!Number.isInteger(id) || id <= 0) return { success: false, error: 'Invalid commission id' }
+    const dldRegistrationDate = dateOrNull(data.dldRegistrationDate)
+    const payoutEligibleAt = dateOrNull(data.payoutEligibleAt)
+    if (data.dldRegistrationDate && !dldRegistrationDate) return { success: false, error: 'DLD registration date is invalid' }
+    if (data.payoutEligibleAt && !payoutEligibleAt) return { success: false, error: 'Payout eligibility date is invalid' }
+    const commission = await prisma.commissionLedger.update({ where: { id }, data: {
+      brokerageAgreementRef: data.brokerageAgreementRef?.trim() || null, dldRegistrationDate, payoutEligibleAt,
+      eligibilityStatus: dldRegistrationDate || payoutEligibleAt ? 'ELIGIBLE' : 'PENDING_REGISTRATION', eligibilityNote: data.eligibilityNote?.trim() || null,
+    }, include: commissionInclude })
+    revalidatePath('/billing'); revalidatePath('/financials'); return { success: true, data: mapCommission(commission) }
+  } catch { return { success: false, error: 'Could not update commission compliance evidence' } }
 }
 
 /** Create a linked negative ledger entry instead of mutating paid history. */
@@ -320,7 +410,7 @@ export async function createCommissionClawback(id: number, notes?: string) {
       return tx.commissionLedger.upsert({ where: { sourceKey: `CLAWBACK:${original.id}` }, update: {}, create: {
         displayId: displayId('COM'), beneficiaryType: original.beneficiaryType, staffId: original.staffId, dealId: original.dealId,
         rentalDealId: original.rentalDealId, invoiceId: original.invoiceId, basisAmount: -original.basisAmount, rate: original.rate,
-        amount: -original.amount, status: 'CLAWBACK', reversalOfId: original.id, sourceKey: `CLAWBACK:${original.id}`,
+        amount: -original.amount, status: 'CLAWBACK', eligibilityStatus: 'CLAWBACK', reversalOfId: original.id, sourceKey: `CLAWBACK:${original.id}`,
         notes: notes?.trim() || `Clawback of ${original.displayId}`,
       }, include: commissionInclude })
     })

@@ -1,4 +1,4 @@
-import LoansClient from './LoansClient'
+import { notFound } from 'next/navigation'
 
 export const metadata = {
     title: 'Mortgage Desk | Realzentic Dubai',
@@ -6,5 +6,5 @@ export const metadata = {
 }
 
 export default function LoansPage() {
-    return <LoansClient />
+    notFound()
 }

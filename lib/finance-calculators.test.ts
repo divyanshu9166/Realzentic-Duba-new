@@ -6,6 +6,7 @@ import {
     rentalYield,
     appreciationProjection,
     vatAmount,
+    vatRateForTreatment,
 } from './finance-calculators'
 
 describe('mortgageEligibility', () => {
@@ -51,14 +52,30 @@ describe('mortgageEligibility', () => {
     })
 
     it('zero-rate eligibility equals maxEMI × tenure', () => {
-        const { maxEmi, eligibleLoan } = mortgageEligibility({ monthlyIncome: 100_000, annualRatePct: 0, tenureMonths: 240, propertyValue: 100_000_000 })
-        expect(eligibleLoan).toBeCloseTo(maxEmi * 240, 0)
+        const { maxEmi, eligibleLoan, maxLoanByIncome } = mortgageEligibility({ monthlyIncome: 100_000, annualRatePct: 0, stressRatePct: 0, tenureMonths: 240, propertyValue: 100_000_000 })
+        expect(eligibleLoan).toBeCloseTo(Math.min(maxEmi * 240, maxLoanByIncome), 0)
     })
 
-    it('applies the UAE off-plan and expatriate LTV caps', () => {
-        expect(mortgageLtvCap(4_000_000, 'EXPATRIATE', 'FIRST_HOME')).toBe(0.75)
-        expect(mortgageLtvCap(6_000_000, 'EXPATRIATE', 'FIRST_HOME')).toBe(0.65)
+    it('applies the UAE off-plan and current expatriate LTV caps', () => {
+        expect(mortgageLtvCap(4_000_000, 'EXPATRIATE', 'FIRST_HOME')).toBe(0.8)
+        expect(mortgageLtvCap(5_000_000, 'EXPATRIATE', 'FIRST_HOME')).toBe(0.8)
+        expect(mortgageLtvCap(6_000_000, 'EXPATRIATE', 'FIRST_HOME')).toBe(0.7)
         expect(mortgageLtvCap(4_000_000, 'UAE_NATIONAL', 'OFF_PLAN')).toBe(0.5)
+    })
+
+    it('applies income, stress-rate, and investment-rent safeguards', () => {
+        const result = mortgageEligibility({
+            monthlyIncome: 100_000,
+            annualRatePct: 5,
+            tenureMonths: 240,
+            propertyValue: 20_000_000,
+            purchaseType: 'SECONDARY_OR_INVESTMENT',
+            investmentMonthlyRent: 30_000,
+        })
+        expect(result.stressRatePct).toBe(7)
+        expect(result.dbrIncomeUsed).toBe(95_000)
+        expect(result.eligibleLoan).toBeLessThanOrEqual(result.maxLoanByIncome + 0.01)
+        expect(result.maxLoanByIncome).toBe(8_400_000)
     })
 })
 
@@ -76,6 +93,22 @@ describe('rentalYield', () => {
             ),
             { numRuns: 100 },
         )
+    })
+
+    it('includes vacancy, management fees, and service charges in net yield', () => {
+        const r = rentalYield({
+            propertyValue: 1_000_000,
+            monthlyRent: 10_000,
+            annualExpenses: 12_000,
+            vacancyRatePct: 5,
+            managementFeePct: 5,
+            annualServiceCharges: 6_000,
+        })
+        expect(r.annualRent).toBe(120_000)
+        expect(r.vacancyLoss).toBe(6_000)
+        expect(r.managementFee).toBe(6_000)
+        expect(r.annualNetIncome).toBe(90_000)
+        expect(r.netYieldPct).toBe(9)
     })
 
     it('zero property value yields 0% (no divide-by-zero)', () => {
@@ -113,5 +146,13 @@ describe('vatAmount', () => {
     it('equals base × rate', () => {
         expect(vatAmount(5_000_000, 0.05)).toBe(250_000)
         expect(vatAmount(5_000_000, 0)).toBe(0)
+    })
+
+    it('distinguishes UAE real-estate VAT treatments', () => {
+        expect(vatRateForTreatment('COMMERCIAL_PROPERTY')).toBe(0.05)
+        expect(vatRateForTreatment('REAL_ESTATE_SERVICE')).toBe(0.05)
+        expect(vatRateForTreatment('NEW_RESIDENTIAL_FIRST_SUPPLY')).toBe(0)
+        expect(vatRateForTreatment('EXISTING_RESIDENTIAL')).toBe(0)
+        expect(vatRateForTreatment('MIXED_USE', 50)).toBe(0.025)
     })
 })

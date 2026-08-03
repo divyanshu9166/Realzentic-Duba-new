@@ -428,9 +428,6 @@ export default function Dashboard() {
       {/* Performance Analytics (merged from the former Reports section) */}
       <CrmAnalyticsSection />
 
-      {/* Top Performers */}
-      <TopPerformersWidget metric="deals" />
-
       {/* Recent Leads & Upcoming Appointments */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
         {/* Recent Leads */}
@@ -595,6 +592,9 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* Team performance summary — kept at the bottom of the dashboard */}
+      <TopPerformersWidget metric="deals" />
     </div>
   );
 }
