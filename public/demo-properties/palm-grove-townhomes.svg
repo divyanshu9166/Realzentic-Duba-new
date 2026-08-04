@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">Palm Grove Townhomes</title>
+  <desc id="desc">Stylised family townhome community with landscaped courtyards.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b6e1ef"/><stop offset="1" stop-color="#f8d8ad"/></linearGradient>
+    <linearGradient id="home" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f6eee2"/><stop offset="1" stop-color="#c68c62"/></linearGradient>
+  </defs>
+  <rect width="1200" height="720" fill="url(#sky)"/>
+  <circle cx="955" cy="160" r="70" fill="#fff0bd" opacity=".78"/>
+  <path d="M0 480 Q200 430 420 475 T830 460 T1200 490 V720H0Z" fill="#6d9b68"/>
+  <path d="M0 610 Q320 550 620 620 T1200 590 V720H0Z" fill="#426d53"/>
+  <g fill="url(#home)" stroke="#a96e4f" stroke-width="5">
+    <path d="M120 520V350l120-95 160 95v170z"/><path d="M390 520V325l120-94 160 94v195z"/><path d="M660 520V350l120-95 160 95v170z"/>
+  </g>
+  <g fill="#86c3d0" stroke="#4e7e87" stroke-width="4"><path d="M170 390h75v90h-75zM280 390h75v90h-75zM440 365h75v100h-75zM550 365h75v100h-75zM710 390h75v90h-75zM820 390h75v90h-75z"/></g>
+  <g fill="#355f45"><circle cx="90" cy="510" r="32"/><circle cx="1050" cy="500" r="40"/><circle cx="330" cy="560" r="30"/><circle cx="760" cy="570" r="33"/></g>
+  <path d="M0 602h1200" stroke="#e8d3ae" stroke-width="18" opacity=".8"/>
+  <rect x="48" y="52" width="430" height="92" rx="18" fill="#17343d" opacity=".84"/>
+  <text x="80" y="92" fill="#fff" font-family="Arial, sans-serif" font-size="29" font-weight="700">PALM GROVE</text>
+  <text x="80" y="123" fill="#d6f3e2" font-family="Arial, sans-serif" font-size="18">Family townhomes · Jumeirah Village Circle</text>
+</svg>

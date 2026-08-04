@@ -15,6 +15,45 @@ interface NotifyManagersOptions {
   whatsappText: string
 }
 
+export type LeadCaptureChannel = 'WhatsApp' | 'Instagram' | 'Facebook'
+
+/**
+ * Create the lightweight in-app alert used for inbound lead capture.
+ *
+ * This deliberately does not send email or WhatsApp messages. Inbound
+ * channels already produce their own conversation notifications, and sending
+ * a second external alert for every message would be noisy. The CRM lead
+ * check in each channel ensures this is emitted once per active lead.
+ */
+export async function notifyLeadCaptured(options: {
+  channel: LeadCaptureChannel
+  leadId: number
+  contactName: string
+  interest: string
+  assignedToName?: string | null
+}) {
+  const assignment = options.assignedToName ? ` · Assigned to ${options.assignedToName}` : ''
+
+  try {
+    await prisma.notification.create({
+      data: {
+        type: 'lead_captured',
+        title: `New ${options.channel} lead captured`,
+        subtitle: `${options.contactName} · ${options.interest}${assignment}`,
+        href: '/leads',
+        metadata: {
+          leadId: options.leadId,
+          channel: options.channel,
+        },
+      },
+    })
+  } catch (error) {
+    // Notification failure must never make a Meta webhook fail after the lead
+    // has already been saved successfully.
+    console.error('[notify] Failed to create lead capture notification:', error)
+  }
+}
+
 // ─── SEND WHATSAPP (internal helper, no server action wrapper) ───
 
 async function sendWhatsApp(phoneNumberId: string, apiToken: string, to: string, text: string) {

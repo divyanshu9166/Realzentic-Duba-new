@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { decrypt, encrypt } from '@/lib/whatsapp/encryption'
 import { getAiAgentQueue } from '@/lib/queues/jobs'
+import { captureSocialLead } from '@/lib/social-lead-capture'
 import {
   sendTextMessage,
   setTypingOn,
@@ -283,6 +284,17 @@ async function processMessagingEvent(
       last_message_at: new Date(),
       unread_count: { increment: 1 },
     },
+  })
+
+  // Keep the CRM lead pipeline in sync with the social inbox. The helper is
+  // idempotent for an active contact/channel lead, so later messages do not
+  // create duplicate leads or duplicate capture notifications.
+  await captureSocialLead({
+    channel: platform === 'instagram' ? 'Instagram' : 'Facebook',
+    userId,
+    platformId: senderId,
+    contactName: contact.name,
+    messageText,
   })
 
   // Mark as seen + show typing indicator (fire-and-forget)

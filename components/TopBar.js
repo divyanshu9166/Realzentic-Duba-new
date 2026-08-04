@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Search, Menu, ChevronDown, LogOut, User, Shield, MessageSquare, CalendarClock, AlertTriangle, Package, MapPin, FileText } from 'lucide-react';
+import { Bell, Search, Menu, ChevronDown, LogOut, User, UserPlus, Shield, MessageSquare, CalendarClock, AlertTriangle, Package, MapPin, FileText } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useSession, signOut } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
@@ -51,8 +51,18 @@ export default function TopBar() {
     };
 
     queueMicrotask(tick);
-    const interval = setInterval(tick, 60000);
-    return () => clearInterval(interval);
+    const interval = setInterval(tick, 15000);
+    const onFocus = () => tick();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   const handleBellClick = async () => {
@@ -82,6 +92,7 @@ export default function TopBar() {
     if (type === 'field_visit') return MapPin;
     if (type === 'purchase_order') return FileText;
     if (type === 'financial_alert') return AlertTriangle;
+    if (type === 'lead_captured' || type === 'portal_lead') return UserPlus;
     return AlertTriangle;
   };
 
@@ -92,6 +103,7 @@ export default function TopBar() {
     if (type === 'field_visit') return 'text-success bg-success/10';
     if (type === 'purchase_order') return 'text-blue-600 bg-blue-500/10';
     if (type === 'financial_alert') return 'text-red-600 bg-red-500/10';
+    if (type === 'lead_captured' || type === 'portal_lead') return 'text-emerald-600 bg-emerald-500/10';
     return 'text-danger bg-danger/10';
   };
 
@@ -101,7 +113,7 @@ export default function TopBar() {
       if (!Number.isNaN(convoId)) {
         await markConversationNotificationRead(convoId);
       }
-    } else if (item.type === 'stock_alert' || item.type === 'field_visit' || item.type === 'purchase_order' || item.type === 'financial_alert') {
+    } else if (item.type === 'stock_alert' || item.type === 'field_visit' || item.type === 'purchase_order' || item.type === 'financial_alert' || item.type === 'lead_captured' || item.type === 'portal_lead') {
       const notifId = Number(item.id.split('-')[1]);
       if (!Number.isNaN(notifId)) {
         await markNotificationRead(notifId);

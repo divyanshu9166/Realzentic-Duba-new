@@ -7,7 +7,7 @@ import { notifyManagers } from '@/lib/notify'
 
 type NotificationItem = {
   id: string
-  type: 'conversation' | 'followup' | 'field_visit' | 'financial_alert'
+  type: 'conversation' | 'followup' | 'field_visit' | 'financial_alert' | 'lead_captured' | 'portal_lead'
   title: string
   subtitle: string
   date: string
@@ -89,7 +89,7 @@ export async function getTopNotifications() {
 
   const notificationItems: NotificationItem[] = unreadNotifications.map(n => ({
     id: `notification-${n.id}`,
-    type: n.type as 'field_visit' | 'financial_alert',
+    type: n.type as NotificationItem['type'],
     title: n.title,
     subtitle: n.subtitle,
     date: n.createdAt.toISOString(),

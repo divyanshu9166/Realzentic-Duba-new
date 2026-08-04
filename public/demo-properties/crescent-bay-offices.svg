@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">Crescent Bay Offices</title>
+  <desc id="desc">Stylised grade-A office tower beside the Business Bay canal.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#152c57"/><stop offset="1" stop-color="#d99371"/></linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#93d8e2"/><stop offset=".45" stop-color="#1b567e"/><stop offset="1" stop-color="#102c52"/></linearGradient>
+  </defs>
+  <rect width="1200" height="720" fill="url(#sky)"/>
+  <circle cx="950" cy="205" r="84" fill="#ffd8a2" opacity=".7"/>
+  <path d="M0 530 Q220 485 390 535 T760 520 T1200 540 V720H0Z" fill="#174d6f"/>
+  <path d="M0 610 Q250 560 520 620 T1200 600 V720H0Z" fill="#2b8791"/>
+  <path d="M110 540V195h170l45 345z" fill="url(#glass)" stroke="#a6dbe1" stroke-width="5"/>
+  <path d="M350 540V95h205l50 445z" fill="url(#glass)" stroke="#a6dbe1" stroke-width="5"/>
+  <path d="M630 540V230h160l32 310z" fill="url(#glass)" stroke="#a6dbe1" stroke-width="5"/>
+  <path d="M900 540V175h135l28 365z" fill="url(#glass)" stroke="#a6dbe1" stroke-width="5"/>
+  <g stroke="#f8d690" stroke-width="5" opacity=".78"><path d="M138 240h145M138 280h150M138 320h154M390 155h172M390 200h178M390 245h183M390 290h187M390 335h192M665 285h115M665 325h120M665 365h124M930 225h108M930 265h112M930 305h116M930 345h120"/></g>
+  <path d="M0 603 C230 555 410 650 620 595 S970 570 1200 630" fill="none" stroke="#c0f0e9" stroke-width="8" opacity=".75"/>
+  <rect x="48" y="52" width="430" height="92" rx="18" fill="#07152c" opacity=".8"/>
+  <text x="80" y="92" fill="#fff" font-family="Arial, sans-serif" font-size="29" font-weight="700">CRESCENT BAY</text>
+  <text x="80" y="123" fill="#bce9f1" font-family="Arial, sans-serif" font-size="18">Grade-A offices · Business Bay</text>
+</svg>

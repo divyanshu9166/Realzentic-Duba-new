@@ -14,6 +14,7 @@ import {
   sendAddressMessage,
 } from '@/lib/whatsapp/inquiry-message'
 import { autoQualifyLeadFromWhatsApp } from '@/app/actions/lead-qualification'
+import { notifyLeadCaptured } from '@/lib/notify'
 import {
   getBotState,
   startAppointmentBot,
@@ -1061,7 +1062,7 @@ async function syncInboundInquiryToCrm({
       ? trimmedMessage.slice(0, 120)
       : 'WhatsApp inquiry'
 
-    await prisma.lead.create({
+    const createdLead = await prisma.lead.create({
       data: {
         contactId: crmContact.id,
         source: WHATSAPP_INQUIRY_SOURCE,
@@ -1071,6 +1072,13 @@ async function syncInboundInquiryToCrm({
           ? `Auto-created from incoming WhatsApp message: ${trimmedMessage.slice(0, 500)}`
           : 'Auto-created from incoming WhatsApp message.',
       },
+    })
+
+    await notifyLeadCaptured({
+      channel: 'WhatsApp',
+      leadId: createdLead.id,
+      contactName: crmContact.name,
+      interest,
     })
   } catch (error) {
     console.error('[webhook] failed to sync inbound inquiry to CRM:', error)

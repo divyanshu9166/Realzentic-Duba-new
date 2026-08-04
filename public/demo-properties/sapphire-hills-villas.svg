@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">Sapphire Hills Villas</title>
+  <desc id="desc">Stylised modern villa with a landscaped garden and Dubai Hills skyline.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#9ed4e8"/><stop offset="1" stop-color="#f6dfb2"/></linearGradient>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbfaf5"/><stop offset="1" stop-color="#cbd5db"/></linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1b5474"/><stop offset="1" stop-color="#7fd0d2"/></linearGradient>
+  </defs>
+  <rect width="1200" height="720" fill="url(#sky)"/>
+  <circle cx="955" cy="160" r="75" fill="#fff1bd" opacity=".8"/>
+  <path d="M0 465 Q170 420 330 470 T650 455 T950 470 T1200 445 V720H0Z" fill="#789a68"/>
+  <path d="M0 580 Q260 525 480 600 T900 575 T1200 590 V720H0Z" fill="#4f765a"/>
+  <g opacity=".3" fill="#4b6470"><path d="M90 440V270h55v170zM165 440V225h45v215zM230 440V290h55v150zM1020 440V250h48v190zM1080 440V205h60v235z"/></g>
+  <path d="M235 515V345l180-108 410 55v223z" fill="url(#wall)" stroke="#8799a1" stroke-width="5"/>
+  <path d="M235 345 415 237l410 55-181 117z" fill="#e8ede8" stroke="#8799a1" stroke-width="5"/>
+  <path d="M470 363 620 326v184H470z" fill="url(#glass)" stroke="#557b8b" stroke-width="5"/>
+  <path d="M300 385h115v110H300zM665 375h110v120H665z" fill="#a9d0d6" stroke="#557b8b" stroke-width="5"/>
+  <path d="M520 510h48v-72h-48zm62 0h48v-72h-48z" fill="#43515e"/>
+  <g fill="#315e46"><circle cx="145" cy="505" r="38"/><circle cx="1000" cy="515" r="48"/><circle cx="1085" cy="500" r="34"/></g>
+  <rect x="48" y="52" width="430" height="92" rx="18" fill="#17343d" opacity=".84"/>
+  <text x="80" y="92" fill="#fff" font-family="Arial, sans-serif" font-size="29" font-weight="700">SAPPHIRE HILLS</text>
+  <text x="80" y="123" fill="#d6f3e2" font-family="Arial, sans-serif" font-size="18">Ready villas · Dubai Hills Estate</text>
+</svg>

@@ -24,7 +24,17 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/*
+          This script runs before hydration to prevent a theme flash. It is
+          intentionally inline, so suppress an attribute mismatch if a
+          browser is finishing hydration with a cached pre-deployment client
+          bundle; the rendered application tree remains fully hydrated.
+        */}
+        <script
+          id="realzentic-theme-init"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
       </head>
       <body suppressHydrationWarning className={`${robotoMono.variable} font-sans antialiased`}>
         <ThemeProvider>
